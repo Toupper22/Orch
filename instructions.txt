@@ -1,16 +1,16 @@
 still left to do:
 
-logging -> application insight integration, alerts, alert rules, can now send to kalle.korhonen@efima.com
-short name needed for storages?
-Logic app in consumption tier can't be joined to vnet and we should onlyu use as cost effective options that we can use
-What about redeployments, so does this work with existing resources so that they are updated if needed.
-Keyvault should use access policies, not rbac
-can parameters be generated on windows?
-Is the result now compatible with azures well architectured framework?
-app service plan for functions should be B1 on all other tiers, but in prod S2
-Still missing a way to create containers for integration. Every integration should have 2 storage accounts archive and function app accounts.
-Every integration should also be avle to create 2 storage account tables Called Values and Conversions.
-I think we also need a keyvault to every integration resource group to hold integration specific secrets, like storage account access keys
-Storage access keys automatically to keyvaults
+-logging -> application insight integration, alerts, alert rules, can now send to kalle.korhonen@efima.com
+-short name needed for storages?
+-Logic app in consumption tier can't be joined to vnet and we should onlyu use as cost effective options that we can use
+-What about redeployments, so does this work with existing resources so that they are updated if needed.
+-Keyvault should use access policies, not rbac
+-app service plan for functions should be B1 on all other tiers, but in prod S2
+-Still missing a way to create containers for integration. Every integration should have 2 storage accounts archive and function app accounts.
+-Every integration should also be avle to create 2 storage account tables Called Values and Conversions.
+-I think we also need a keyvault to every integration resource group to hold integration specific secrets, like storage account access keys
+-Storage access keys automatically to keyvaults
+-All function and logic app should use that user generated managed identity and it should have get and list permissions to that shared keyvault and get,set, list to it's own keyvault
+-Is the result now compatible with azures well architectured framework?
 
 
