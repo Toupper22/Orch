@@ -8,6 +8,9 @@ Keyvault should use access policies, not rbac
 can parameters be generated on windows?
 Is the result now compatible with azures well architectured framework?
 app service plan for functions should be B1 on all other tiers, but in prod S2
-
+Still missing a way to create containers for integration. Every integration should have 2 storage accounts archive and function app accounts.
+Every integration should also be avle to create 2 storage account tables Called Values and Conversions.
+I think we also need a keyvault to every integration resource group to hold integration specific secrets, like storage account access keys
+Storage access keys automatically to keyvaults
 
 
