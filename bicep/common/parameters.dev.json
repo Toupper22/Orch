@@ -1,0 +1,97 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "prefix": {
+      "value": "customer"
+    },
+    "environment": {
+      "value": "dev"
+    },
+    "location": {
+      "value": "westeurope"
+    },
+    "locationShort": {
+      "value": "weu"
+    },
+    "tags": {
+      "value": {
+        "Environment": "Development",
+        "Customer": "Customer Name",
+        "Project": "D365 Integrations",
+        "CostCenter": "IT"
+      }
+    },
+    "deployKeyVault": {
+      "value": true
+    },
+    "deployStorageAccount": {
+      "value": true
+    },
+    "deployAppServicePlan": {
+      "value": true
+    },
+    "deployManagedIdentity": {
+      "value": true
+    },
+    "keyVaultSku": {
+      "value": "standard"
+    },
+    "keyVaultSoftDeleteRetentionInDays": {
+      "value": 7
+    },
+    "storageAccountSku": {
+      "value": "Standard_LRS"
+    },
+    "storageContainers": {
+      "value": [
+        {
+          "name": "integration-files",
+          "publicAccess": "None"
+        },
+        {
+          "name": "logs",
+          "publicAccess": "None"
+        }
+      ]
+    },
+    "appServicePlanSku": {
+      "value": "Y1"
+    },
+    "appServicePlanKind": {
+      "value": "functionapp"
+    },
+    "enableDiagnostics": {
+      "value": false
+    },
+    "logAnalyticsWorkspaceId": {
+      "value": ""
+    },
+    "deployVirtualNetwork": {
+      "value": true
+    },
+    "deployNatGateway": {
+      "value": true
+    },
+    "vnetAddressPrefixes": {
+      "value": [
+        "10.0.0.0/16"
+      ]
+    },
+    "subnets": {
+      "value": [
+        {
+          "name": "integration-subnet",
+          "addressPrefix": "10.0.1.0/24"
+        },
+        {
+          "name": "private-endpoint-subnet",
+          "addressPrefix": "10.0.2.0/24"
+        }
+      ]
+    },
+    "natGatewayIdleTimeoutInMinutes": {
+      "value": 4
+    }
+  }
+}

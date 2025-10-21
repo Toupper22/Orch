@@ -1,0 +1,62 @@
+# Azure deployment files
+*.zip
+*.parameters.local.json
+
+# Bicep build artifacts
+*.bicep.json
+
+# Environment files (if containing sensitive data)
+.env
+.env.local
+*.local.json
+
+# Azure Functions
+local.settings.json
+__blobstorage__/
+__queuestorage__/
+__azurite_db*__.json
+.python_packages/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Node modules (if using)
+node_modules/
+package-lock.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+
+# Build outputs
+dist/
+build/

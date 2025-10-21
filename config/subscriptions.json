@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "description": "Azure subscription mapping for each environment",
+  "subscriptions": {
+    "dev": {
+      "subscriptionId": "REPLACE_WITH_DEV_SUBSCRIPTION_ID",
+      "subscriptionName": "Development Subscription",
+      "description": "Development environment subscription"
+    },
+    "test": {
+      "subscriptionId": "REPLACE_WITH_TEST_SUBSCRIPTION_ID",
+      "subscriptionName": "Test Subscription",
+      "description": "Test environment subscription"
+    },
+    "uat": {
+      "subscriptionId": "REPLACE_WITH_UAT_SUBSCRIPTION_ID",
+      "subscriptionName": "UAT Subscription",
+      "description": "UAT environment subscription"
+    },
+    "prod": {
+      "subscriptionId": "REPLACE_WITH_PROD_SUBSCRIPTION_ID",
+      "subscriptionName": "Production Subscription",
+      "description": "Production environment subscription"
+    }
+  },
+  "notes": {
+    "sameSub": "If all environments use the same subscription, set all subscriptionId values to the same ID",
+    "servicePrincipal": "Ensure the Service Principal has Contributor role on all subscriptions listed above"
+  }
+}

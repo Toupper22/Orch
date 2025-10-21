@@ -1,0 +1,64 @@
+{
+  "analyzers": {
+    "core": {
+      "enabled": true,
+      "verbose": false,
+      "rules": {
+        "no-unused-params": {
+          "level": "warning"
+        },
+        "no-unused-vars": {
+          "level": "warning"
+        },
+        "prefer-interpolation": {
+          "level": "warning"
+        },
+        "secure-parameter-default": {
+          "level": "error"
+        },
+        "simplify-interpolation": {
+          "level": "warning"
+        },
+        "use-stable-vm-image": {
+          "level": "warning"
+        },
+        "no-hardcoded-env-urls": {
+          "level": "warning"
+        },
+        "adminusername-should-not-be-literal": {
+          "level": "error"
+        },
+        "max-outputs": {
+          "level": "warning"
+        },
+        "max-params": {
+          "level": "warning"
+        },
+        "max-resources": {
+          "level": "warning"
+        },
+        "max-variables": {
+          "level": "warning"
+        },
+        "no-deployments-resources": {
+          "level": "warning"
+        },
+        "no-loc-expr-outside-params": {
+          "level": "warning"
+        },
+        "no-unnecessary-dependson": {
+          "level": "warning"
+        },
+        "outputs-should-not-contain-secrets": {
+          "level": "error"
+        },
+        "prefer-unquoted-property-names": {
+          "level": "warning"
+        },
+        "use-safe-access": {
+          "level": "warning"
+        }
+      }
+    }
+  }
+}

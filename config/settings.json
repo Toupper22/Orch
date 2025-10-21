@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "project": {
+    "customerName": "CUSTOMER_NAME_HERE",
+    "projectName": "PROJECT_NAME_HERE",
+    "description": "Azure integration project for Dynamics 365 Finance and Operations"
+  },
+  "azure": {
+    "subscriptionId": "SUBSCRIPTION_ID_HERE",
+    "location": "westeurope",
+    "locationShort": "weu"
+  },
+  "naming": {
+    "prefix": "customer",
+    "environment": {
+      "dev": "dev",
+      "test": "test",
+      "uat": "uat",
+      "prod": "prod"
+    },
+    "separator": "-"
+  },
+  "resourceGroups": {
+    "common": {
+      "enabled": true,
+      "namingPattern": "{prefix}-{env}-common-rg"
+    },
+    "integration": {
+      "namingPattern": "{prefix}-{env}-{integrationName}-rg"
+    }
+  },
+  "tags": {
+    "mandatory": {
+      "Environment": "",
+      "Customer": "",
+      "Project": "",
+      "ManagedBy": "Bicep",
+      "CostCenter": ""
+    },
+    "optional": {
+      "Owner": "",
+      "Department": ""
+    }
+  },
+  "commonInfrastructure": {
+    "keyVault": {
+      "enabled": true,
+      "sku": "standard",
+      "enableRbacAuthorization": true,
+      "enableSoftDelete": true,
+      "softDeleteRetentionInDays": 90,
+      "enablePurgeProtection": true,
+      "networkAcls": {
+        "defaultAction": "Deny",
+        "bypass": "AzureServices"
+      }
+    },
+    "storageAccount": {
+      "enabled": true,
+      "sku": "Standard_LRS",
+      "kind": "StorageV2",
+      "accessTier": "Hot",
+      "minimumTlsVersion": "TLS1_2",
+      "allowBlobPublicAccess": false,
+      "containers": [
+        {
+          "name": "integration-files",
+          "publicAccess": "None"
+        },
+        {
+          "name": "logs",
+          "publicAccess": "None"
+        }
+      ]
+    },
+    "appServicePlan": {
+      "enabled": true,
+      "sku": {
+        "name": "Y1",
+        "tier": "Dynamic"
+      },
+      "kind": "functionapp"
+    },
+    "managedIdentity": {
+      "enabled": true,
+      "type": "UserAssigned"
+    },
+    "serviceBus": {
+      "enabled": false,
+      "sku": "Standard",
+      "capacity": 1
+    },
+    "network": {
+      "enabled": true,
+      "virtualNetwork": {
+        "addressPrefixes": [
+          "10.0.0.0/16"
+        ]
+      },
+      "subnets": [
+        {
+          "name": "integration-subnet",
+          "addressPrefix": "10.0.1.0/24",
+          "description": "Subnet for integration resources (Function Apps, Logic Apps)"
+        },
+        {
+          "name": "private-endpoint-subnet",
+          "addressPrefix": "10.0.2.0/24",
+          "description": "Subnet for private endpoints"
+        }
+      ],
+      "natGateway": {
+        "enabled": true,
+        "idleTimeoutInMinutes": 4
+      }
+    }
+  },
+  "integrationDefaults": {
+    "logicApp": {
+      "enabled": true,
+      "sku": "Standard"
+    },
+    "functionApp": {
+      "enabled": false,
+      "runtime": "dotnet",
+      "version": "8"
+    }
+  },
+  "security": {
+    "enablePrivateEndpoints": false,
+    "allowedIpAddresses": [],
+    "enableDiagnostics": true,
+    "logAnalyticsWorkspaceId": ""
+  },
+  "environments": {
+    "dev": {
+      "enabled": true,
+      "location": "westeurope"
+    },
+    "test": {
+      "enabled": true,
+      "location": "westeurope"
+    },
+    "uat": {
+      "enabled": true,
+      "location": "westeurope"
+    },
+    "prod": {
+      "enabled": true,
+      "location": "westeurope"
+    }
+  }
+}
