@@ -1,0 +1,140 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "actions": {
+      "Transform_Message": {
+        "type": "Http",
+        "inputs": {
+          "method": "POST",
+          "uri": "@parameters('FunctionAppUrl')/api/TransformMessage",
+          "body": "@triggerBody()?['contentData']",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "authentication": {
+            "type": "ManagedServiceIdentity"
+          }
+        },
+        "runAfter": {},
+        "description": "Calls the Function App to transform the message"
+      },
+      "Save_to_Storage": {
+        "type": "ApiConnection",
+        "inputs": {
+          "host": {
+            "connection": {
+              "referenceName": "azureblob"
+            }
+          },
+          "method": "post",
+          "path": "/v2/datasets/@{encodeURIComponent('AccountNameFromSettings')}/files",
+          "queries": {
+            "folderPath": "/transformed-messages",
+            "name": "@{concat(formatDateTime(utcNow(), 'yyyyMMdd'), '/', formatDateTime(utcNow(), 'HHmmss'), '-', guid(), '.json')}",
+            "queryParametersSingleEncoded": true
+          },
+          "body": "@body('Transform_Message')"
+        },
+        "runAfter": {
+          "Transform_Message": [
+            "Succeeded"
+          ]
+        },
+        "runtimeConfiguration": {
+          "contentTransfer": {
+            "transferMode": "Chunked"
+          }
+        },
+        "description": "Saves the transformed message to blob storage"
+      },
+      "Complete_Message": {
+        "type": "ServiceProvider",
+        "inputs": {
+          "parameters": {
+            "messageId": "@triggerBody()?['messageId']"
+          },
+          "serviceProviderConfiguration": {
+            "connectionName": "serviceBus",
+            "operationId": "completeMessage",
+            "serviceProviderId": "/serviceProviders/serviceBus"
+          }
+        },
+        "runAfter": {
+          "Save_to_Storage": [
+            "Succeeded"
+          ]
+        },
+        "description": "Completes the Service Bus message"
+      },
+      "Handle_Error": {
+        "type": "ApiConnection",
+        "inputs": {
+          "host": {
+            "connection": {
+              "referenceName": "azureblob"
+            }
+          },
+          "method": "post",
+          "path": "/v2/datasets/@{encodeURIComponent('AccountNameFromSettings')}/files",
+          "queries": {
+            "folderPath": "/errors",
+            "name": "@{concat(formatDateTime(utcNow(), 'yyyyMMdd'), '/', formatDateTime(utcNow(), 'HHmmss'), '-error-', guid(), '.json')}",
+            "queryParametersSingleEncoded": true
+          },
+          "body": {
+            "error": "@{result('Transform_Message')}",
+            "originalMessage": "@triggerBody()?['contentData']",
+            "timestamp": "@utcNow()"
+          }
+        },
+        "runAfter": {
+          "Transform_Message": [
+            "Failed",
+            "TimedOut"
+          ]
+        },
+        "description": "Saves error details to blob storage"
+      },
+      "Abandon_Message": {
+        "type": "ServiceProvider",
+        "inputs": {
+          "parameters": {
+            "messageId": "@triggerBody()?['messageId']"
+          },
+          "serviceProviderConfiguration": {
+            "connectionName": "serviceBus",
+            "operationId": "abandonMessage",
+            "serviceProviderId": "/serviceProviders/serviceBus"
+          }
+        },
+        "runAfter": {
+          "Handle_Error": [
+            "Succeeded"
+          ]
+        },
+        "description": "Abandons the Service Bus message to retry"
+      }
+    },
+    "contentVersion": "1.0.0.0",
+    "outputs": {},
+    "triggers": {
+      "When_messages_are_available_in_a_queue": {
+        "type": "ServiceProvider",
+        "inputs": {
+          "parameters": {
+            "queueName": "incoming-messages",
+            "isSessionsEnabled": false
+          },
+          "serviceProviderConfiguration": {
+            "connectionName": "serviceBus",
+            "operationId": "receiveQueueMessages",
+            "serviceProviderId": "/serviceProviders/serviceBus"
+          }
+        },
+        "splitOn": "@triggerOutputs()?['body']",
+        "description": "Triggers when a message arrives in the Service Bus queue"
+      }
+    }
+  },
+  "kind": "Stateful"
+}

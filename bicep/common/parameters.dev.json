@@ -17,9 +17,9 @@
     "tags": {
       "value": {
         "Environment": "Development",
-        "Customer": "Customer Name",
-        "Project": "D365 Integrations",
-        "CostCenter": "IT"
+        "Customer": "CUSTOMER_NAME_HERE",
+        "Project": "PROJECT_NAME_HERE",
+        "CostCenter": "IT-Dev"
       }
     },
     "deployKeyVault": {
@@ -38,22 +38,13 @@
       "value": "standard"
     },
     "keyVaultSoftDeleteRetentionInDays": {
-      "value": 7
+      "value": 90
     },
     "storageAccountSku": {
       "value": "Standard_LRS"
     },
     "storageContainers": {
-      "value": [
-        {
-          "name": "integration-files",
-          "publicAccess": "None"
-        },
-        {
-          "name": "logs",
-          "publicAccess": "None"
-        }
-      ]
+      "value": [{"name":"integration-files","publicAccess":"None"},{"name":"logs","publicAccess":"None"}]
     },
     "appServicePlanSku": {
       "value": "Y1"
@@ -62,7 +53,7 @@
       "value": "functionapp"
     },
     "enableDiagnostics": {
-      "value": false
+      "value": true
     },
     "logAnalyticsWorkspaceId": {
       "value": ""
@@ -74,21 +65,21 @@
       "value": true
     },
     "vnetAddressPrefixes": {
-      "value": [
-        "10.0.0.0/16"
-      ]
+      "value": ["10.0.0.0/16"]
     },
     "subnets": {
       "value": [
-        {
-          "name": "integration-subnet",
-          "addressPrefix": "10.0.1.0/24"
-        },
-        {
-          "name": "private-endpoint-subnet",
-          "addressPrefix": "10.0.2.0/24"
-        }
-      ]
+  {
+    "name": "integration-subnet",
+    "addressPrefix": "10.0.1.0/24",
+    "description": "Subnet for integration resources (Function Apps, Logic Apps)"
+  },
+  {
+    "name": "private-endpoint-subnet",
+    "addressPrefix": "10.0.2.0/24",
+    "description": "Subnet for private endpoints"
+  }
+]
     },
     "natGatewayIdleTimeoutInMinutes": {
       "value": 4

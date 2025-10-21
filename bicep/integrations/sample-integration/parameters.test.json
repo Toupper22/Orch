@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "prefix": {
+      "value": "customer"
+    },
+    "environment": {
+      "value": "test"
+    },
+    "location": {
+      "value": "westeurope"
+    },
+    "locationShort": {
+      "value": "weu"
+    },
+    "integrationName": {
+      "value": "sample"
+    },
+    "tags": {
+      "value": {
+        "Environment": "Test",
+        "Customer": "CUSTOMER_NAME_HERE",
+        "Project": "PROJECT_NAME_HERE",
+        "Integration": "Sample Integration"
+      }
+    },
+    "serviceBusSku": {
+      "value": "Standard"
+    }
+  }
+}

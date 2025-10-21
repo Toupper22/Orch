@@ -88,6 +88,21 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
             ;;
     esac
 
+    # Get subscription ID from config
+    if command -v jq &> /dev/null; then
+        SUBSCRIPTION_ID=$(jq -r ".subscriptions.$ENV.subscriptionId" config/subscriptions.json 2>/dev/null)
+        if [ "$SUBSCRIPTION_ID" != "null" ] && [ -n "$SUBSCRIPTION_ID" ]; then
+            print_info "Setting subscription for $ENV environment..."
+            az account set --subscription "$SUBSCRIPTION_ID"
+            CURRENT_SUB=$(az account show --query name -o tsv)
+            print_success "Active subscription: $CURRENT_SUB"
+        else
+            print_warning "Subscription not found in config, using current subscription"
+        fi
+    else
+        print_warning "jq not installed, using current subscription"
+    fi
+
     print_info "Running what-if analysis for $ENV environment..."
     echo ""
 

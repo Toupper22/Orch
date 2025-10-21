@@ -8,6 +8,7 @@ A production-ready template repository for building Azure integration projects w
 - [Architecture](#architecture)
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
+- [Testing & Validation](#testing--validation)
 - [Project Structure](#project-structure)
 - [Configuration](#configuration)
 - [Deployment](#deployment)
@@ -198,15 +199,21 @@ Edit `config/settings.json` with your project details:
 }
 ```
 
-### 4. Update Parameter Files
+### 4. Generate Parameter Files
 
-Update the parameter files in `bicep/common/` for each environment:
-- `parameters.dev.json`
-- `parameters.test.json`
-- `parameters.uat.json`
-- `parameters.prod.json`
+Generate parameter files from your global settings:
 
-Change the `prefix` and `tags` values to match your organization.
+```bash
+# Generate all common infrastructure parameter files at once
+./scripts/generate-common-params.sh
+# Select: 5 (all)
+
+# Or generate for a specific environment
+./scripts/generate-common-params.sh
+# Select: 1 (dev)
+```
+
+This automatically creates parameter files in `bicep/common/` for each environment, pulling values from `config/settings.json`. No manual editing required!
 
 ### 5. Set Up Azure Service Principal
 
@@ -260,13 +267,92 @@ Copy the JSON output from the first command.
 
 **Important**: The same `AZURE_CREDENTIALS` secret can be used for all environments since the subscription is determined by `config/subscriptions.json`.
 
-### 7. Deploy Common Infrastructure
+### 7. Test Before Deploying (Recommended)
+
+**Always test your infrastructure before deploying!**
+
+Run the comprehensive test script:
+
+```bash
+./scripts/test-deployment.sh
+```
+
+This will:
+- ✅ Validate Bicep syntax
+- ✅ Validate deployment against Azure
+- ✅ Run **what-if analysis** (dry run - shows exactly what will change)
+- ✅ Provide cost estimates
+- ✅ No resources are created or modified
+
+**Or use GitHub Actions What-If mode:**
+1. Go to Actions → Deploy Common Infrastructure
+2. Select environment
+3. Check **"What-If"** option ✅
+4. Review changes in job output
+
+See [TESTING.md](docs/TESTING.md) for comprehensive testing guide.
+
+### 8. Deploy Common Infrastructure
+
+After testing, deploy via GitHub Actions:
 
 1. Go to Actions tab in GitHub
 2. Select "Deploy Common Infrastructure" workflow
 3. Click "Run workflow"
 4. Select environment (e.g., `dev`)
-5. Run the deployment
+5. **Uncheck** "What-If" to deploy
+6. Run the deployment
+
+**Or deploy via Azure CLI:**
+
+```bash
+# Set subscription
+SUBSCRIPTION_ID=$(jq -r '.subscriptions.dev.subscriptionId' config/subscriptions.json)
+az account set --subscription "$SUBSCRIPTION_ID"
+
+# Deploy
+az deployment sub create \
+  --location westeurope \
+  --template-file bicep/common/main.bicep \
+  --parameters bicep/common/parameters.dev.json \
+  --name common-infra-dev-$(date +%Y%m%d-%H%M%S)
+```
+
+## Testing & Validation
+
+### Quick Testing
+
+```bash
+# Comprehensive test with dry run
+./scripts/test-deployment.sh
+
+# Quick syntax validation only
+./scripts/validate-bicep.sh
+```
+
+### What-If Analysis (Dry Run)
+
+Preview exactly what changes will be made:
+
+```bash
+az deployment sub what-if \
+  --location westeurope \
+  --template-file bicep/common/main.bicep \
+  --parameters bicep/common/parameters.dev.json
+```
+
+### Testing Checklist
+
+Before deploying to any environment:
+
+- [ ] Run `./scripts/test-deployment.sh`
+- [ ] Review all resources that will be created/modified
+- [ ] Verify correct subscription is targeted
+- [ ] Check resource naming matches expectations
+- [ ] Review estimated costs
+- [ ] Test in dev before prod
+
+**See [docs/TESTING.md](docs/TESTING.md) for detailed testing guide.**
 
 ## Project Structure
 
@@ -298,18 +384,40 @@ Orch/
 
 ## Configuration
 
+### Settings Hierarchy
+
+Configuration follows a hierarchy where global settings are defined once and reused:
+
+```
+config/settings.json (Global Settings - Source of Truth)
+         ↓
+   [Generate Scripts]
+         ↓
+bicep/common/parameters.{env}.json (Environment-specific overrides)
+         ↓
+   [Deployment]
+```
+
+**Key Principle**: Settings that are the same across all environments (customer name, project name, location, prefix) are defined in `config/settings.json`. Only environment-specific values (like SKUs, retention periods) are in parameter files.
+
 ### Settings File
 
-The `config/settings.json` file contains project-wide configuration:
+The `config/settings.json` file is the **single source of truth** for project-wide configuration:
 
-| Setting | Description | Example |
-|---------|-------------|---------|
-| `customerName` | Customer or project identifier | `contoso` |
-| `projectName` | Project name | `d365-integrations` |
-| `subscriptionId` | Azure subscription ID | `12345678-...` |
-| `location` | Primary Azure region | `westeurope` |
-| `locationShort` | Region abbreviation | `weu` |
-| `prefix` | Resource naming prefix | `contoso` |
+| Setting | Description | Example | Used By |
+|---------|-------------|---------|---------|
+| `project.customerName` | Customer identifier | `Contoso` | All parameter files (tags) |
+| `project.projectName` | Project name | `D365 Integrations` | All parameter files (tags) |
+| `azure.location` | Primary Azure region | `westeurope` | All deployments |
+| `azure.locationShort` | Region abbreviation | `weu` | Resource naming |
+| `naming.prefix` | Resource naming prefix | `contoso` | All resource names |
+| `commonInfrastructure.*` | Infrastructure defaults | See file | Common infra parameters |
+
+**Important**: After editing `config/settings.json`, regenerate parameter files:
+```bash
+./scripts/generate-common-params.sh  # For common infrastructure
+./scripts/generate-integration-params.sh  # For integrations
+```
 
 ### Environment-Specific Parameters
 

@@ -33,7 +33,10 @@ Orch/
 │   ├── SETUP.md                          # Detailed setup guide
 │   └── PROJECT_SUMMARY.md                # This file
 ├── scripts/
-│   └── validate-bicep.sh                 # Validation script
+│   ├── generate-common-params.sh         # Generate common infra parameters
+│   ├── generate-integration-params.sh    # Generate integration parameters
+│   ├── test-deployment.sh                # Comprehensive testing script
+│   └── validate-bicep.sh                 # Bicep validation script
 ├── .gitignore                            # Git ignore rules
 ├── bicepconfig.json                      # Bicep linter configuration
 ├── instructions.txt                      # Original requirements
@@ -104,9 +107,39 @@ Four environment-specific parameter files:
 
 ### 6. Tooling ✅
 
-- **validate-bicep.sh**: Script to validate templates and run what-if analysis
+- **generate-common-params.sh**: Generates common infrastructure parameter files from global settings
+- **generate-integration-params.sh**: Generates integration parameter files from global settings
+- **test-deployment.sh**: Comprehensive deployment testing with 4 validation steps
+- **validate-bicep.sh**: Validates Bicep templates and runs what-if analysis
 - **.gitignore**: Configured for Azure, Bicep, and common development tools
 - **bicepconfig.json**: Linting rules for code quality
+
+### 7. Configuration Workflow ✅
+
+**Settings Hierarchy**:
+```
+config/settings.json (Global - Source of Truth)
+         ↓
+   [Generation Scripts]
+         ↓
+bicep/*/parameters.{env}.json (Environment-specific)
+         ↓
+   [Deployment]
+```
+
+**Key Principle**: Global settings (customer name, project name, location, prefix, infrastructure defaults) are defined once in `config/settings.json`. Parameter generation scripts read from this file to create environment-specific parameter files.
+
+**Benefits**:
+- ✅ Single source of truth for global configuration
+- ✅ No duplication of settings across files
+- ✅ Consistent values across all environments
+- ✅ Easy to update - change once, regenerate all
+
+**Workflow**:
+1. Edit `config/settings.json` with your project details
+2. Run `./scripts/generate-common-params.sh` to create common infrastructure parameters
+3. Run `./scripts/generate-integration-params.sh` to create integration parameters
+4. Deploy using generated parameter files
 
 ## Key Features Implemented
 

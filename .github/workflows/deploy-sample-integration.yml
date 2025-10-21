@@ -1,0 +1,262 @@
+name: Deploy Sample Integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - test
+          - uat
+          - prod
+      whatIf:
+        description: 'Run what-if deployment (preview changes without deploying)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  generate-parameters:
+    name: Generate Integration Parameters
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set Azure Subscription
+        run: |
+          SUBSCRIPTION_ID=$(jq -r '.subscriptions.${{ inputs.environment }}.subscriptionId' config/subscriptions.json)
+          echo "Setting subscription to: $SUBSCRIPTION_ID"
+          az account set --subscription "$SUBSCRIPTION_ID"
+
+      - name: Generate Integration Parameters
+        run: |
+          chmod +x scripts/generate-integration-params.sh
+          echo "${{ inputs.environment }}" | ./scripts/generate-integration-params.sh || echo "1" | ./scripts/generate-integration-params.sh
+
+      - name: Upload Parameters
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-parameters
+          path: bicep/integrations/sample-integration/parameters.${{ inputs.environment }}.json
+
+  build-function-app:
+    name: Build Function App
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build Function App
+        run: |
+          cd src/sample-integration/function-app
+          dotnet restore
+          dotnet build --configuration Release
+          dotnet publish --configuration Release --output ./publish
+
+      - name: Upload Function App Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: function-app-package
+          path: src/sample-integration/function-app/publish
+
+  validate:
+    name: Validate Bicep Templates
+    runs-on: ubuntu-latest
+    needs: generate-parameters
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Parameters
+        uses: actions/download-artifact@v4
+        with:
+          name: integration-parameters
+          path: bicep/integrations/sample-integration/
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set Azure Subscription
+        run: |
+          SUBSCRIPTION_ID=$(jq -r '.subscriptions.${{ inputs.environment }}.subscriptionId' config/subscriptions.json)
+          az account set --subscription "$SUBSCRIPTION_ID"
+
+      - name: Validate Bicep template
+        uses: azure/arm-deploy@v2
+        with:
+          scope: subscription
+          region: westeurope
+          template: ./bicep/integrations/sample-integration/main.bicep
+          parameters: ./bicep/integrations/sample-integration/parameters.${{ inputs.environment }}.json
+          deploymentMode: Validate
+
+  preview:
+    name: Preview Changes (What-If)
+    runs-on: ubuntu-latest
+    needs: validate
+    if: ${{ inputs.whatIf == true }}
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Parameters
+        uses: actions/download-artifact@v4
+        with:
+          name: integration-parameters
+          path: bicep/integrations/sample-integration/
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set Azure Subscription
+        run: |
+          SUBSCRIPTION_ID=$(jq -r '.subscriptions.${{ inputs.environment }}.subscriptionId' config/subscriptions.json)
+          az account set --subscription "$SUBSCRIPTION_ID"
+
+      - name: Run What-If Analysis
+        uses: azure/arm-deploy@v2
+        with:
+          scope: subscription
+          region: westeurope
+          template: ./bicep/integrations/sample-integration/main.bicep
+          parameters: ./bicep/integrations/sample-integration/parameters.${{ inputs.environment }}.json
+          additionalArguments: --what-if
+
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    needs: [validate, build-function-app]
+    if: ${{ inputs.whatIf == false }}
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Parameters
+        uses: actions/download-artifact@v4
+        with:
+          name: integration-parameters
+          path: bicep/integrations/sample-integration/
+
+      - name: Download Function App Package
+        uses: actions/download-artifact@v4
+        with:
+          name: function-app-package
+          path: function-app-package
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set Azure Subscription
+        run: |
+          SUBSCRIPTION_ID=$(jq -r '.subscriptions.${{ inputs.environment }}.subscriptionId' config/subscriptions.json)
+          az account set --subscription "$SUBSCRIPTION_ID"
+
+      - name: Deploy Infrastructure
+        id: deploy
+        uses: azure/arm-deploy@v2
+        with:
+          scope: subscription
+          region: westeurope
+          template: ./bicep/integrations/sample-integration/main.bicep
+          parameters: ./bicep/integrations/sample-integration/parameters.${{ inputs.environment }}.json
+          deploymentName: sample-integration-${{ inputs.environment }}-${{ github.run_number }}
+          failOnStdErr: false
+
+      - name: Deploy Function App Code
+        run: |
+          FUNCTION_APP_NAME="${{ steps.deploy.outputs.functionAppName }}"
+          echo "Deploying to Function App: $FUNCTION_APP_NAME"
+
+          cd function-app-package
+          zip -r ../function-app.zip .
+          cd ..
+
+          az functionapp deployment source config-zip \
+            --resource-group ${{ steps.deploy.outputs.resourceGroupName }} \
+            --name $FUNCTION_APP_NAME \
+            --src function-app.zip
+
+      - name: Deploy Logic App Workflow
+        run: |
+          LOGIC_APP_NAME="${{ steps.deploy.outputs.logicAppName }}"
+          RG_NAME="${{ steps.deploy.outputs.resourceGroupName }}"
+
+          echo "Deploying workflow to Logic App: $LOGIC_APP_NAME"
+
+          # Create the workflow directory structure
+          mkdir -p workflow-deploy/MessageOrchestrator
+          cp src/sample-integration/logic-app/MessageOrchestrator/workflow.json workflow-deploy/MessageOrchestrator/
+
+          # Deploy using Kudu API
+          cd workflow-deploy
+          zip -r ../workflow.zip .
+          cd ..
+
+          # Get publish profile
+          PUBLISH_PROFILE=$(az functionapp deployment list-publishing-profiles \
+            --resource-group $RG_NAME \
+            --name $LOGIC_APP_NAME \
+            --xml)
+
+          # Extract credentials
+          USERNAME=$(echo "$PUBLISH_PROFILE" | grep -oPm1 "(?<=<userName>)[^<]+")
+          PASSWORD=$(echo "$PUBLISH_PROFILE" | grep -oPm1 "(?<=<userPWD>)[^<]+")
+
+          # Deploy via Kudu
+          curl -X POST \
+            -u "$USERNAME:$PASSWORD" \
+            --data-binary @workflow.zip \
+            "https://$LOGIC_APP_NAME.scm.azurewebsites.net/api/zipdeploy"
+
+      - name: Output Deployment Results
+        run: |
+          echo "## Deployment Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployment Name:** sample-integration-${{ inputs.environment }}-${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployed Resources" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Resource Group:** ${{ steps.deploy.outputs.resourceGroupName }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Service Bus:** ${{ steps.deploy.outputs.serviceBusName }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Queue:** ${{ steps.deploy.outputs.queueName }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Function App:** ${{ steps.deploy.outputs.functionAppName }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Logic App:** ${{ steps.deploy.outputs.logicAppName }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Storage Account:** ${{ steps.deploy.outputs.integrationStorageName }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Azure Logout
+        if: always()
+        run: az logout

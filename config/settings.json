@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
+  "_comment": "This is the SINGLE SOURCE OF TRUTH for project-wide settings. After editing this file, regenerate parameter files using: ./scripts/generate-common-params.sh and ./scripts/generate-integration-params.sh",
   "project": {
     "customerName": "CUSTOMER_NAME_HERE",
     "projectName": "PROJECT_NAME_HERE",
     "description": "Azure integration project for Dynamics 365 Finance and Operations"
   },
   "azure": {
-    "subscriptionId": "SUBSCRIPTION_ID_HERE",
     "location": "westeurope",
     "locationShort": "weu"
   },

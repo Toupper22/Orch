@@ -1,0 +1,218 @@
+#!/bin/bash
+# Generate Common Infrastructure Parameters Script
+# Generates common infrastructure parameter files from global settings
+
+set -e
+
+# Colors
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+print_success() {
+    echo -e "${GREEN}✓ $1${NC}"
+}
+
+print_info() {
+    echo -e "${BLUE}ℹ $1${NC}"
+}
+
+print_warning() {
+    echo -e "${YELLOW}⚠ $1${NC}"
+}
+
+# Check prerequisites
+if ! command -v jq &> /dev/null; then
+    echo "jq is not installed (brew install jq)"
+    exit 1
+fi
+
+# Get environment
+echo "Select environment:"
+echo "1) dev"
+echo "2) test"
+echo "3) uat"
+echo "4) prod"
+echo "5) all"
+read -p "Enter choice (1-5): " env_choice
+
+case $env_choice in
+    1) ENVIRONMENTS=("dev");;
+    2) ENVIRONMENTS=("test");;
+    3) ENVIRONMENTS=("uat");;
+    4) ENVIRONMENTS=("prod");;
+    5) ENVIRONMENTS=("dev" "test" "uat" "prod");;
+    *)
+        echo "Invalid choice"
+        exit 1
+        ;;
+esac
+
+# Read global settings
+SETTINGS_FILE="config/settings.json"
+
+if [ ! -f "$SETTINGS_FILE" ]; then
+    print_warning "Settings file not found: $SETTINGS_FILE"
+    exit 1
+fi
+
+print_info "Reading global settings from: $SETTINGS_FILE"
+
+# Read global values
+PREFIX=$(jq -r '.naming.prefix' "$SETTINGS_FILE")
+LOCATION=$(jq -r '.azure.location' "$SETTINGS_FILE")
+LOCATION_SHORT=$(jq -r '.azure.locationShort' "$SETTINGS_FILE")
+CUSTOMER=$(jq -r '.project.customerName' "$SETTINGS_FILE")
+PROJECT=$(jq -r '.project.projectName' "$SETTINGS_FILE")
+
+# Read common infrastructure settings
+DEPLOY_KEY_VAULT=$(jq -r '.commonInfrastructure.keyVault.enabled' "$SETTINGS_FILE")
+DEPLOY_STORAGE=$(jq -r '.commonInfrastructure.storageAccount.enabled' "$SETTINGS_FILE")
+DEPLOY_APP_PLAN=$(jq -r '.commonInfrastructure.appServicePlan.enabled' "$SETTINGS_FILE")
+DEPLOY_MANAGED_ID=$(jq -r '.commonInfrastructure.managedIdentity.enabled' "$SETTINGS_FILE")
+DEPLOY_NETWORK=$(jq -r '.commonInfrastructure.network.enabled' "$SETTINGS_FILE")
+DEPLOY_NAT=$(jq -r '.commonInfrastructure.network.natGateway.enabled' "$SETTINGS_FILE")
+
+KEY_VAULT_SKU=$(jq -r '.commonInfrastructure.keyVault.sku' "$SETTINGS_FILE")
+KEY_VAULT_RETENTION=$(jq -r '.commonInfrastructure.keyVault.softDeleteRetentionInDays' "$SETTINGS_FILE")
+
+STORAGE_SKU=$(jq -r '.commonInfrastructure.storageAccount.sku' "$SETTINGS_FILE")
+STORAGE_CONTAINERS=$(jq -c '.commonInfrastructure.storageAccount.containers' "$SETTINGS_FILE")
+
+APP_PLAN_KIND=$(jq -r '.commonInfrastructure.appServicePlan.kind' "$SETTINGS_FILE")
+
+NAT_TIMEOUT=$(jq -r '.commonInfrastructure.network.natGateway.idleTimeoutInMinutes' "$SETTINGS_FILE")
+SUBNETS=$(jq -c '.commonInfrastructure.network.subnets' "$SETTINGS_FILE")
+
+ENABLE_DIAGNOSTICS=$(jq -r '.security.enableDiagnostics' "$SETTINGS_FILE")
+LOG_WORKSPACE_ID=$(jq -r '.security.logAnalyticsWorkspaceId' "$SETTINGS_FILE")
+
+# Process each environment
+for ENV in "${ENVIRONMENTS[@]}"; do
+    print_info "Generating parameters for $ENV environment..."
+
+    # Environment-specific values
+    case $ENV in
+        dev)
+            ENV_LABEL="Development"
+            APP_PLAN_SKU="Y1"
+            COST_CENTER="IT-Dev"
+            VNET_PREFIX='["10.0.0.0/16"]'
+            SUBNET_DEV=$(echo "$SUBNETS" | jq '.[0].addressPrefix = "10.0.1.0/24" | .[1].addressPrefix = "10.0.2.0/24"')
+            ;;
+        test)
+            ENV_LABEL="Test"
+            APP_PLAN_SKU="Y1"
+            COST_CENTER="IT-Test"
+            VNET_PREFIX='["10.1.0.0/16"]'
+            SUBNET_DEV=$(echo "$SUBNETS" | jq '.[0].addressPrefix = "10.1.1.0/24" | .[1].addressPrefix = "10.1.2.0/24"')
+            ;;
+        uat)
+            ENV_LABEL="UAT"
+            APP_PLAN_SKU="EP1"
+            COST_CENTER="IT-UAT"
+            VNET_PREFIX='["10.2.0.0/16"]'
+            SUBNET_DEV=$(echo "$SUBNETS" | jq '.[0].addressPrefix = "10.2.1.0/24" | .[1].addressPrefix = "10.2.2.0/24"')
+            ;;
+        prod)
+            ENV_LABEL="Production"
+            APP_PLAN_SKU="EP1"
+            COST_CENTER="IT-Production"
+            VNET_PREFIX='["10.3.0.0/16"]'
+            SUBNET_DEV=$(echo "$SUBNETS" | jq '.[0].addressPrefix = "10.3.1.0/24" | .[1].addressPrefix = "10.3.2.0/24"')
+            ;;
+    esac
+
+    # Create parameter file
+    PARAM_FILE="bicep/common/parameters.$ENV.json"
+
+    cat > "$PARAM_FILE" <<EOF
+{
+  "\$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "prefix": {
+      "value": "$PREFIX"
+    },
+    "environment": {
+      "value": "$ENV"
+    },
+    "location": {
+      "value": "$LOCATION"
+    },
+    "locationShort": {
+      "value": "$LOCATION_SHORT"
+    },
+    "tags": {
+      "value": {
+        "Environment": "$ENV_LABEL",
+        "Customer": "$CUSTOMER",
+        "Project": "$PROJECT",
+        "CostCenter": "$COST_CENTER"
+      }
+    },
+    "deployKeyVault": {
+      "value": $DEPLOY_KEY_VAULT
+    },
+    "deployStorageAccount": {
+      "value": $DEPLOY_STORAGE
+    },
+    "deployAppServicePlan": {
+      "value": $DEPLOY_APP_PLAN
+    },
+    "deployManagedIdentity": {
+      "value": $DEPLOY_MANAGED_ID
+    },
+    "keyVaultSku": {
+      "value": "$KEY_VAULT_SKU"
+    },
+    "keyVaultSoftDeleteRetentionInDays": {
+      "value": $KEY_VAULT_RETENTION
+    },
+    "storageAccountSku": {
+      "value": "$STORAGE_SKU"
+    },
+    "storageContainers": {
+      "value": $STORAGE_CONTAINERS
+    },
+    "appServicePlanSku": {
+      "value": "$APP_PLAN_SKU"
+    },
+    "appServicePlanKind": {
+      "value": "$APP_PLAN_KIND"
+    },
+    "enableDiagnostics": {
+      "value": $ENABLE_DIAGNOSTICS
+    },
+    "logAnalyticsWorkspaceId": {
+      "value": "$LOG_WORKSPACE_ID"
+    },
+    "deployVirtualNetwork": {
+      "value": $DEPLOY_NETWORK
+    },
+    "deployNatGateway": {
+      "value": $DEPLOY_NAT
+    },
+    "vnetAddressPrefixes": {
+      "value": $VNET_PREFIX
+    },
+    "subnets": {
+      "value": $SUBNET_DEV
+    },
+    "natGatewayIdleTimeoutInMinutes": {
+      "value": $NAT_TIMEOUT
+    }
+  }
+}
+EOF
+
+    print_success "Parameter file generated: $PARAM_FILE"
+done
+
+echo ""
+print_info "All parameter files generated from global settings!"
+print_info "Source: $SETTINGS_FILE"
+echo ""
+print_info "To deploy common infrastructure:"
+echo "  ./scripts/test-deployment.sh"

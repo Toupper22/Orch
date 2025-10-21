@@ -1,0 +1,1971 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.38.33.27573",
+      "templateHash": "3453904914150222329"
+    }
+  },
+  "parameters": {
+    "prefix": {
+      "type": "string",
+      "metadata": {
+        "description": "Customer/project prefix for resource naming"
+      }
+    },
+    "environment": {
+      "type": "string",
+      "allowedValues": [
+        "dev",
+        "test",
+        "uat",
+        "prod"
+      ],
+      "metadata": {
+        "description": "Environment name (dev, test, uat, prod)"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[deployment().location]",
+      "metadata": {
+        "description": "Azure region for resources"
+      }
+    },
+    "locationShort": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region short code"
+      }
+    },
+    "integrationName": {
+      "type": "string",
+      "defaultValue": "sample",
+      "metadata": {
+        "description": "Integration name"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Common tags"
+      }
+    },
+    "serviceBusSku": {
+      "type": "string",
+      "defaultValue": "Standard",
+      "allowedValues": [
+        "Basic",
+        "Standard",
+        "Premium"
+      ],
+      "metadata": {
+        "description": "Service Bus SKU"
+      }
+    }
+  },
+  "variables": {
+    "resourceGroupName": "[format('{0}-{1}-{2}-rg', parameters('prefix'), parameters('environment'), parameters('integrationName'))]",
+    "commonResourceGroupName": "[format('{0}-{1}-common-rg', parameters('prefix'), parameters('environment'))]",
+    "commonStorageAccountName": "[toLower(replace(format('{0}-{1}-{2}-st', parameters('prefix'), parameters('environment'), parameters('locationShort')), '-', ''))]",
+    "commonVNetName": "[format('{0}-{1}-{2}-vnet', parameters('prefix'), parameters('environment'), parameters('locationShort'))]",
+    "commonTags": "[union(parameters('tags'), createObject('Environment', parameters('environment'), 'Integration', parameters('integrationName'), 'ManagedBy', 'Bicep'))]",
+    "commonAppServicePlanId": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.Web/serverfarms', format('{0}-{1}-{2}-plan', parameters('prefix'), parameters('environment'), parameters('locationShort')))]",
+    "commonManagedIdentityId": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', replace(format('{0}-{1}-{2}-id', parameters('prefix'), parameters('environment'), parameters('locationShort')), '-', ''))]",
+    "integrationSubnetId": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.Network/virtualNetworks/subnets', variables('commonVNetName'), 'integration-subnet')]",
+    "serviceBusDataReceiverRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4f6d3b9b-027b-4f4c-9142-0e5a2a2247e0')]",
+    "serviceBusDataSenderRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '69a216fc-b8fb-44d8-bc22-1f3c2cd27a39')]",
+    "storageBlobDataContributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/resourceGroups",
+      "apiVersion": "2023-07-01",
+      "name": "[variables('resourceGroupName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('commonTags')]"
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "serviceBusNaming",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "locationShort": {
+            "value": "[parameters('locationShort')]"
+          },
+          "workloadName": {
+            "value": "[parameters('integrationName')]"
+          },
+          "resourceType": {
+            "value": "sb"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "17241865868905254566"
+            }
+          },
+          "parameters": {
+            "prefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Customer/project prefix for resource naming"
+              }
+            },
+            "environment": {
+              "type": "string",
+              "allowedValues": [
+                "dev",
+                "test",
+                "uat",
+                "prod"
+              ],
+              "metadata": {
+                "description": "Environment name (dev, test, uat, prod)"
+              }
+            },
+            "locationShort": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region short code (e.g., weu for West Europe)"
+              }
+            },
+            "workloadName": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional workload or integration name"
+              }
+            },
+            "resourceType": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource type abbreviation"
+              }
+            },
+            "instance": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional instance number for multiple instances"
+              }
+            }
+          },
+          "variables": {
+            "separator": "-",
+            "nameComponents": [
+              "[parameters('prefix')]",
+              "[parameters('environment')]",
+              "[parameters('locationShort')]"
+            ],
+            "nameWithWorkload": "[if(not(empty(parameters('workloadName'))), concat(variables('nameComponents'), createArray(parameters('workloadName'))), variables('nameComponents'))]",
+            "nameWithType": "[concat(variables('nameWithWorkload'), createArray(parameters('resourceType')))]",
+            "finalComponents": "[if(not(empty(parameters('instance'))), concat(variables('nameWithType'), createArray(parameters('instance'))), variables('nameWithType'))]",
+            "resourceName": "[join(variables('finalComponents'), variables('separator'))]"
+          },
+          "resources": [],
+          "outputs": {
+            "name": {
+              "type": "string",
+              "value": "[variables('resourceName')]"
+            },
+            "components": {
+              "type": "object",
+              "value": {
+                "prefix": "[parameters('prefix')]",
+                "environment": "[parameters('environment')]",
+                "locationShort": "[parameters('locationShort')]",
+                "workloadName": "[parameters('workloadName')]",
+                "resourceType": "[parameters('resourceType')]",
+                "instance": "[parameters('instance')]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "functionAppNaming",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "locationShort": {
+            "value": "[parameters('locationShort')]"
+          },
+          "workloadName": {
+            "value": "[parameters('integrationName')]"
+          },
+          "resourceType": {
+            "value": "func"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "17241865868905254566"
+            }
+          },
+          "parameters": {
+            "prefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Customer/project prefix for resource naming"
+              }
+            },
+            "environment": {
+              "type": "string",
+              "allowedValues": [
+                "dev",
+                "test",
+                "uat",
+                "prod"
+              ],
+              "metadata": {
+                "description": "Environment name (dev, test, uat, prod)"
+              }
+            },
+            "locationShort": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region short code (e.g., weu for West Europe)"
+              }
+            },
+            "workloadName": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional workload or integration name"
+              }
+            },
+            "resourceType": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource type abbreviation"
+              }
+            },
+            "instance": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional instance number for multiple instances"
+              }
+            }
+          },
+          "variables": {
+            "separator": "-",
+            "nameComponents": [
+              "[parameters('prefix')]",
+              "[parameters('environment')]",
+              "[parameters('locationShort')]"
+            ],
+            "nameWithWorkload": "[if(not(empty(parameters('workloadName'))), concat(variables('nameComponents'), createArray(parameters('workloadName'))), variables('nameComponents'))]",
+            "nameWithType": "[concat(variables('nameWithWorkload'), createArray(parameters('resourceType')))]",
+            "finalComponents": "[if(not(empty(parameters('instance'))), concat(variables('nameWithType'), createArray(parameters('instance'))), variables('nameWithType'))]",
+            "resourceName": "[join(variables('finalComponents'), variables('separator'))]"
+          },
+          "resources": [],
+          "outputs": {
+            "name": {
+              "type": "string",
+              "value": "[variables('resourceName')]"
+            },
+            "components": {
+              "type": "object",
+              "value": {
+                "prefix": "[parameters('prefix')]",
+                "environment": "[parameters('environment')]",
+                "locationShort": "[parameters('locationShort')]",
+                "workloadName": "[parameters('workloadName')]",
+                "resourceType": "[parameters('resourceType')]",
+                "instance": "[parameters('instance')]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "logicAppNaming",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "locationShort": {
+            "value": "[parameters('locationShort')]"
+          },
+          "workloadName": {
+            "value": "[parameters('integrationName')]"
+          },
+          "resourceType": {
+            "value": "logic"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "17241865868905254566"
+            }
+          },
+          "parameters": {
+            "prefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Customer/project prefix for resource naming"
+              }
+            },
+            "environment": {
+              "type": "string",
+              "allowedValues": [
+                "dev",
+                "test",
+                "uat",
+                "prod"
+              ],
+              "metadata": {
+                "description": "Environment name (dev, test, uat, prod)"
+              }
+            },
+            "locationShort": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region short code (e.g., weu for West Europe)"
+              }
+            },
+            "workloadName": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional workload or integration name"
+              }
+            },
+            "resourceType": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource type abbreviation"
+              }
+            },
+            "instance": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional instance number for multiple instances"
+              }
+            }
+          },
+          "variables": {
+            "separator": "-",
+            "nameComponents": [
+              "[parameters('prefix')]",
+              "[parameters('environment')]",
+              "[parameters('locationShort')]"
+            ],
+            "nameWithWorkload": "[if(not(empty(parameters('workloadName'))), concat(variables('nameComponents'), createArray(parameters('workloadName'))), variables('nameComponents'))]",
+            "nameWithType": "[concat(variables('nameWithWorkload'), createArray(parameters('resourceType')))]",
+            "finalComponents": "[if(not(empty(parameters('instance'))), concat(variables('nameWithType'), createArray(parameters('instance'))), variables('nameWithType'))]",
+            "resourceName": "[join(variables('finalComponents'), variables('separator'))]"
+          },
+          "resources": [],
+          "outputs": {
+            "name": {
+              "type": "string",
+              "value": "[variables('resourceName')]"
+            },
+            "components": {
+              "type": "object",
+              "value": {
+                "prefix": "[parameters('prefix')]",
+                "environment": "[parameters('environment')]",
+                "locationShort": "[parameters('locationShort')]",
+                "workloadName": "[parameters('workloadName')]",
+                "resourceType": "[parameters('resourceType')]",
+                "instance": "[parameters('instance')]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "storageAccountNaming",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "locationShort": {
+            "value": "[parameters('locationShort')]"
+          },
+          "workloadName": {
+            "value": "[parameters('integrationName')]"
+          },
+          "resourceType": {
+            "value": "st"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "17241865868905254566"
+            }
+          },
+          "parameters": {
+            "prefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Customer/project prefix for resource naming"
+              }
+            },
+            "environment": {
+              "type": "string",
+              "allowedValues": [
+                "dev",
+                "test",
+                "uat",
+                "prod"
+              ],
+              "metadata": {
+                "description": "Environment name (dev, test, uat, prod)"
+              }
+            },
+            "locationShort": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region short code (e.g., weu for West Europe)"
+              }
+            },
+            "workloadName": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional workload or integration name"
+              }
+            },
+            "resourceType": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource type abbreviation"
+              }
+            },
+            "instance": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional instance number for multiple instances"
+              }
+            }
+          },
+          "variables": {
+            "separator": "-",
+            "nameComponents": [
+              "[parameters('prefix')]",
+              "[parameters('environment')]",
+              "[parameters('locationShort')]"
+            ],
+            "nameWithWorkload": "[if(not(empty(parameters('workloadName'))), concat(variables('nameComponents'), createArray(parameters('workloadName'))), variables('nameComponents'))]",
+            "nameWithType": "[concat(variables('nameWithWorkload'), createArray(parameters('resourceType')))]",
+            "finalComponents": "[if(not(empty(parameters('instance'))), concat(variables('nameWithType'), createArray(parameters('instance'))), variables('nameWithType'))]",
+            "resourceName": "[join(variables('finalComponents'), variables('separator'))]"
+          },
+          "resources": [],
+          "outputs": {
+            "name": {
+              "type": "string",
+              "value": "[variables('resourceName')]"
+            },
+            "components": {
+              "type": "object",
+              "value": {
+                "prefix": "[parameters('prefix')]",
+                "environment": "[parameters('environment')]",
+                "locationShort": "[parameters('locationShort')]",
+                "workloadName": "[parameters('workloadName')]",
+                "resourceType": "[parameters('resourceType')]",
+                "instance": "[parameters('instance')]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "integrationStorage",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "storageAccountName": {
+            "value": "[toLower(replace(reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'storageAccountNaming'), '2025-04-01').outputs.name.value, '-', ''))]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[variables('commonTags')]"
+          },
+          "skuName": {
+            "value": "Standard_LRS"
+          },
+          "kind": {
+            "value": "StorageV2"
+          },
+          "accessTier": {
+            "value": "Hot"
+          },
+          "containers": {
+            "value": [
+              {
+                "name": "input-messages",
+                "publicAccess": "None"
+              },
+              {
+                "name": "transformed-messages",
+                "publicAccess": "None"
+              },
+              {
+                "name": "errors",
+                "publicAccess": "None"
+              }
+            ]
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "4647004294717719424"
+            }
+          },
+          "parameters": {
+            "storageAccountName": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 24,
+              "metadata": {
+                "description": "Name of the Storage Account"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for the Storage Account"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags to apply to the Storage Account"
+              }
+            },
+            "skuName": {
+              "type": "string",
+              "defaultValue": "Standard_LRS",
+              "allowedValues": [
+                "Standard_LRS",
+                "Standard_GRS",
+                "Standard_RAGRS",
+                "Standard_ZRS",
+                "Premium_LRS",
+                "Premium_ZRS"
+              ],
+              "metadata": {
+                "description": "Storage Account SKU"
+              }
+            },
+            "kind": {
+              "type": "string",
+              "defaultValue": "StorageV2",
+              "allowedValues": [
+                "Storage",
+                "StorageV2",
+                "BlobStorage"
+              ],
+              "metadata": {
+                "description": "Storage Account kind"
+              }
+            },
+            "accessTier": {
+              "type": "string",
+              "defaultValue": "Hot",
+              "allowedValues": [
+                "Hot",
+                "Cool"
+              ],
+              "metadata": {
+                "description": "Access tier for blob storage"
+              }
+            },
+            "minimumTlsVersion": {
+              "type": "string",
+              "defaultValue": "TLS1_2",
+              "allowedValues": [
+                "TLS1_0",
+                "TLS1_1",
+                "TLS1_2"
+              ],
+              "metadata": {
+                "description": "Minimum TLS version"
+              }
+            },
+            "allowBlobPublicAccess": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Allow blob public access"
+              }
+            },
+            "supportsHttpsTrafficOnly": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Enable HTTPS traffic only"
+              }
+            },
+            "isHnsEnabled": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Enable hierarchical namespace (Data Lake)"
+              }
+            },
+            "containers": {
+              "type": "array",
+              "defaultValue": [],
+              "metadata": {
+                "description": "Blob containers to create"
+              }
+            },
+            "enableDiagnostics": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Enable diagnostic settings"
+              }
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Log Analytics Workspace ID for diagnostics"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Storage/storageAccounts",
+              "apiVersion": "2023-01-01",
+              "name": "[parameters('storageAccountName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "[parameters('skuName')]"
+              },
+              "kind": "[parameters('kind')]",
+              "properties": {
+                "accessTier": "[parameters('accessTier')]",
+                "minimumTlsVersion": "[parameters('minimumTlsVersion')]",
+                "allowBlobPublicAccess": "[parameters('allowBlobPublicAccess')]",
+                "supportsHttpsTrafficOnly": "[parameters('supportsHttpsTrafficOnly')]",
+                "isHnsEnabled": "[parameters('isHnsEnabled')]",
+                "encryption": {
+                  "services": {
+                    "blob": {
+                      "enabled": true,
+                      "keyType": "Account"
+                    },
+                    "file": {
+                      "enabled": true,
+                      "keyType": "Account"
+                    }
+                  },
+                  "keySource": "Microsoft.Storage"
+                },
+                "networkAcls": {
+                  "defaultAction": "Allow",
+                  "bypass": "AzureServices"
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/blobServices",
+              "apiVersion": "2023-01-01",
+              "name": "[format('{0}/{1}', parameters('storageAccountName'), 'default')]",
+              "properties": {
+                "deleteRetentionPolicy": {
+                  "enabled": true,
+                  "days": 7
+                },
+                "containerDeleteRetentionPolicy": {
+                  "enabled": true,
+                  "days": 7
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "blobContainers",
+                "count": "[length(parameters('containers'))]"
+              },
+              "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+              "apiVersion": "2023-01-01",
+              "name": "[format('{0}/{1}/{2}', parameters('storageAccountName'), 'default', parameters('containers')[copyIndex()].name)]",
+              "properties": {
+                "publicAccess": "[coalesce(tryGet(parameters('containers')[copyIndex()], 'publicAccess'), 'None')]",
+                "metadata": "[coalesce(tryGet(parameters('containers')[copyIndex()], 'metadata'), createObject())]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', parameters('storageAccountName'), 'default')]"
+              ]
+            },
+            {
+              "condition": "[and(parameters('enableDiagnostics'), not(empty(parameters('logAnalyticsWorkspaceId'))))]",
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[format('Microsoft.Storage/storageAccounts/{0}/blobServices/{1}', parameters('storageAccountName'), 'default')]",
+              "name": "[format('{0}-blob-diagnostics', parameters('storageAccountName'))]",
+              "properties": {
+                "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "logs": [
+                  {
+                    "category": "StorageRead",
+                    "enabled": true
+                  },
+                  {
+                    "category": "StorageWrite",
+                    "enabled": true
+                  },
+                  {
+                    "category": "StorageDelete",
+                    "enabled": true
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "Transaction",
+                    "enabled": true
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', parameters('storageAccountName'), 'default')]"
+              ]
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Storage Account resource ID"
+              },
+              "value": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Storage Account name"
+              },
+              "value": "[parameters('storageAccountName')]"
+            },
+            "primaryBlobEndpoint": {
+              "type": "string",
+              "metadata": {
+                "description": "Primary blob endpoint"
+              },
+              "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-01-01').primaryEndpoints.blob]"
+            },
+            "primaryEndpoints": {
+              "type": "object",
+              "metadata": {
+                "description": "Primary endpoints object"
+              },
+              "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-01-01').primaryEndpoints]"
+            },
+            "storageAccount": {
+              "type": "object",
+              "metadata": {
+                "description": "Storage Account object"
+              },
+              "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-01-01', 'full')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'storageAccountNaming')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "serviceBus",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "serviceBusName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBusNaming'), '2025-04-01').outputs.name.value]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[variables('commonTags')]"
+          },
+          "skuName": {
+            "value": "[parameters('serviceBusSku')]"
+          },
+          "queues": {
+            "value": [
+              {
+                "name": "incoming-messages",
+                "maxDeliveryCount": 10,
+                "lockDuration": "PT5M",
+                "defaultMessageTimeToLive": "P7D"
+              }
+            ]
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "6827069277449031023"
+            }
+          },
+          "parameters": {
+            "serviceBusName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Service Bus Namespace"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for the Service Bus"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags to apply to the Service Bus"
+              }
+            },
+            "skuName": {
+              "type": "string",
+              "defaultValue": "Standard",
+              "allowedValues": [
+                "Basic",
+                "Standard",
+                "Premium"
+              ],
+              "metadata": {
+                "description": "Service Bus SKU"
+              }
+            },
+            "queues": {
+              "type": "array",
+              "defaultValue": [],
+              "metadata": {
+                "description": "Queues to create"
+              }
+            },
+            "topics": {
+              "type": "array",
+              "defaultValue": [],
+              "metadata": {
+                "description": "Topics to create"
+              }
+            },
+            "enableDiagnostics": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Enable diagnostic settings"
+              }
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Log Analytics Workspace ID for diagnostics"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ServiceBus/namespaces",
+              "apiVersion": "2022-10-01-preview",
+              "name": "[parameters('serviceBusName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "[parameters('skuName')]",
+                "tier": "[parameters('skuName')]"
+              },
+              "properties": {
+                "minimumTlsVersion": "1.2",
+                "publicNetworkAccess": "Enabled",
+                "disableLocalAuth": false,
+                "zoneRedundant": "[if(equals(parameters('skuName'), 'Premium'), true(), false())]"
+              }
+            },
+            {
+              "copy": {
+                "name": "serviceBusQueues",
+                "count": "[length(parameters('queues'))]"
+              },
+              "type": "Microsoft.ServiceBus/namespaces/queues",
+              "apiVersion": "2022-10-01-preview",
+              "name": "[format('{0}/{1}', parameters('serviceBusName'), parameters('queues')[copyIndex()].name)]",
+              "properties": {
+                "lockDuration": "[coalesce(tryGet(parameters('queues')[copyIndex()], 'lockDuration'), 'PT1M')]",
+                "maxSizeInMegabytes": "[coalesce(tryGet(parameters('queues')[copyIndex()], 'maxSizeInMegabytes'), 1024)]",
+                "requiresDuplicateDetection": "[coalesce(tryGet(parameters('queues')[copyIndex()], 'requiresDuplicateDetection'), false())]",
+                "requiresSession": "[coalesce(tryGet(parameters('queues')[copyIndex()], 'requiresSession'), false())]",
+                "defaultMessageTimeToLive": "[coalesce(tryGet(parameters('queues')[copyIndex()], 'defaultMessageTimeToLive'), 'P14D')]",
+                "deadLetteringOnMessageExpiration": "[coalesce(tryGet(parameters('queues')[copyIndex()], 'deadLetteringOnMessageExpiration'), false())]",
+                "maxDeliveryCount": "[coalesce(tryGet(parameters('queues')[copyIndex()], 'maxDeliveryCount'), 10)]",
+                "enableBatchedOperations": "[coalesce(tryGet(parameters('queues')[copyIndex()], 'enableBatchedOperations'), true())]",
+                "enablePartitioning": "[coalesce(tryGet(parameters('queues')[copyIndex()], 'enablePartitioning'), false())]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ServiceBus/namespaces', parameters('serviceBusName'))]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "serviceBusTopics",
+                "count": "[length(parameters('topics'))]"
+              },
+              "type": "Microsoft.ServiceBus/namespaces/topics",
+              "apiVersion": "2022-10-01-preview",
+              "name": "[format('{0}/{1}', parameters('serviceBusName'), parameters('topics')[copyIndex()].name)]",
+              "properties": {
+                "maxSizeInMegabytes": "[coalesce(tryGet(parameters('topics')[copyIndex()], 'maxSizeInMegabytes'), 1024)]",
+                "requiresDuplicateDetection": "[coalesce(tryGet(parameters('topics')[copyIndex()], 'requiresDuplicateDetection'), false())]",
+                "defaultMessageTimeToLive": "[coalesce(tryGet(parameters('topics')[copyIndex()], 'defaultMessageTimeToLive'), 'P14D')]",
+                "enableBatchedOperations": "[coalesce(tryGet(parameters('topics')[copyIndex()], 'enableBatchedOperations'), true())]",
+                "enablePartitioning": "[coalesce(tryGet(parameters('topics')[copyIndex()], 'enablePartitioning'), false())]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ServiceBus/namespaces', parameters('serviceBusName'))]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "serviceBusSubscriptions",
+                "count": "[length(parameters('topics'))]"
+              },
+              "condition": "[contains(parameters('topics')[copyIndex()], 'subscriptions')]",
+              "type": "Microsoft.ServiceBus/namespaces/topics/subscriptions",
+              "apiVersion": "2022-10-01-preview",
+              "name": "[format('{0}/{1}/{2}', parameters('serviceBusName'), parameters('topics')[indexOf(parameters('topics'), parameters('topics')[copyIndex()])].name, parameters('topics')[copyIndex()].subscriptions[0].name)]",
+              "properties": {
+                "lockDuration": "[coalesce(tryGet(parameters('topics')[copyIndex()].subscriptions[0], 'lockDuration'), 'PT1M')]",
+                "requiresSession": "[coalesce(tryGet(parameters('topics')[copyIndex()].subscriptions[0], 'requiresSession'), false())]",
+                "defaultMessageTimeToLive": "[coalesce(tryGet(parameters('topics')[copyIndex()].subscriptions[0], 'defaultMessageTimeToLive'), 'P14D')]",
+                "deadLetteringOnMessageExpiration": "[coalesce(tryGet(parameters('topics')[copyIndex()].subscriptions[0], 'deadLetteringOnMessageExpiration'), false())]",
+                "maxDeliveryCount": "[coalesce(tryGet(parameters('topics')[copyIndex()].subscriptions[0], 'maxDeliveryCount'), 10)]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ServiceBus/namespaces/topics', parameters('serviceBusName'), parameters('topics')[indexOf(parameters('topics'), parameters('topics')[copyIndex()])].name)]"
+              ]
+            },
+            {
+              "condition": "[and(parameters('enableDiagnostics'), not(empty(parameters('logAnalyticsWorkspaceId'))))]",
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[format('Microsoft.ServiceBus/namespaces/{0}', parameters('serviceBusName'))]",
+              "name": "[format('{0}-diagnostics', parameters('serviceBusName'))]",
+              "properties": {
+                "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "logs": [
+                  {
+                    "categoryGroup": "allLogs",
+                    "enabled": true
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "AllMetrics",
+                    "enabled": true
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ServiceBus/namespaces', parameters('serviceBusName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Service Bus Namespace resource ID"
+              },
+              "value": "[resourceId('Microsoft.ServiceBus/namespaces', parameters('serviceBusName'))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Service Bus Namespace name"
+              },
+              "value": "[parameters('serviceBusName')]"
+            },
+            "endpoint": {
+              "type": "string",
+              "metadata": {
+                "description": "Service Bus Namespace endpoint"
+              },
+              "value": "[reference(resourceId('Microsoft.ServiceBus/namespaces', parameters('serviceBusName')), '2022-10-01-preview').serviceBusEndpoint]"
+            },
+            "queueNames": {
+              "type": "array",
+              "metadata": {
+                "description": "Queue names"
+              },
+              "copy": {
+                "count": "[length(parameters('queues'))]",
+                "input": "[parameters('queues')[copyIndex()].name]"
+              }
+            },
+            "topicNames": {
+              "type": "array",
+              "metadata": {
+                "description": "Topic names"
+              },
+              "copy": {
+                "count": "[length(parameters('topics'))]",
+                "input": "[parameters('topics')[copyIndex()].name]"
+              }
+            },
+            "serviceBus": {
+              "type": "object",
+              "metadata": {
+                "description": "Service Bus object"
+              },
+              "value": "[reference(resourceId('Microsoft.ServiceBus/namespaces', parameters('serviceBusName')), '2022-10-01-preview', 'full')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBusNaming')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "functionApp",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "functionAppName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionAppNaming'), '2025-04-01').outputs.name.value]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[variables('commonTags')]"
+          },
+          "appServicePlanId": {
+            "value": "[variables('commonAppServicePlanId')]"
+          },
+          "storageAccountName": {
+            "value": "[variables('commonStorageAccountName')]"
+          },
+          "managedIdentityId": {
+            "value": "[variables('commonManagedIdentityId')]"
+          },
+          "vnetIntegrationSubnetId": {
+            "value": "[variables('integrationSubnetId')]"
+          },
+          "enableVNetIntegration": {
+            "value": true
+          },
+          "runtime": {
+            "value": "dotnet-isolated"
+          },
+          "runtimeVersion": {
+            "value": "8.0"
+          },
+          "appSettings": {
+            "value": [
+              {
+                "name": "ServiceBusConnection__fullyQualifiedNamespace",
+                "value": "[format('{0}.servicebus.windows.net', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBus'), '2025-04-01').outputs.name.value)]"
+              },
+              {
+                "name": "IntegrationStorage__accountName",
+                "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationStorage'), '2025-04-01').outputs.name.value]"
+              }
+            ]
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "15863625741292513202"
+            }
+          },
+          "parameters": {
+            "functionAppName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Function App"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for the Function App"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags to apply to the Function App"
+              }
+            },
+            "appServicePlanId": {
+              "type": "string",
+              "metadata": {
+                "description": "App Service Plan resource ID"
+              }
+            },
+            "storageAccountName": {
+              "type": "string",
+              "metadata": {
+                "description": "Storage Account name for Function App"
+              }
+            },
+            "appInsightsInstrumentationKey": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Application Insights Instrumentation Key"
+              }
+            },
+            "appInsightsConnectionString": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Application Insights Connection String"
+              }
+            },
+            "managedIdentityId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Managed Identity resource ID"
+              }
+            },
+            "vnetIntegrationSubnetId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "VNet integration subnet ID"
+              }
+            },
+            "runtime": {
+              "type": "string",
+              "defaultValue": "dotnet-isolated",
+              "allowedValues": [
+                "dotnet",
+                "dotnet-isolated",
+                "node",
+                "python",
+                "java",
+                "powershell"
+              ],
+              "metadata": {
+                "description": "Runtime stack"
+              }
+            },
+            "runtimeVersion": {
+              "type": "string",
+              "defaultValue": "8.0",
+              "metadata": {
+                "description": "Runtime version"
+              }
+            },
+            "appSettings": {
+              "type": "array",
+              "defaultValue": [],
+              "metadata": {
+                "description": "Application settings"
+              }
+            },
+            "enableVNetIntegration": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Enable VNet integration"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Web/sites",
+              "apiVersion": "2023-01-01",
+              "name": "[parameters('functionAppName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "functionapp",
+              "identity": {
+                "type": "[if(not(empty(parameters('managedIdentityId'))), 'UserAssigned', 'SystemAssigned')]",
+                "userAssignedIdentities": "[if(not(empty(parameters('managedIdentityId'))), createObject(format('{0}', parameters('managedIdentityId')), createObject()), null())]"
+              },
+              "properties": {
+                "serverFarmId": "[parameters('appServicePlanId')]",
+                "httpsOnly": true,
+                "clientAffinityEnabled": false,
+                "virtualNetworkSubnetId": "[if(and(parameters('enableVNetIntegration'), not(empty(parameters('vnetIntegrationSubnetId')))), parameters('vnetIntegrationSubnetId'), null())]",
+                "siteConfig": {
+                  "ftpsState": "Disabled",
+                  "minTlsVersion": "1.2",
+                  "http20Enabled": true,
+                  "netFrameworkVersion": "[if(or(equals(parameters('runtime'), 'dotnet'), equals(parameters('runtime'), 'dotnet-isolated')), format('v{0}', parameters('runtimeVersion')), null())]",
+                  "nodeVersion": "[if(equals(parameters('runtime'), 'node'), parameters('runtimeVersion'), null())]",
+                  "pythonVersion": "[if(equals(parameters('runtime'), 'python'), parameters('runtimeVersion'), null())]",
+                  "javaVersion": "[if(equals(parameters('runtime'), 'java'), parameters('runtimeVersion'), null())]",
+                  "powerShellVersion": "[if(equals(parameters('runtime'), 'powershell'), parameters('runtimeVersion'), null())]",
+                  "use32BitWorkerProcess": false,
+                  "alwaysOn": true,
+                  "appSettings": "[concat(createArray(createObject('name', 'FUNCTIONS_EXTENSION_VERSION', 'value', '~4'), createObject('name', 'FUNCTIONS_WORKER_RUNTIME', 'value', parameters('runtime')), createObject('name', 'AzureWebJobsStorage__accountName', 'value', parameters('storageAccountName')), createObject('name', 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING', 'value', format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey=***;EndpointSuffix=core.windows.net', parameters('storageAccountName'))), createObject('name', 'WEBSITE_CONTENTSHARE', 'value', toLower(parameters('functionAppName'))), createObject('name', 'WEBSITE_RUN_FROM_PACKAGE', 'value', '1')), if(not(empty(parameters('appInsightsConnectionString'))), createArray(createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', parameters('appInsightsConnectionString')), createObject('name', 'ApplicationInsightsAgent_EXTENSION_VERSION', 'value', '~3')), createArray()), parameters('appSettings'))]"
+                }
+              }
+            },
+            {
+              "condition": "[and(parameters('enableVNetIntegration'), not(empty(parameters('vnetIntegrationSubnetId'))))]",
+              "type": "Microsoft.Web/sites/networkConfig",
+              "apiVersion": "2023-01-01",
+              "name": "[format('{0}/{1}', parameters('functionAppName'), 'virtualNetwork')]",
+              "properties": {
+                "subnetResourceId": "[parameters('vnetIntegrationSubnetId')]",
+                "swiftSupported": true
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', parameters('functionAppName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Function App resource ID"
+              },
+              "value": "[resourceId('Microsoft.Web/sites', parameters('functionAppName'))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Function App name"
+              },
+              "value": "[parameters('functionAppName')]"
+            },
+            "defaultHostname": {
+              "type": "string",
+              "metadata": {
+                "description": "Function App default hostname"
+              },
+              "value": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2023-01-01').defaultHostName]"
+            },
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Function App principal ID"
+              },
+              "value": "[if(not(empty(parameters('managedIdentityId'))), '', reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2023-01-01', 'full').identity.principalId)]"
+            },
+            "functionApp": {
+              "type": "object",
+              "metadata": {
+                "description": "Function App object"
+              },
+              "value": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2023-01-01', 'full')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionAppNaming')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationStorage')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBus')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "logicApp",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "logicAppName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'logicAppNaming'), '2025-04-01').outputs.name.value]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[variables('commonTags')]"
+          },
+          "appServicePlanId": {
+            "value": "[variables('commonAppServicePlanId')]"
+          },
+          "storageAccountName": {
+            "value": "[variables('commonStorageAccountName')]"
+          },
+          "managedIdentityId": {
+            "value": "[variables('commonManagedIdentityId')]"
+          },
+          "vnetIntegrationSubnetId": {
+            "value": "[variables('integrationSubnetId')]"
+          },
+          "enableVNetIntegration": {
+            "value": true
+          },
+          "appSettings": {
+            "value": [
+              {
+                "name": "ServiceBusConnection__fullyQualifiedNamespace",
+                "value": "[format('{0}.servicebus.windows.net', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBus'), '2025-04-01').outputs.name.value)]"
+              },
+              {
+                "name": "IntegrationStorage__accountName",
+                "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationStorage'), '2025-04-01').outputs.name.value]"
+              },
+              {
+                "name": "FunctionAppUrl",
+                "value": "[format('https://{0}', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionApp'), '2025-04-01').outputs.defaultHostname.value)]"
+              }
+            ]
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "18167164729454561265"
+            }
+          },
+          "parameters": {
+            "logicAppName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Logic App"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for the Logic App"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags to apply to the Logic App"
+              }
+            },
+            "appServicePlanId": {
+              "type": "string",
+              "metadata": {
+                "description": "App Service Plan resource ID"
+              }
+            },
+            "storageAccountName": {
+              "type": "string",
+              "metadata": {
+                "description": "Storage Account name for Logic App"
+              }
+            },
+            "appInsightsConnectionString": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Application Insights Connection String"
+              }
+            },
+            "managedIdentityId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Managed Identity resource ID"
+              }
+            },
+            "vnetIntegrationSubnetId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "VNet integration subnet ID"
+              }
+            },
+            "appSettings": {
+              "type": "array",
+              "defaultValue": [],
+              "metadata": {
+                "description": "Application settings"
+              }
+            },
+            "enableVNetIntegration": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Enable VNet integration"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Web/sites",
+              "apiVersion": "2023-01-01",
+              "name": "[parameters('logicAppName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "functionapp,workflowapp",
+              "identity": {
+                "type": "[if(not(empty(parameters('managedIdentityId'))), 'UserAssigned', 'SystemAssigned')]",
+                "userAssignedIdentities": "[if(not(empty(parameters('managedIdentityId'))), createObject(format('{0}', parameters('managedIdentityId')), createObject()), null())]"
+              },
+              "properties": {
+                "serverFarmId": "[parameters('appServicePlanId')]",
+                "httpsOnly": true,
+                "clientAffinityEnabled": false,
+                "virtualNetworkSubnetId": "[if(and(parameters('enableVNetIntegration'), not(empty(parameters('vnetIntegrationSubnetId')))), parameters('vnetIntegrationSubnetId'), null())]",
+                "siteConfig": {
+                  "ftpsState": "Disabled",
+                  "minTlsVersion": "1.2",
+                  "http20Enabled": true,
+                  "netFrameworkVersion": "v6.0",
+                  "use32BitWorkerProcess": false,
+                  "alwaysOn": true,
+                  "appSettings": "[concat(createArray(createObject('name', 'FUNCTIONS_EXTENSION_VERSION', 'value', '~4'), createObject('name', 'FUNCTIONS_WORKER_RUNTIME', 'value', 'node'), createObject('name', 'WEBSITE_NODE_DEFAULT_VERSION', 'value', '~18'), createObject('name', 'AzureWebJobsStorage__accountName', 'value', parameters('storageAccountName')), createObject('name', 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING', 'value', format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey=***;EndpointSuffix=core.windows.net', parameters('storageAccountName'))), createObject('name', 'WEBSITE_CONTENTSHARE', 'value', toLower(parameters('logicAppName'))), createObject('name', 'AzureFunctionsJobHost__extensionBundle__id', 'value', 'Microsoft.Azure.Functions.ExtensionBundle.Workflows'), createObject('name', 'AzureFunctionsJobHost__extensionBundle__version', 'value', '[1.*, 2.0.0)'), createObject('name', 'APP_KIND', 'value', 'workflowApp')), if(not(empty(parameters('appInsightsConnectionString'))), createArray(createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', parameters('appInsightsConnectionString')), createObject('name', 'ApplicationInsightsAgent_EXTENSION_VERSION', 'value', '~3')), createArray()), parameters('appSettings'))]"
+                }
+              }
+            },
+            {
+              "condition": "[and(parameters('enableVNetIntegration'), not(empty(parameters('vnetIntegrationSubnetId'))))]",
+              "type": "Microsoft.Web/sites/networkConfig",
+              "apiVersion": "2023-01-01",
+              "name": "[format('{0}/{1}', parameters('logicAppName'), 'virtualNetwork')]",
+              "properties": {
+                "subnetResourceId": "[parameters('vnetIntegrationSubnetId')]",
+                "swiftSupported": true
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', parameters('logicAppName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App resource ID"
+              },
+              "value": "[resourceId('Microsoft.Web/sites', parameters('logicAppName'))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App name"
+              },
+              "value": "[parameters('logicAppName')]"
+            },
+            "defaultHostname": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App default hostname"
+              },
+              "value": "[reference(resourceId('Microsoft.Web/sites', parameters('logicAppName')), '2023-01-01').defaultHostName]"
+            },
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App principal ID"
+              },
+              "value": "[if(not(empty(parameters('managedIdentityId'))), '', reference(resourceId('Microsoft.Web/sites', parameters('logicAppName')), '2023-01-01', 'full').identity.principalId)]"
+            },
+            "logicApp": {
+              "type": "object",
+              "metadata": {
+                "description": "Logic App object"
+              },
+              "value": "[reference(resourceId('Microsoft.Web/sites', parameters('logicAppName')), '2023-01-01', 'full')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionApp')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationStorage')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'logicAppNaming')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBus')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "serviceBusReceiverRole",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "principalId": {
+            "value": "[variables('commonManagedIdentityId')]"
+          },
+          "roleDefinitionId": {
+            "value": "[variables('serviceBusDataReceiverRoleId')]"
+          },
+          "principalType": {
+            "value": "ServicePrincipal"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "10391257520998757089"
+            }
+          },
+          "parameters": {
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "The principal ID (object ID) to assign the role to"
+              }
+            },
+            "roleDefinitionId": {
+              "type": "string",
+              "metadata": {
+                "description": "The role definition ID to assign"
+              }
+            },
+            "principalType": {
+              "type": "string",
+              "defaultValue": "ServicePrincipal",
+              "allowedValues": [
+                "User",
+                "Group",
+                "ServicePrincipal",
+                "ForeignGroup"
+              ],
+              "metadata": {
+                "description": "The type of principal"
+              }
+            },
+            "roleDescription": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Description of the role assignment"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(parameters('principalId'), parameters('roleDefinitionId'), resourceGroup().id)]",
+              "properties": {
+                "roleDefinitionId": "[parameters('roleDefinitionId')]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "[parameters('principalType')]",
+                "description": "[if(not(empty(parameters('roleDescription'))), parameters('roleDescription'), null())]"
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Role assignment ID"
+              },
+              "value": "[resourceId('Microsoft.Authorization/roleAssignments', guid(parameters('principalId'), parameters('roleDefinitionId'), resourceGroup().id))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Role assignment name"
+              },
+              "value": "[guid(parameters('principalId'), parameters('roleDefinitionId'), resourceGroup().id)]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "serviceBusSenderRole",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "principalId": {
+            "value": "[variables('commonManagedIdentityId')]"
+          },
+          "roleDefinitionId": {
+            "value": "[variables('serviceBusDataSenderRoleId')]"
+          },
+          "principalType": {
+            "value": "ServicePrincipal"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "10391257520998757089"
+            }
+          },
+          "parameters": {
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "The principal ID (object ID) to assign the role to"
+              }
+            },
+            "roleDefinitionId": {
+              "type": "string",
+              "metadata": {
+                "description": "The role definition ID to assign"
+              }
+            },
+            "principalType": {
+              "type": "string",
+              "defaultValue": "ServicePrincipal",
+              "allowedValues": [
+                "User",
+                "Group",
+                "ServicePrincipal",
+                "ForeignGroup"
+              ],
+              "metadata": {
+                "description": "The type of principal"
+              }
+            },
+            "roleDescription": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Description of the role assignment"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(parameters('principalId'), parameters('roleDefinitionId'), resourceGroup().id)]",
+              "properties": {
+                "roleDefinitionId": "[parameters('roleDefinitionId')]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "[parameters('principalType')]",
+                "description": "[if(not(empty(parameters('roleDescription'))), parameters('roleDescription'), null())]"
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Role assignment ID"
+              },
+              "value": "[resourceId('Microsoft.Authorization/roleAssignments', guid(parameters('principalId'), parameters('roleDefinitionId'), resourceGroup().id))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Role assignment name"
+              },
+              "value": "[guid(parameters('principalId'), parameters('roleDefinitionId'), resourceGroup().id)]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "integrationStorageRole",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "principalId": {
+            "value": "[variables('commonManagedIdentityId')]"
+          },
+          "roleDefinitionId": {
+            "value": "[variables('storageBlobDataContributorRoleId')]"
+          },
+          "principalType": {
+            "value": "ServicePrincipal"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "10391257520998757089"
+            }
+          },
+          "parameters": {
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "The principal ID (object ID) to assign the role to"
+              }
+            },
+            "roleDefinitionId": {
+              "type": "string",
+              "metadata": {
+                "description": "The role definition ID to assign"
+              }
+            },
+            "principalType": {
+              "type": "string",
+              "defaultValue": "ServicePrincipal",
+              "allowedValues": [
+                "User",
+                "Group",
+                "ServicePrincipal",
+                "ForeignGroup"
+              ],
+              "metadata": {
+                "description": "The type of principal"
+              }
+            },
+            "roleDescription": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Description of the role assignment"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(parameters('principalId'), parameters('roleDefinitionId'), resourceGroup().id)]",
+              "properties": {
+                "roleDefinitionId": "[parameters('roleDefinitionId')]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "[parameters('principalType')]",
+                "description": "[if(not(empty(parameters('roleDescription'))), parameters('roleDescription'), null())]"
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Role assignment ID"
+              },
+              "value": "[resourceId('Microsoft.Authorization/roleAssignments', guid(parameters('principalId'), parameters('roleDefinitionId'), resourceGroup().id))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Role assignment name"
+              },
+              "value": "[guid(parameters('principalId'), parameters('roleDefinitionId'), resourceGroup().id)]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "resourceGroupName": {
+      "type": "string",
+      "metadata": {
+        "description": "Integration resource group name"
+      },
+      "value": "[variables('resourceGroupName')]"
+    },
+    "serviceBusName": {
+      "type": "string",
+      "metadata": {
+        "description": "Service Bus Namespace name"
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBus'), '2025-04-01').outputs.name.value]"
+    },
+    "queueName": {
+      "type": "string",
+      "metadata": {
+        "description": "Service Bus Queue name"
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBus'), '2025-04-01').outputs.queueNames.value[0]]"
+    },
+    "functionAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "Function App name"
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionApp'), '2025-04-01').outputs.name.value]"
+    },
+    "logicAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "Logic App name"
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'logicApp'), '2025-04-01').outputs.name.value]"
+    },
+    "integrationStorageName": {
+      "type": "string",
+      "metadata": {
+        "description": "Integration Storage Account name"
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationStorage'), '2025-04-01').outputs.name.value]"
+    }
+  }
+}
