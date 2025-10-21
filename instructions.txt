@@ -1,12 +1,12 @@
+still left to do:
 
-Basics:
+logging -> application insight integration, alerts, alert rules, can now send to kalle.korhonen@efima.com
+short name needed for storages?
+Logic app in consumption tier can't be joined to vnet
+What about redeployments, so does this work with existing resources so that they are updated if needed.
+Keyvault should use access policies, not rbac
+can parameters be generated on windows?
+Is the result now compatible with azures well architectured framework?
 
-This is an starting repository that is cloned for any new project:
 
-Projects are integration projects made in Azure mainly connecting to Dynamics 365 Finance and operations. Components mainly used are logic apps, function apps, service bus, keyvaults, storage accounts, managed identities and so on. What would be the best practises 
 
-Deployments are made using reusable bicep modules and github actions. Every integration should have it's own github action file where you can select branch, tier (dev, test, uat or prod). We will be using environemt secrets to connect to Azure. Let's say that every GH env should have it's own secret called AZURE_CREDENTAILS and based on action selection correct is used
-
-First we need create a deployable infra and "common" resource group, that will hold components shared with integrations wich are in their own resource groups. Shared components belonging to infra are at least keyvault, app service plan, generic storage account, managed id shared with resources to simplify access grants. 
-
-First we need to have a simple settings file that developer will fill. There should be atleat customer name. Then we need to deploy infra as iac following well architecture framework
