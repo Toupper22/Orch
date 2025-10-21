@@ -2,11 +2,12 @@ still left to do:
 
 logging -> application insight integration, alerts, alert rules, can now send to kalle.korhonen@efima.com
 short name needed for storages?
-Logic app in consumption tier can't be joined to vnet
+Logic app in consumption tier can't be joined to vnet and we should onlyu use as cost effective options that we can use
 What about redeployments, so does this work with existing resources so that they are updated if needed.
 Keyvault should use access policies, not rbac
 can parameters be generated on windows?
 Is the result now compatible with azures well architectured framework?
+app service plan for functions should be B1 on all other tiers, but in prod S2
 
 
 
