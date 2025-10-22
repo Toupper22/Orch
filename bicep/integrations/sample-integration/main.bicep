@@ -100,7 +100,8 @@ resource integrationSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01
 
 // IDs for passing to modules
 var commonAppServicePlanId = commonAppServicePlan.id
-var commonManagedIdentityId = commonManagedIdentity.properties.principalId  // Principal ID for RBAC, not resource ID
+var commonManagedIdentityId = commonManagedIdentity.id  // Full resource ID for identity assignment
+var commonManagedIdentityPrincipalId = commonManagedIdentity.properties.principalId  // Principal ID for RBAC
 var integrationSubnetId = integrationSubnet.id
 var commonApplicationInsightsConnectionString = commonApplicationInsights.properties.ConnectionString
 
@@ -209,7 +210,7 @@ module integrationKeyVault '../../modules/keyVault.bicep' = {
     accessPolicies: [
       {
         tenantId: subscription().tenantId
-        objectId: commonManagedIdentity.properties.principalId
+        objectId: commonManagedIdentityPrincipalId
         permissions: {
           secrets: [
             'get'
@@ -479,7 +480,7 @@ module serviceBusReceiverRole '../../modules/rbacAssignment.bicep' = {
   name: 'serviceBusReceiverRole'
   scope: integrationResourceGroup
   params: {
-    principalId: commonManagedIdentityId
+    principalId: commonManagedIdentityPrincipalId
     roleDefinitionId: serviceBusDataReceiverRoleId
     principalType: 'ServicePrincipal'
   }
@@ -489,7 +490,7 @@ module serviceBusSenderRole '../../modules/rbacAssignment.bicep' = {
   name: 'serviceBusSenderRole'
   scope: integrationResourceGroup
   params: {
-    principalId: commonManagedIdentityId
+    principalId: commonManagedIdentityPrincipalId
     roleDefinitionId: serviceBusDataSenderRoleId
     principalType: 'ServicePrincipal'
   }
@@ -500,7 +501,7 @@ module functionStorageRole '../../modules/rbacAssignment.bicep' = {
   name: 'functionStorageRole'
   scope: integrationResourceGroup
   params: {
-    principalId: commonManagedIdentityId
+    principalId: commonManagedIdentityPrincipalId
     roleDefinitionId: storageBlobDataContributorRoleId
     principalType: 'ServicePrincipal'
   }
@@ -511,7 +512,7 @@ module archiveStorageRole '../../modules/rbacAssignment.bicep' = {
   name: 'archiveStorageRole'
   scope: integrationResourceGroup
   params: {
-    principalId: commonManagedIdentityId
+    principalId: commonManagedIdentityPrincipalId
     roleDefinitionId: storageBlobDataContributorRoleId
     principalType: 'ServicePrincipal'
   }
