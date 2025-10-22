@@ -229,6 +229,10 @@ var commonTags = union(tags, {
 // Determine which Log Analytics Workspace to use
 var logAnalyticsWorkspaceId = !empty(externalLogAnalyticsWorkspaceId) ? externalLogAnalyticsWorkspaceId : (deployLogAnalyticsWorkspace ? logAnalyticsWorkspace!.outputs.id : '')
 
+// Storage account name (must be calculated here for use in listKeys)
+// Pattern: {prefix}{env}{locationShort}st (no dashes, lowercase)
+var storageAccountNameCalculated = toLower(replace('${prefix}${environment}${locationShort}st', '-', ''))
+
 // ============================================================================
 // Resource Group
 // ============================================================================
@@ -454,7 +458,7 @@ module storageAccount '../modules/storageAccount.bicep' = if (deployStorageAccou
     managedIdentity
   ]
   params: {
-    storageAccountName: storageAccountNaming!.outputs.name
+    storageAccountName: storageAccountNameCalculated
     location: location
     tags: commonTags
     skuName: storageAccountSku
@@ -489,8 +493,8 @@ module storageTablesApiConnection '../modules/apiConnection.bicep' = if (deployA
     connectionType: 'azuretables'
     displayName: 'Common Storage Tables'
     parameterValues: {
-      storageaccount: storageAccountNaming!.outputs.name
-      sharedkey: listKeys(resourceId(commonResourceGroup.name, 'Microsoft.Storage/storageAccounts', storageAccountNaming!.outputs.name), '2023-01-01').keys[0].value
+      storageaccount: storageAccountNameCalculated
+      sharedkey: listKeys(resourceId(commonResourceGroup.name, 'Microsoft.Storage/storageAccounts', storageAccountNameCalculated), '2023-01-01').keys[0].value
     }
     additionalParameterValues: {}
   }
