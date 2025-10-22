@@ -23,6 +23,12 @@ param parameterValues object = {}
 @description('Connection parameter values that are not sensitive')
 param additionalParameterValues object = {}
 
+@description('For azuretables connection: Resource group containing the storage account')
+param storageAccountResourceGroup string = ''
+
+@description('For azuretables connection: Storage account name')
+param storageAccountName string = ''
+
 // API Connection display names and IDs by type
 var connectionTypes = {
   azuretables: {
@@ -47,6 +53,15 @@ var connectionTypes = {
   }
 }
 
+// Build parameter values for azuretables connection type
+var azureTablesParams = connectionType == 'azuretables' && !empty(storageAccountResourceGroup) && !empty(storageAccountName) ? {
+  storageaccount: storageAccountName
+  sharedkey: listKeys(resourceId(storageAccountResourceGroup, 'Microsoft.Storage/storageAccounts', storageAccountName), '2023-01-01').keys[0].value
+} : {}
+
+// Merge all parameter values
+var finalParameterValues = union(parameterValues, additionalParameterValues, azureTablesParams)
+
 // Deploy API Connection
 resource apiConnection 'Microsoft.Web/connections@2016-06-01' = {
   name: connectionName
@@ -57,7 +72,7 @@ resource apiConnection 'Microsoft.Web/connections@2016-06-01' = {
     api: {
       id: connectionTypes[connectionType].id
     }
-    parameterValues: union(parameterValues, additionalParameterValues)
+    parameterValues: finalParameterValues
   }
 }
 

@@ -486,19 +486,15 @@ module storageAccount '../modules/storageAccount.bicep' = if (deployStorageAccou
 module storageTablesApiConnection '../modules/apiConnection.bicep' = if (deployApiConnections && deployStorageAccount) {
   name: 'storageTablesApiConnection'
   scope: commonResourceGroup
-  dependsOn: [
-    storageAccount
-  ]
   params: {
     connectionName: '${apiConnectionNaming!.outputs.name}-tables'
     location: location
     tags: union(commonTags, { Purpose: 'Logic Apps Table Storage Access' })
     connectionType: 'azuretables'
     displayName: 'Common Storage Tables'
-    parameterValues: {
-      storageaccount: storageAccountNameCalculated
-      sharedkey: listKeys(storageAccount!.outputs.id, '2023-01-01').keys[0].value
-    }
+    storageAccountResourceGroup: commonResourceGroup.name
+    storageAccountName: storageAccountNameCalculated
+    parameterValues: {}
     additionalParameterValues: {}
   }
 }
