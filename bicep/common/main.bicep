@@ -57,6 +57,9 @@ param deployLogAnalyticsWorkspace bool = true
 @description('Deploy Service Bus Namespace')
 param deployServiceBus bool = false
 
+@description('Deploy API Connections for Logic Apps')
+param deployApiConnections bool = true
+
 // Key Vault parameters
 @description('Key Vault SKU')
 @allowed([
@@ -89,6 +92,16 @@ param storageContainers array = [
   {
     name: 'logs'
     publicAccess: 'None'
+  }
+]
+
+@description('Storage tables to create')
+param storageTables array = [
+  {
+    name: 'Configuration'
+  }
+  {
+    name: 'Logs'
   }
 ]
 
@@ -352,6 +365,17 @@ module serviceBusNaming '../modules/naming.bicep' = if (deployServiceBus) {
   }
 }
 
+module apiConnectionNaming '../modules/naming.bicep' = if (deployApiConnections && deployStorageAccount) {
+  name: 'apiConnectionNaming'
+  scope: commonResourceGroup
+  params: {
+    prefix: prefix
+    environment: environment
+    locationShort: locationShort
+    resourceType: 'apic'
+  }
+}
+
 // ============================================================================
 // Managed Identity (deployed first for RBAC assignments)
 // ============================================================================
@@ -437,6 +461,7 @@ module storageAccount '../modules/storageAccount.bicep' = if (deployStorageAccou
     kind: 'StorageV2'
     accessTier: 'Hot'
     containers: storageContainers
+    tables: storageTables
     enableDiagnostics: enableDiagnostics
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     networkAclDefaultAction: 'Deny'
@@ -446,6 +471,31 @@ module storageAccount '../modules/storageAccount.bicep' = if (deployStorageAccou
     virtualNetworkRules: deployVirtualNetwork ? [
       '${virtualNetwork!.outputs.id}/subnets/integration-subnet'
     ] : []
+  }
+}
+
+// ============================================================================
+// API Connections for Logic Apps
+// ============================================================================
+
+// API Connection to Common Storage Account Tables
+module storageTablesApiConnection '../modules/apiConnection.bicep' = if (deployApiConnections && deployStorageAccount) {
+  name: 'storageTablesApiConnection'
+  scope: commonResourceGroup
+  dependsOn: [
+    storageAccount
+  ]
+  params: {
+    connectionName: '${apiConnectionNaming!.outputs.name}-tables'
+    location: location
+    tags: union(commonTags, { Purpose: 'Logic Apps Table Storage Access' })
+    connectionType: 'azuretables'
+    displayName: 'Common Storage Tables'
+    parameterValues: {
+      storageaccount: storageAccountNaming!.outputs.name
+      sharedkey: listKeys(resourceId(commonResourceGroup.name, 'Microsoft.Storage/storageAccounts', storageAccountNaming!.outputs.name), '2023-01-01').keys[0].value
+    }
+    nonSecretParameterValues: {}
   }
 }
 
@@ -794,3 +844,12 @@ output serviceBusId string = deployServiceBus ? serviceBus!.outputs.id : ''
 
 @description('Service Bus Namespace endpoint')
 output serviceBusEndpoint string = deployServiceBus ? serviceBus!.outputs.endpoint : ''
+
+@description('Storage Tables API Connection name')
+output storageTablesApiConnectionName string = (deployApiConnections && deployStorageAccount) ? storageTablesApiConnection!.outputs.name : ''
+
+@description('Storage Tables API Connection ID')
+output storageTablesApiConnectionId string = (deployApiConnections && deployStorageAccount) ? storageTablesApiConnection!.outputs.id : ''
+
+@description('Storage Tables API Connection runtime URL')
+output storageTablesApiConnectionRuntimeUrl string = (deployApiConnections && deployStorageAccount) ? storageTablesApiConnection!.outputs.connectionRuntimeUrl : ''

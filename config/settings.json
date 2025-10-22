@@ -77,6 +77,14 @@
           "name": "logs",
           "publicAccess": "None"
         }
+      ],
+      "tables": [
+        {
+          "name": "Configuration"
+        },
+        {
+          "name": "Logs"
+        }
       ]
     },
     "appServicePlan": {
@@ -97,6 +105,10 @@
       "enabled": true,
       "sku": "Standard",
       "capacity": 1
+    },
+    "apiConnections": {
+      "enabled": true,
+      "deployStorageTablesConnection": true
     },
     "network": {
       "enabled": true,

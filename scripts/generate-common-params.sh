@@ -85,11 +85,14 @@ KEY_VAULT_RETENTION=$(jq -r '.commonInfrastructure.keyVault.softDeleteRetentionI
 
 STORAGE_SKU=$(jq -r '.commonInfrastructure.storageAccount.sku' "$SETTINGS_FILE")
 STORAGE_CONTAINERS=$(jq -c '.commonInfrastructure.storageAccount.containers' "$SETTINGS_FILE")
+STORAGE_TABLES=$(jq -c '.commonInfrastructure.storageAccount.tables' "$SETTINGS_FILE")
 
 APP_PLAN_KIND=$(jq -r '.commonInfrastructure.appServicePlan.kind' "$SETTINGS_FILE")
 
 SERVICE_BUS_SKU=$(jq -r '.commonInfrastructure.serviceBus.sku' "$SETTINGS_FILE")
 SERVICE_BUS_CAPACITY=$(jq -r '.commonInfrastructure.serviceBus.capacity' "$SETTINGS_FILE")
+
+DEPLOY_API_CONNECTIONS=$(jq -r '.commonInfrastructure.apiConnections.enabled' "$SETTINGS_FILE")
 
 NAT_TIMEOUT=$(jq -r '.commonInfrastructure.network.natGateway.idleTimeoutInMinutes' "$SETTINGS_FILE")
 SUBNETS=$(jq -c '.commonInfrastructure.network.subnets' "$SETTINGS_FILE")
@@ -197,6 +200,9 @@ for ENV in "${ENVIRONMENTS[@]}"; do
     "storageContainers": {
       "value": $STORAGE_CONTAINERS
     },
+    "storageTables": {
+      "value": $STORAGE_TABLES
+    },
     "appServicePlanSku": {
       "value": "$APP_PLAN_SKU"
     },
@@ -211,6 +217,9 @@ for ENV in "${ENVIRONMENTS[@]}"; do
     },
     "serviceBusCapacity": {
       "value": $SERVICE_BUS_CAPACITY
+    },
+    "deployApiConnections": {
+      "value": $DEPLOY_API_CONNECTIONS
     },
     "enableDiagnostics": {
       "value": $ENABLE_DIAGNOSTICS
