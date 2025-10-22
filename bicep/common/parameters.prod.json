@@ -90,9 +90,6 @@
     "applicationInsightsRetentionInDays": {
       "value": 180
     },
-    "applicationInsightsDailyDataCapInGB": {
-      "value": 20
-    },
     "alertEmailReceivers": {
       "value": [
         {

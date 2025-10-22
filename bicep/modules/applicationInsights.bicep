@@ -19,10 +19,6 @@ param applicationType string = 'web'
 @maxValue(730)
 param retentionInDays int = 90
 
-@description('Daily data cap in GB (0 = unlimited)')
-@minValue(0)
-param dailyDataCapInGB int = 0
-
 @description('Enable public network access')
 param publicNetworkAccessForIngestion string = 'Enabled'
 
@@ -49,9 +45,6 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
     SamplingPercentage: 100
   }
 }
-
-// Note: Daily data cap (dailyDataCapInGB parameter) should be configured manually in Azure Portal
-// if needed, as the legacy billing features API is deprecated and not supported in Bicep.
 
 @description('The resource ID of the Application Insights instance')
 output id string = applicationInsights.id

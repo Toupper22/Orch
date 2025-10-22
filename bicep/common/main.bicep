@@ -151,9 +151,6 @@ param natGatewayIdleTimeoutInMinutes int = 4
 @maxValue(730)
 param applicationInsightsRetentionInDays int = 90
 
-@description('Application Insights daily data cap in GB (0 = unlimited)')
-param applicationInsightsDailyDataCapInGB int = 5
-
 @description('Email addresses for alert notifications')
 param alertEmailReceivers array = []
 
@@ -443,7 +440,6 @@ module applicationInsights '../modules/applicationInsights.bicep' = if (deployAp
     tags: commonTags
     applicationType: 'web'
     retentionInDays: applicationInsightsRetentionInDays
-    dailyDataCapInGB: applicationInsightsDailyDataCapInGB
     publicNetworkAccessForIngestion: 'Enabled'
     publicNetworkAccessForQuery: 'Enabled'
     workspaceResourceId: enableDiagnostics ? logAnalyticsWorkspaceId : ''
