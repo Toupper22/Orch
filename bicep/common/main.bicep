@@ -486,6 +486,9 @@ module storageAccount '../modules/storageAccount.bicep' = if (deployStorageAccou
 module storageTablesApiConnection '../modules/apiConnection.bicep' = if (deployApiConnections && deployStorageAccount) {
   name: 'storageTablesApiConnection'
   scope: commonResourceGroup
+  dependsOn: [
+    storageAccount
+  ]
   params: {
     connectionName: '${apiConnectionNaming!.outputs.name}-tables'
     location: location
@@ -494,7 +497,7 @@ module storageTablesApiConnection '../modules/apiConnection.bicep' = if (deployA
     displayName: 'Common Storage Tables'
     parameterValues: {
       storageaccount: storageAccountNameCalculated
-      sharedkey: listKeys(resourceId(commonResourceGroup.name, 'Microsoft.Storage/storageAccounts', storageAccountNameCalculated), '2023-01-01').keys[0].value
+      sharedkey: listKeys(storageAccount!.outputs.id, '2023-01-01').keys[0].value
     }
     additionalParameterValues: {}
   }
