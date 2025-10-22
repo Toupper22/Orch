@@ -87,8 +87,20 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
           value: storageAccountName
         }
         {
-          name: 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING'
-          value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};AccountKey=***;EndpointSuffix=core.windows.net'
+          name: 'AzureWebJobsStorage__blobServiceUri'
+          value: 'https://${storageAccountName}.blob.${environment().suffixes.storage}'
+        }
+        {
+          name: 'AzureWebJobsStorage__queueServiceUri'
+          value: 'https://${storageAccountName}.queue.${environment().suffixes.storage}'
+        }
+        {
+          name: 'AzureWebJobsStorage__tableServiceUri'
+          value: 'https://${storageAccountName}.table.${environment().suffixes.storage}'
+        }
+        {
+          name: 'WEBSITE_CONTENTOVERVNET'
+          value: '1'
         }
         {
           name: 'WEBSITE_CONTENTSHARE'

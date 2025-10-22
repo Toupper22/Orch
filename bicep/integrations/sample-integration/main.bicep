@@ -86,6 +86,12 @@ resource commonVNet 'Microsoft.Network/virtualNetworks@2023-09-01' existing = {
   scope: commonResourceGroup
 }
 
+// Reference common Application Insights
+resource commonApplicationInsights 'Microsoft.Insights/components@2020-02-02' existing = {
+  name: '${prefix}-${environment}-${locationShort}-appi'
+  scope: commonResourceGroup
+}
+
 // Reference integration subnet (first subnet in common VNet)
 resource integrationSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' existing = {
   name: 'integration-subnet'
@@ -96,6 +102,7 @@ resource integrationSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01
 var commonAppServicePlanId = commonAppServicePlan.id
 var commonManagedIdentityId = commonManagedIdentity.properties.principalId  // Principal ID for RBAC, not resource ID
 var integrationSubnetId = integrationSubnet.id
+var commonApplicationInsightsConnectionString = commonApplicationInsights.properties.ConnectionString
 
 // ============================================================================
 // Resource Group
@@ -393,7 +400,8 @@ module functionApp '../../modules/functionApp.bicep' = {
     location: location
     tags: commonTags
     appServicePlanId: commonAppServicePlanId
-    storageAccountName: commonStorageAccountName
+    storageAccountName: functionStorage.outputs.name
+    appInsightsConnectionString: commonApplicationInsightsConnectionString
     managedIdentityId: commonManagedIdentityId
     vnetIntegrationSubnetId: integrationSubnetId
     enableVNetIntegration: true
