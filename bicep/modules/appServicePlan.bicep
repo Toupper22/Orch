@@ -13,6 +13,9 @@ param tags object = {}
 @description('App Service Plan SKU name')
 @allowed([
   'Y1'          // Consumption (Function Apps)
+  'B1'          // Basic B1
+  'B2'          // Basic B2
+  'B3'          // Basic B3
   'EP1'         // Elastic Premium 1
   'EP2'         // Elastic Premium 2
   'EP3'         // Elastic Premium 3
@@ -26,7 +29,7 @@ param tags object = {}
   'P2V2'        // Premium V2 P2
   'P3V2'        // Premium V2 P3
 ])
-param skuName string = 'Y1'
+param skuName string = 'B1'
 
 @description('App Service Plan kind')
 @allowed([
@@ -49,6 +52,9 @@ param targetWorkerCount int = 0
 // SKU tier mapping
 var skuTierMap = {
   Y1: 'Dynamic'
+  B1: 'Basic'
+  B2: 'Basic'
+  B3: 'Basic'
   EP1: 'ElasticPremium'
   EP2: 'ElasticPremium'
   EP3: 'ElasticPremium'

@@ -67,7 +67,7 @@ var resourceTypeShortNames = {
 var nameComponents = useShortNames ? [
   take(prefix, 6) // Limit prefix to 6 chars for short names
   environmentShortNames[environment]
-  contains(locationShortNames, locationShort) ? locationShortNames[locationShort] : take(locationShort, 2)
+  locationShortNames[?locationShort] ?? take(locationShort, 2)
 ] : [
   prefix
   environment
@@ -79,7 +79,7 @@ var workloadShortName = useShortNames && !empty(workloadName) ? take(workloadNam
 var nameWithWorkload = !empty(workloadName) ? concat(nameComponents, [workloadShortName]) : nameComponents
 
 // Add resource type
-var resourceTypeShort = useShortNames && contains(resourceTypeShortNames, resourceType) ? resourceTypeShortNames[resourceType] : resourceType
+var resourceTypeShort = useShortNames ? (resourceTypeShortNames[?resourceType] ?? resourceType) : resourceType
 var nameWithType = concat(nameWithWorkload, [resourceTypeShort])
 
 // Add instance if provided

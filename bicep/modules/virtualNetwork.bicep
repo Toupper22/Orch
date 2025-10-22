@@ -54,10 +54,10 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2023-09-01' = {
         natGateway: contains(subnet, 'natGatewayId') && !empty(subnet.natGatewayId) ? {
           id: subnet.natGatewayId
         } : null
-        serviceEndpoints: contains(subnet, 'serviceEndpoints') ? subnet.serviceEndpoints : []
-        delegations: contains(subnet, 'delegations') ? subnet.delegations : []
-        privateEndpointNetworkPolicies: contains(subnet, 'privateEndpointNetworkPolicies') ? subnet.privateEndpointNetworkPolicies : 'Disabled'
-        privateLinkServiceNetworkPolicies: contains(subnet, 'privateLinkServiceNetworkPolicies') ? subnet.privateLinkServiceNetworkPolicies : 'Enabled'
+        serviceEndpoints: subnet.?serviceEndpoints ?? []
+        delegations: subnet.?delegations ?? []
+        privateEndpointNetworkPolicies: subnet.?privateEndpointNetworkPolicies ?? 'Disabled'
+        privateLinkServiceNetworkPolicies: subnet.?privateLinkServiceNetworkPolicies ?? 'Enabled'
       }
     }]
   }

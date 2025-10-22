@@ -293,7 +293,7 @@ module managedIdentity '../modules/managedIdentity.bicep' = if (deployManagedIde
   name: 'managedIdentity'
   scope: commonResourceGroup
   params: {
-    managedIdentityName: replace(managedIdentityNaming.outputs.name, '-', '')
+    managedIdentityName: replace(managedIdentityNaming!.outputs.name, '-', '')
     location: location
     tags: commonTags
     assignKeyVaultSecretsUser: false // Will be assigned after Key Vault is created
@@ -308,9 +308,6 @@ module managedIdentity '../modules/managedIdentity.bicep' = if (deployManagedIde
 module keyVault '../modules/keyVault.bicep' = if (deployKeyVault) {
   name: 'keyVault'
   scope: commonResourceGroup
-  dependsOn: [
-    managedIdentity
-  ]
   params: {
     keyVaultName: replace(keyVaultNaming.outputs.name, '-', '')
     location: location
@@ -320,7 +317,7 @@ module keyVault '../modules/keyVault.bicep' = if (deployKeyVault) {
     accessPolicies: deployManagedIdentity ? [
       {
         tenantId: subscription().tenantId
-        objectId: managedIdentity.outputs.principalId
+        objectId: managedIdentity!.outputs.principalId
         permissions: {
           secrets: [
             'get'
@@ -485,7 +482,7 @@ module availabilityAlert '../modules/metricAlert.bicep' = if (deployApplicationI
     name: '${prefix}-${environment}-availability-alert'
     location: 'global'
     tags: commonTags
-    description: 'Alert when Application Insights availability drops below 99%'
+    alertDescription: 'Alert when Application Insights availability drops below 99%'
     severity: 1
     enabled: true
     scopes: [applicationInsights.outputs.id]
@@ -522,7 +519,7 @@ module exceptionsAlert '../modules/metricAlert.bicep' = if (deployApplicationIns
     name: '${prefix}-${environment}-exceptions-alert'
     location: 'global'
     tags: commonTags
-    description: 'Alert when exception count exceeds threshold'
+    alertDescription: 'Alert when exception count exceeds threshold'
     severity: 2
     enabled: true
     scopes: [applicationInsights.outputs.id]
@@ -565,7 +562,7 @@ module storageRoleAssignment '../modules/rbacAssignment.bicep' = if (deployManag
     managedIdentity
   ]
   params: {
-    principalId: deployManagedIdentity ? managedIdentity.outputs.principalId : ''
+    principalId: deployManagedIdentity ? managedIdentity!.outputs.principalId : ''
     roleDefinitionId: storageBlobDataContributorRoleId
     principalType: 'ServicePrincipal'
   }
@@ -582,76 +579,76 @@ output resourceGroupName string = commonResourceGroup.name
 output resourceGroupId string = commonResourceGroup.id
 
 @description('Key Vault name')
-output keyVaultName string = deployKeyVault ? keyVault.outputs.name : ''
+output keyVaultName string = deployKeyVault ? keyVault!.outputs.name : ''
 
 @description('Key Vault ID')
-output keyVaultId string = deployKeyVault ? keyVault.outputs.id : ''
+output keyVaultId string = deployKeyVault ? keyVault!.outputs.id : ''
 
 @description('Key Vault URI')
-output keyVaultUri string = deployKeyVault ? keyVault.outputs.uri : ''
+output keyVaultUri string = deployKeyVault ? keyVault!.outputs.uri : ''
 
 @description('Storage Account name')
-output storageAccountName string = deployStorageAccount ? storageAccount.outputs.name : ''
+output storageAccountName string = deployStorageAccount ? storageAccount!.outputs.name : ''
 
 @description('Storage Account ID')
-output storageAccountId string = deployStorageAccount ? storageAccount.outputs.id : ''
+output storageAccountId string = deployStorageAccount ? storageAccount!.outputs.id : ''
 
 @description('App Service Plan name')
-output appServicePlanName string = deployAppServicePlan ? appServicePlan.outputs.name : ''
+output appServicePlanName string = deployAppServicePlan ? appServicePlan!.outputs.name : ''
 
 @description('App Service Plan ID')
-output appServicePlanId string = deployAppServicePlan ? appServicePlan.outputs.id : ''
+output appServicePlanId string = deployAppServicePlan ? appServicePlan!.outputs.id : ''
 
 @description('Managed Identity name')
-output managedIdentityName string = deployManagedIdentity ? managedIdentity.outputs.name : ''
+output managedIdentityName string = deployManagedIdentity ? managedIdentity!.outputs.name : ''
 
 @description('Managed Identity ID')
-output managedIdentityId string = deployManagedIdentity ? managedIdentity.outputs.id : ''
+output managedIdentityId string = deployManagedIdentity ? managedIdentity!.outputs.id : ''
 
 @description('Managed Identity Principal ID')
-output managedIdentityPrincipalId string = deployManagedIdentity ? managedIdentity.outputs.principalId : ''
+output managedIdentityPrincipalId string = deployManagedIdentity ? managedIdentity!.outputs.principalId : ''
 
 @description('Managed Identity Client ID')
-output managedIdentityClientId string = deployManagedIdentity ? managedIdentity.outputs.clientId : ''
+output managedIdentityClientId string = deployManagedIdentity ? managedIdentity!.outputs.clientId : ''
 
 @description('Virtual Network name')
-output virtualNetworkName string = deployVirtualNetwork ? virtualNetwork.outputs.name : ''
+output virtualNetworkName string = deployVirtualNetwork ? virtualNetwork!.outputs.name : ''
 
 @description('Virtual Network ID')
-output virtualNetworkId string = deployVirtualNetwork ? virtualNetwork.outputs.id : ''
+output virtualNetworkId string = deployVirtualNetwork ? virtualNetwork!.outputs.id : ''
 
 @description('Subnet IDs')
-output subnetIds array = deployVirtualNetwork ? virtualNetwork.outputs.subnetIds : []
+output subnetIds array = deployVirtualNetwork ? virtualNetwork!.outputs.subnetIds : []
 
 @description('Subnet names')
-output subnetNames array = deployVirtualNetwork ? virtualNetwork.outputs.subnetNames : []
+output subnetNames array = deployVirtualNetwork ? virtualNetwork!.outputs.subnetNames : []
 
 @description('NAT Gateway name')
-output natGatewayName string = deployNatGateway ? natGateway.outputs.name : ''
+output natGatewayName string = deployNatGateway ? natGateway!.outputs.name : ''
 
 @description('NAT Gateway ID')
-output natGatewayId string = deployNatGateway ? natGateway.outputs.id : ''
+output natGatewayId string = deployNatGateway ? natGateway!.outputs.id : ''
 
 @description('Public IP name')
-output publicIpName string = deployNatGateway ? publicIp.outputs.name : ''
+output publicIpName string = deployNatGateway ? publicIp!.outputs.name : ''
 
 @description('Public IP address')
-output publicIpAddress string = deployNatGateway ? publicIp.outputs.ipAddress : ''
+output publicIpAddress string = deployNatGateway ? publicIp!.outputs.ipAddress : ''
 
 @description('Application Insights name')
-output applicationInsightsName string = deployApplicationInsights ? applicationInsights.outputs.name : ''
+output applicationInsightsName string = deployApplicationInsights ? applicationInsights!.outputs.name : ''
 
 @description('Application Insights ID')
-output applicationInsightsId string = deployApplicationInsights ? applicationInsights.outputs.id : ''
+output applicationInsightsId string = deployApplicationInsights ? applicationInsights!.outputs.id : ''
 
 @description('Application Insights instrumentation key')
-output applicationInsightsInstrumentationKey string = deployApplicationInsights ? applicationInsights.outputs.instrumentationKey : ''
+output applicationInsightsInstrumentationKey string = deployApplicationInsights ? applicationInsights!.outputs.instrumentationKey : ''
 
 @description('Application Insights connection string')
-output applicationInsightsConnectionString string = deployApplicationInsights ? applicationInsights.outputs.connectionString : ''
+output applicationInsightsConnectionString string = deployApplicationInsights ? applicationInsights!.outputs.connectionString : ''
 
 @description('Action Group name')
-output actionGroupName string = (deployApplicationInsights && length(alertEmailReceivers) > 0) ? actionGroup.outputs.name : ''
+output actionGroupName string = (deployApplicationInsights && length(alertEmailReceivers) > 0) ? actionGroup!.outputs.name : ''
 
 @description('Action Group ID')
-output actionGroupId string = (deployApplicationInsights && length(alertEmailReceivers) > 0) ? actionGroup.outputs.id : ''
+output actionGroupId string = (deployApplicationInsights && length(alertEmailReceivers) > 0) ? actionGroup!.outputs.id : ''

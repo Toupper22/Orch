@@ -8,7 +8,7 @@ param location string = 'global'
 param tags object = {}
 
 @description('The description of the alert')
-param description string = ''
+param alertDescription string = ''
 
 @description('The severity of the alert (0=Critical, 1=Error, 2=Warning, 3=Informational, 4=Verbose)')
 @minValue(0)
@@ -41,7 +41,7 @@ resource metricAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   location: location
   tags: tags
   properties: {
-    description: description
+    description: alertDescription
     severity: severity
     enabled: enabled
     scopes: scopes

@@ -269,6 +269,8 @@ Copy the JSON output from the first command.
 
 **Important**: The same `AZURE_CREDENTIALS` secret can be used for all environments since the subscription is determined by `config/subscriptions.json`.
 
+**⚠️ Troubleshooting:** If you get "No subscriptions found" error, the service principal doesn't have access to your subscriptions. See [GitHub Actions Troubleshooting Guide](docs/TROUBLESHOOTING-GITHUB-ACTIONS.md) for step-by-step solutions.
+
 ### 7. Test Before Deploying (Recommended)
 
 **Always test your infrastructure before deploying!**
