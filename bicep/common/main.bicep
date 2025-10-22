@@ -486,6 +486,9 @@ module storageAccount '../modules/storageAccount.bicep' = if (deployStorageAccou
 module storageTablesApiConnection '../modules/apiConnection.bicep' = if (deployApiConnections && deployStorageAccount) {
   name: 'storageTablesApiConnection'
   scope: commonResourceGroup
+  dependsOn: [
+    storageAccount
+  ]
   params: {
     connectionName: '${apiConnectionNaming!.outputs.name}-tables'
     location: location
