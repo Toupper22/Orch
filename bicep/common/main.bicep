@@ -402,9 +402,6 @@ module publicIp '../modules/publicIp.bicep' = if (deployNatGateway) {
 module natGateway '../modules/natGateway.bicep' = if (deployNatGateway) {
   name: 'natGateway'
   scope: commonResourceGroup
-  dependsOn: [
-    publicIp
-  ]
   params: {
     natGatewayName: natGatewayNaming!.outputs.name
     location: location
@@ -418,9 +415,6 @@ module natGateway '../modules/natGateway.bicep' = if (deployNatGateway) {
 module virtualNetwork '../modules/virtualNetwork.bicep' = if (deployVirtualNetwork) {
   name: 'virtualNetwork'
   scope: commonResourceGroup
-  dependsOn: [
-    natGateway
-  ]
   params: {
     virtualNetworkName: virtualNetworkNaming!.outputs.name
     location: location
@@ -474,10 +468,6 @@ module actionGroup '../modules/actionGroup.bicep' = if (deployApplicationInsight
 module availabilityAlert '../modules/metricAlert.bicep' = if (deployApplicationInsights && enableDefaultAlerts && length(alertEmailReceivers) > 0) {
   name: 'availabilityAlert'
   scope: commonResourceGroup
-  dependsOn: [
-    applicationInsights
-    actionGroup
-  ]
   params: {
     name: '${prefix}-${environment}-availability-alert'
     location: 'global'
@@ -485,7 +475,7 @@ module availabilityAlert '../modules/metricAlert.bicep' = if (deployApplicationI
     alertDescription: 'Alert when Application Insights availability drops below 99%'
     severity: 1
     enabled: true
-    scopes: [applicationInsights.outputs.id]
+    scopes: [applicationInsights!.outputs.id]
     evaluationFrequency: 'PT5M'
     windowSize: 'PT15M'
     criteria: {
@@ -502,7 +492,7 @@ module availabilityAlert '../modules/metricAlert.bicep' = if (deployApplicationI
         }
       ]
     }
-    actionGroupIds: [actionGroup.outputs.id]
+    actionGroupIds: [actionGroup!.outputs.id]
     autoMitigate: true
   }
 }
@@ -511,10 +501,6 @@ module availabilityAlert '../modules/metricAlert.bicep' = if (deployApplicationI
 module exceptionsAlert '../modules/metricAlert.bicep' = if (deployApplicationInsights && enableDefaultAlerts && length(alertEmailReceivers) > 0) {
   name: 'exceptionsAlert'
   scope: commonResourceGroup
-  dependsOn: [
-    applicationInsights
-    actionGroup
-  ]
   params: {
     name: '${prefix}-${environment}-exceptions-alert'
     location: 'global'
@@ -522,7 +508,7 @@ module exceptionsAlert '../modules/metricAlert.bicep' = if (deployApplicationIns
     alertDescription: 'Alert when exception count exceeds threshold'
     severity: 2
     enabled: true
-    scopes: [applicationInsights.outputs.id]
+    scopes: [applicationInsights!.outputs.id]
     evaluationFrequency: 'PT5M'
     windowSize: 'PT15M'
     criteria: {
@@ -539,7 +525,7 @@ module exceptionsAlert '../modules/metricAlert.bicep' = if (deployApplicationIns
         }
       ]
     }
-    actionGroupIds: [actionGroup.outputs.id]
+    actionGroupIds: [actionGroup!.outputs.id]
     autoMitigate: true
   }
 }
@@ -557,10 +543,6 @@ var storageBlobDataContributorRoleId = subscriptionResourceId('Microsoft.Authori
 module storageRoleAssignment '../modules/rbacAssignment.bicep' = if (deployManagedIdentity && deployStorageAccount) {
   name: 'storageRoleAssignment'
   scope: commonResourceGroup
-  dependsOn: [
-    storageAccount
-    managedIdentity
-  ]
   params: {
     principalId: deployManagedIdentity ? managedIdentity!.outputs.principalId : ''
     roleDefinitionId: storageBlobDataContributorRoleId
