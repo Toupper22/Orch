@@ -3,8 +3,8 @@
   "description": "Azure subscription mapping for each environment",
   "subscriptions": {
     "dev": {
-      "subscriptionId": "REPLACE_WITH_DEV_SUBSCRIPTION_ID",
-      "subscriptionName": "Development Subscription",
+      "subscriptionId": "e04010a7-b0cd-4616-ae9c-67199381bbe2",
+      "subscriptionName": "Visual Studio Enterprise Subscription – MPN",
       "description": "Development environment subscription"
     },
     "test": {
