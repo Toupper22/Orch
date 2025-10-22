@@ -11,7 +11,7 @@
     "locationShort": "sdc"
   },
   "naming": {
-    "prefix": "customer",
+    "prefix": "edmo",
     "environment": {
       "dev": "dev",
       "test": "test",
