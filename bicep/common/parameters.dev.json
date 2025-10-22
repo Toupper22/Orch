@@ -34,6 +34,18 @@
     "deployManagedIdentity": {
       "value": true
     },
+    "deployLogAnalyticsWorkspace": {
+      "value": true
+    },
+    "logAnalyticsWorkspaceSku": {
+      "value": "PerGB2018"
+    },
+    "logAnalyticsRetentionInDays": {
+      "value": 90
+    },
+    "logAnalyticsDailyQuotaGb": {
+      "value": -1
+    },
     "keyVaultSku": {
       "value": "standard"
     },
@@ -47,15 +59,24 @@
       "value": [{"name":"integration-files","publicAccess":"None"},{"name":"logs","publicAccess":"None"}]
     },
     "appServicePlanSku": {
-      "value": "Y1"
+      "value": "B1"
     },
     "appServicePlanKind": {
       "value": "functionapp"
     },
+    "deployServiceBus": {
+      "value": false
+    },
+    "serviceBusSku": {
+      "value": "Standard"
+    },
+    "serviceBusCapacity": {
+      "value": 1
+    },
     "enableDiagnostics": {
       "value": true
     },
-    "logAnalyticsWorkspaceId": {
+    "externalLogAnalyticsWorkspaceId": {
       "value": ""
     },
     "deployVirtualNetwork": {
