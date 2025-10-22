@@ -492,10 +492,10 @@ module storageTablesApiConnection '../modules/apiConnection.bicep' = if (deployA
     connectionType: 'azuretables'
     displayName: 'Common Storage Tables'
     parameterValues: {
-      storageaccount: storageAccountNaming!.outputs.name
-      sharedkey: listKeys(resourceId(commonResourceGroup.name, 'Microsoft.Storage/storageAccounts', storageAccountNaming!.outputs.name), '2023-01-01').keys[0].value
+      storageaccount: storageAccount!.outputs.name
+      sharedkey: listKeys(storageAccount!.outputs.id, '2023-01-01').keys[0].value
     }
-    nonSecretParameterValues: {}
+    parameterValuesNonSecret: {}
   }
 }
 
