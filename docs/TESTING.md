@@ -86,7 +86,7 @@ az account set --subscription "$SUBSCRIPTION_ID"
 
 # Validate deployment
 az deployment sub validate \
-  --location westeurope \
+  --location swedencentral \
   --template-file bicep/common/main.bicep \
   --parameters bicep/common/parameters.dev.json
 ```
@@ -109,7 +109,7 @@ Preview exactly what changes will be made to your infrastructure.
 
 ```bash
 az deployment sub what-if \
-  --location westeurope \
+  --location swedencentral \
   --template-file bicep/common/main.bicep \
   --parameters bicep/common/parameters.dev.json \
   --result-format FullResourcePayloads
@@ -181,11 +181,11 @@ The deployment will update the following scope:
 
 Scope: /subscriptions/xxxxx
 
-  + Microsoft.Network/publicIPAddresses/contoso-dev-weu-pip
-  + Microsoft.Network/natGateways/contoso-dev-weu-nat
-  + Microsoft.Network/virtualNetworks/contoso-dev-weu-vnet
-  + Microsoft.KeyVault/vaults/contosodeweuv
-  + Microsoft.Storage/storageAccounts/contosodeweuost
+  + Microsoft.Network/publicIPAddresses/contoso-dev-sdc-pip
+  + Microsoft.Network/natGateways/contoso-dev-sdc-nat
+  + Microsoft.Network/virtualNetworks/contoso-dev-sdc-vnet
+  + Microsoft.KeyVault/vaults/contosodesdcv
+  + Microsoft.Storage/storageAccounts/contosodesdcost
   ...
 
 ═══════════════════════════════════════════════════════════
@@ -209,7 +209,7 @@ az account set --subscription "$SUBSCRIPTION_ID"
 
 # Run what-if for dev
 az deployment sub what-if \
-  --location westeurope \
+  --location swedencentral \
   --template-file bicep/common/main.bicep \
   --parameters bicep/common/parameters.dev.json
 ```
@@ -275,9 +275,9 @@ After the workflow completes:
 ```
 Scope: /subscriptions/xxxxx
 
-  + Microsoft.Network/virtualNetworks/contoso-dev-weu-vnet [2023-09-01]
+  + Microsoft.Network/virtualNetworks/contoso-dev-sdc-vnet [2023-09-01]
 
-      location:            "westeurope"
+      location:            "swedencentral"
       properties.addressSpace.addressPrefixes: [
         "10.0.0.0/16"
       ]
@@ -285,21 +285,21 @@ Scope: /subscriptions/xxxxx
         {
           name:                   "integration-subnet"
           properties.addressPrefix: "10.0.1.0/24"
-          properties.natGateway.id: "/subscriptions/.../natGateways/contoso-dev-weu-nat"
+          properties.natGateway.id: "/subscriptions/.../natGateways/contoso-dev-sdc-nat"
         }
       ]
 ```
 
 **How to read this:**
 - `+` means this Virtual Network will be **created**
-- Location will be `westeurope`
+- Location will be `swedencentral`
 - Address space will be `10.0.0.0/16`
 - One subnet will be created with NAT Gateway attached
 
 ### Modify Example
 
 ```
-  ~ Microsoft.KeyVault/vaults/contosodeweuv [2023-07-01]
+  ~ Microsoft.KeyVault/vaults/contosodesdcv [2023-07-01]
     ~ properties.softDeleteRetentionInDays: 7 => 90
 ```
 
@@ -356,7 +356,7 @@ vim bicep/common/parameters.dev.json
 for env in dev test uat prod; do
     echo "Testing $env..."
     az deployment sub what-if \
-        --location westeurope \
+        --location swedencentral \
         --template-file bicep/common/main.bicep \
         --parameters bicep/common/parameters.$env.json
 done
@@ -433,7 +433,7 @@ This is normal. What-if analysis can take 1-3 minutes because Azure needs to:
 ```bash
 # Compare current state with template
 az deployment sub what-if \
-  --location westeurope \
+  --location swedencentral \
   --template-file bicep/common/main.bicep \
   --parameters bicep/common/parameters.dev.json \
   --result-format FullResourcePayloads
@@ -489,7 +489,7 @@ Add validation to your CI pipeline:
 ```bash
 # Save what-if output for audit trail
 az deployment sub what-if \
-  --location westeurope \
+  --location swedencentral \
   --template-file bicep/common/main.bicep \
   --parameters bicep/common/parameters.prod.json \
   > what-if-prod-$(date +%Y%m%d-%H%M%S).txt

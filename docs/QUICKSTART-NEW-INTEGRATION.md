@@ -110,10 +110,10 @@ Edit `parameters.dev.json` and `parameters.test.json`:
       "value": "dev"
     },
     "location": {
-      "value": "westeurope"
+      "value": "swedencentral"
     },
     "locationShort": {
-      "value": "weu"
+      "value": "sdc"
     },
     "integrationName": {
       "value": "mynew"  // Your integration name
@@ -276,7 +276,7 @@ on:
         uses: azure/arm-deploy@v2
         with:
           scope: subscription
-          region: westeurope
+          region: swedencentral
           template: ./bicep/integrations/my-new-integration/main.bicep
           parameters: ./bicep/integrations/my-new-integration/parameters.${{ inputs.environment }}.json
           deploymentName: my-new-integration-${{ inputs.environment }}-${{ github.run_number }}
@@ -304,7 +304,7 @@ Or via Azure CLI:
 
 ```bash
 az deployment sub create \
-  --location westeurope \
+  --location swedencentral \
   --template-file bicep/common/main.bicep \
   --parameters bicep/common/parameters.dev.json
 ```
@@ -320,7 +320,7 @@ Or via Azure CLI:
 
 ```bash
 az deployment sub create \
-  --location westeurope \
+  --location swedencentral \
   --template-file bicep/integrations/my-new-integration/main.bicep \
   --parameters bicep/integrations/my-new-integration/parameters.dev.json
 ```

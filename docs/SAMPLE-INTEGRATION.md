@@ -240,7 +240,7 @@ az account set --subscription "$SUBSCRIPTION_ID"
 
 # Deploy integration infrastructure
 az deployment sub create \
-  --location westeurope \
+  --location swedencentral \
   --template-file bicep/integrations/sample-integration/main.bicep \
   --parameters bicep/integrations/sample-integration/parameters.dev.json \
   --name sample-integration-dev-$(date +%Y%m%d-%H%M%S)

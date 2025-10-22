@@ -129,7 +129,7 @@ print_header "Step 2: Deployment Validation"
 
 print_info "Validating deployment against Azure..."
 if az deployment sub validate \
-    --location westeurope \
+    --location swedencentral \
     --template-file bicep/common/main.bicep \
     --parameters bicep/common/parameters.$ENV.json \
     --query "properties.provisioningState" -o tsv > /dev/null 2>&1; then
@@ -138,7 +138,7 @@ else
     print_error "Deployment validation failed"
     print_info "Running validation again with detailed output..."
     az deployment sub validate \
-        --location westeurope \
+        --location swedencentral \
         --template-file bicep/common/main.bicep \
         --parameters bicep/common/parameters.$ENV.json
     exit 1
@@ -153,7 +153,7 @@ print_warning "This may take 1-2 minutes..."
 echo ""
 
 WHAT_IF_OUTPUT=$(az deployment sub what-if \
-    --location westeurope \
+    --location swedencentral \
     --template-file bicep/common/main.bicep \
     --parameters bicep/common/parameters.$ENV.json \
     --result-format FullResourcePayloads 2>&1)
@@ -221,7 +221,7 @@ if [ $CREATE_COUNT -gt 0 ] || [ $MODIFY_COUNT -gt 0 ]; then
     echo ""
     echo "4. To deploy via Azure CLI:"
     echo "   az deployment sub create \\"
-    echo "     --location westeurope \\"
+    echo "     --location swedencentral \\"
     echo "     --template-file bicep/common/main.bicep \\"
     echo "     --parameters bicep/common/parameters.$ENV.json \\"
     echo "     --name common-infra-$ENV-\$(date +%Y%m%d-%H%M%S)"

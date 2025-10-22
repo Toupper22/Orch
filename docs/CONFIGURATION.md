@@ -40,8 +40,8 @@ Only environment-specific overrides (like SKUs, address spaces, retention period
 ```json
 {
   "azure": {
-    "location": "westeurope",      // Primary region for all deployments
-    "locationShort": "weu"         // Used in resource naming
+    "location": "swedencentral",      // Primary region for all deployments
+    "locationShort": "sdc"         // Used in resource naming
   }
 }
 ```
@@ -175,8 +175,8 @@ When you need to change a global setting:
 |----------------|---------|---------------|
 | `project.customerName` | All tags (Customer) | "Contoso" |
 | `project.projectName` | All tags (Project) | "D365 Integrations" |
-| `azure.location` | All deployments | "westeurope" |
-| `azure.locationShort` | Resource naming | "weu" |
+| `azure.location` | All deployments | "swedencentral" |
+| `azure.locationShort` | Resource naming | "sdc" |
 | `naming.prefix` | All resource names | "contoso" |
 | `commonInfrastructure.storageAccount.containers` | Common storage containers | [...] |
 | `commonInfrastructure.keyVault.sku` | Key Vault SKU | "standard" |
@@ -209,7 +209,7 @@ To add a new environment (e.g., "staging"):
 4. **Deploy**:
    ```bash
    az deployment sub create \
-     --location westeurope \
+     --location swedencentral \
      --template-file bicep/common/main.bicep \
      --parameters bicep/common/parameters.staging.json
    ```

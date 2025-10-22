@@ -43,8 +43,10 @@ var environmentShortNames = {
 var locationShortNames = {
   weu: 'we'
   eus: 'eu'
+  sdc: 'sc'
   westeurope: 'we'
   eastus: 'eu'
+  swedencentral: 'sc'
   northeurope: 'ne'
   westus: 'wu'
   centralus: 'cu'

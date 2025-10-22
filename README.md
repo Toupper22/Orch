@@ -190,8 +190,8 @@ Edit `config/settings.json` with your project details:
     "description": "Azure integration project for Dynamics 365 F&O"
   },
   "azure": {
-    "location": "westeurope",
-    "locationShort": "weu"
+    "location": "swedencentral",
+    "locationShort": "sdc"
   },
   "naming": {
     "prefix": "contoso"
@@ -316,7 +316,7 @@ az account set --subscription "$SUBSCRIPTION_ID"
 
 # Deploy
 az deployment sub create \
-  --location westeurope \
+  --location swedencentral \
   --template-file bicep/common/main.bicep \
   --parameters bicep/common/parameters.dev.json \
   --name common-infra-dev-$(date +%Y%m%d-%H%M%S)
@@ -365,7 +365,7 @@ Preview exactly what changes will be made:
 
 ```bash
 az deployment sub what-if \
-  --location westeurope \
+  --location swedencentral \
   --template-file bicep/common/main.bicep \
   --parameters bicep/common/parameters.dev.json
 ```
@@ -437,8 +437,8 @@ The `config/settings.json` file is the **single source of truth** for project-wi
 |---------|-------------|---------|---------|
 | `project.customerName` | Customer identifier | `Contoso` | All parameter files (tags) |
 | `project.projectName` | Project name | `D365 Integrations` | All parameter files (tags) |
-| `azure.location` | Primary Azure region | `westeurope` | All deployments |
-| `azure.locationShort` | Region abbreviation | `weu` | Resource naming |
+| `azure.location` | Primary Azure region | `swedencentral` | All deployments |
+| `azure.locationShort` | Region abbreviation | `sdc` | Resource naming |
 | `naming.prefix` | Resource naming prefix | `contoso` | All resource names |
 | `commonInfrastructure.*` | Infrastructure defaults | See file | Common infra parameters |
 
@@ -483,13 +483,13 @@ az account set --subscription "your-subscription-id"
 
 # Deploy to dev environment
 az deployment sub create \
-  --location westeurope \
+  --location swedencentral \
   --template-file bicep/common/main.bicep \
   --parameters bicep/common/parameters.dev.json
 
 # What-if deployment (preview changes)
 az deployment sub what-if \
-  --location westeurope \
+  --location swedencentral \
   --template-file bicep/common/main.bicep \
   --parameters bicep/common/parameters.dev.json
 ```
@@ -597,12 +597,12 @@ All resources follow a consistent naming pattern:
 
 Examples:
 - Resource Group: `contoso-dev-common-rg`
-- Key Vault: `contosodeweuv` (no hyphens, max 24 chars)
-- Storage Account: `contosodeweuost` (lowercase, no hyphens)
-- App Service Plan: `contoso-dev-weu-plan`
-- Virtual Network: `contoso-dev-weu-vnet`
-- NAT Gateway: `contoso-dev-weu-nat`
-- Public IP: `contoso-dev-weu-pip`
+- Key Vault: `contosodesdcv` (no hyphens, max 24 chars)
+- Storage Account: `contosodesdcost` (lowercase, no hyphens)
+- App Service Plan: `contoso-dev-sdc-plan`
+- Virtual Network: `contoso-dev-sdc-vnet`
+- NAT Gateway: `contoso-dev-sdc-nat`
+- Public IP: `contoso-dev-sdc-pip`
 
 Resource type abbreviations follow [Azure CAF standards](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/azure-best-practices/resource-abbreviations).
 

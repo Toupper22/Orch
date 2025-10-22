@@ -107,7 +107,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo ""
 
     az deployment sub what-if \
-        --location westeurope \
+        --location swedencentral \
         --template-file bicep/common/main.bicep \
         --parameters bicep/common/parameters.$ENV.json
 

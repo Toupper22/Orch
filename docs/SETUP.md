@@ -44,7 +44,7 @@ Edit `config/settings.json`:
   },
   "azure": {
     "subscriptionId": "YOUR_SUBSCRIPTION_ID",
-    "location": "westeurope"
+    "location": "swedencentral"
   },
   "naming": {
     "prefix": "YOUR_PREFIX"  // Keep it short (3-6 chars)
@@ -199,13 +199,13 @@ Review the what-if output, then run again without what-if to deploy.
 ```bash
 # Preview changes
 az deployment sub what-if \
-  --location westeurope \
+  --location swedencentral \
   --template-file bicep/common/main.bicep \
   --parameters bicep/common/parameters.dev.json
 
 # Deploy
 az deployment sub create \
-  --location westeurope \
+  --location swedencentral \
   --template-file bicep/common/main.bicep \
   --parameters bicep/common/parameters.dev.json \
   --name common-infra-dev-001
@@ -216,10 +216,10 @@ az deployment sub create \
 After deployment, verify in Azure Portal:
 
 1. **Resource Group**: `{prefix}-dev-common-rg`
-2. **Key Vault**: `{prefix}devweukv`
-3. **Storage Account**: `{prefix}devweust`
-4. **App Service Plan**: `{prefix}-dev-weu-plan`
-5. **Managed Identity**: `{prefix}devweuid`
+2. **Key Vault**: `{prefix}devsdckv`
+3. **Storage Account**: `{prefix}devsdcst`
+4. **App Service Plan**: `{prefix}-dev-sdc-plan`
+5. **Managed Identity**: `{prefix}devsdcid`
 
 Check that:
 - Managed Identity has RBAC roles on Key Vault and Storage
@@ -249,12 +249,12 @@ If you want diagnostic logging:
 # Create Log Analytics Workspace
 az monitor log-analytics workspace create \
   --resource-group {prefix}-dev-common-rg \
-  --workspace-name {prefix}-dev-weu-law
+  --workspace-name {prefix}-dev-sdc-law
 
 # Get workspace ID
 LAW_ID=$(az monitor log-analytics workspace show \
   --resource-group {prefix}-dev-common-rg \
-  --workspace-name {prefix}-dev-weu-law \
+  --workspace-name {prefix}-dev-sdc-law \
   --query "id" -o tsv)
 
 # Update parameter files with the workspace ID
@@ -305,7 +305,7 @@ To remove all deployed resources:
 az group delete --name {prefix}-dev-common-rg --yes --no-wait
 
 # Purge soft-deleted Key Vault
-az keyvault purge --name {prefix}devweukv
+az keyvault purge --name {prefix}devsdckv
 ```
 
 **Warning**: This is irreversible!

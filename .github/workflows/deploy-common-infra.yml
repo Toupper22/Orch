@@ -48,7 +48,7 @@ jobs:
         uses: azure/arm-deploy@v2
         with:
           scope: subscription
-          region: westeurope
+          region: swedencentral
           template: ./bicep/common/main.bicep
           parameters: ./bicep/common/parameters.${{ inputs.environment }}.json
           deploymentMode: Validate
@@ -80,7 +80,7 @@ jobs:
         uses: azure/arm-deploy@v2
         with:
           scope: subscription
-          region: westeurope
+          region: swedencentral
           template: ./bicep/common/main.bicep
           parameters: ./bicep/common/parameters.${{ inputs.environment }}.json
           additionalArguments: --what-if
@@ -113,7 +113,7 @@ jobs:
         uses: azure/arm-deploy@v2
         with:
           scope: subscription
-          region: westeurope
+          region: swedencentral
           template: ./bicep/common/main.bicep
           parameters: ./bicep/common/parameters.${{ inputs.environment }}.json
           deploymentName: common-infra-${{ inputs.environment }}-${{ github.run_number }}

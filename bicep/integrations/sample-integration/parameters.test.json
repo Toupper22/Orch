@@ -9,10 +9,10 @@
       "value": "test"
     },
     "location": {
-      "value": "westeurope"
+      "value": "swedencentral"
     },
     "locationShort": {
-      "value": "weu"
+      "value": "sdc"
     },
     "integrationName": {
       "value": "sample"

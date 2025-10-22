@@ -7,8 +7,8 @@
     "description": "Azure integration project for Dynamics 365 Finance and Operations"
   },
   "azure": {
-    "location": "westeurope",
-    "locationShort": "weu"
+    "location": "swedencentral",
+    "locationShort": "sdc"
   },
   "naming": {
     "prefix": "customer",
@@ -135,19 +135,19 @@
   "environments": {
     "dev": {
       "enabled": true,
-      "location": "westeurope"
+      "location": "swedencentral"
     },
     "test": {
       "enabled": true,
-      "location": "westeurope"
+      "location": "swedencentral"
     },
     "uat": {
       "enabled": true,
-      "location": "westeurope"
+      "location": "swedencentral"
     },
     "prod": {
       "enabled": true,
-      "location": "westeurope"
+      "location": "swedencentral"
     }
   }
 }
