@@ -50,19 +50,8 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
   }
 }
 
-// Data cap configuration
-resource dataCapConfig 'Microsoft.Insights/components/currentbillingfeatures@2015-05-01' = if (dailyDataCapInGB > 0) {
-  name: 'Basic'
-  parent: applicationInsights
-  properties: {
-    CurrentBillingFeatures: 'Basic'
-    DataVolumeCap: {
-      Cap: dailyDataCapInGB
-      WarningThreshold: 90
-      StopSendNotificationWhenHitCap: false
-    }
-  }
-}
+// Note: Daily data cap (dailyDataCapInGB parameter) should be configured manually in Azure Portal
+// if needed, as the legacy billing features API is deprecated and not supported in Bicep.
 
 @description('The resource ID of the Application Insights instance')
 output id string = applicationInsights.id
