@@ -187,15 +187,6 @@ module keyVaultNaming '../../modules/naming.bicep' = {
 }
 
 // ============================================================================
-// Reference Common Key Vault (for shared secrets)
-// ============================================================================
-
-resource commonKeyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
-  name: replace('${prefix}-${environment}-${locationShort}-kv', '-', '')
-  scope: commonResourceGroup
-}
-
-// ============================================================================
 // Integration-Specific Key Vault
 // ============================================================================
 
@@ -316,51 +307,55 @@ module archiveStorage '../../modules/storageAccount.bicep' = {
 }
 
 // ============================================================================
-// Store Storage Account Keys in Integration Key Vault
+// Store Storage Account Keys and Connection Strings in Integration Key Vault
 // ============================================================================
 
-resource functionStorageKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
-  name: '${integrationKeyVault.outputs.name}/FunctionStorageAccountKey'
-  properties: {
-    value: listKeys(resourceId(integrationResourceGroup.name, 'Microsoft.Storage/storageAccounts', functionStorage.outputs.name), '2023-01-01').keys[0].value
+// Function Storage Account Key
+module functionStorageKeySecret '../../modules/storageKeySecret.bicep' = {
+  name: 'functionStorageKeySecret'
+  scope: integrationResourceGroup
+  params: {
+    keyVaultName: integrationKeyVault.outputs.name
+    secretName: 'FunctionStorageAccountKey'
+    storageAccountResourceGroup: integrationResourceGroup.name
+    storageAccountName: functionStorageNaming.outputs.name
   }
-  dependsOn: [
-    integrationKeyVault
-    functionStorage
-  ]
 }
 
-resource archiveStorageKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
-  name: '${integrationKeyVault.outputs.name}/ArchiveStorageAccountKey'
-  properties: {
-    value: listKeys(resourceId(integrationResourceGroup.name, 'Microsoft.Storage/storageAccounts', archiveStorage.outputs.name), '2023-01-01').keys[0].value
+// Archive Storage Account Key
+module archiveStorageKeySecret '../../modules/storageKeySecret.bicep' = {
+  name: 'archiveStorageKeySecret'
+  scope: integrationResourceGroup
+  params: {
+    keyVaultName: integrationKeyVault.outputs.name
+    secretName: 'ArchiveStorageAccountKey'
+    storageAccountResourceGroup: integrationResourceGroup.name
+    storageAccountName: archiveStorageNaming.outputs.name
   }
-  dependsOn: [
-    integrationKeyVault
-    archiveStorage
-  ]
 }
 
-resource functionStorageConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
-  name: '${integrationKeyVault.outputs.name}/FunctionStorageConnectionString'
-  properties: {
-    value: 'DefaultEndpointsProtocol=https;AccountName=${functionStorage.outputs.name};AccountKey=${listKeys(resourceId(integrationResourceGroup.name, 'Microsoft.Storage/storageAccounts', functionStorage.outputs.name), '2023-01-01').keys[0].value};EndpointSuffix=core.windows.net'
+// Function Storage Connection String
+module functionStorageConnectionStringSecret '../../modules/storageConnectionStringSecret.bicep' = {
+  name: 'functionStorageConnectionStringSecret'
+  scope: integrationResourceGroup
+  params: {
+    keyVaultName: integrationKeyVault.outputs.name
+    secretName: 'FunctionStorageConnectionString'
+    storageAccountResourceGroup: integrationResourceGroup.name
+    storageAccountName: functionStorageNaming.outputs.name
   }
-  dependsOn: [
-    integrationKeyVault
-    functionStorage
-  ]
 }
 
-resource archiveStorageConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
-  name: '${integrationKeyVault.outputs.name}/ArchiveStorageConnectionString'
-  properties: {
-    value: 'DefaultEndpointsProtocol=https;AccountName=${archiveStorage.outputs.name};AccountKey=${listKeys(resourceId(integrationResourceGroup.name, 'Microsoft.Storage/storageAccounts', archiveStorage.outputs.name), '2023-01-01').keys[0].value};EndpointSuffix=core.windows.net'
+// Archive Storage Connection String
+module archiveStorageConnectionStringSecret '../../modules/storageConnectionStringSecret.bicep' = {
+  name: 'archiveStorageConnectionStringSecret'
+  scope: integrationResourceGroup
+  params: {
+    keyVaultName: integrationKeyVault.outputs.name
+    secretName: 'ArchiveStorageConnectionString'
+    storageAccountResourceGroup: integrationResourceGroup.name
+    storageAccountName: archiveStorageNaming.outputs.name
   }
-  dependsOn: [
-    integrationKeyVault
-    archiveStorage
-  ]
 }
 
 // ============================================================================
