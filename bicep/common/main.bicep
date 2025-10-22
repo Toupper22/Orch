@@ -375,9 +375,6 @@ module managedIdentity '../modules/managedIdentity.bicep' = if (deployManagedIde
 module keyVault '../modules/keyVault.bicep' = if (deployKeyVault) {
   name: 'keyVault'
   scope: commonResourceGroup
-  dependsOn: [
-    virtualNetwork
-  ]
   params: {
     keyVaultName: replace(keyVaultNaming!.outputs.name, '-', '')
     location: location
@@ -431,7 +428,6 @@ module storageAccount '../modules/storageAccount.bicep' = if (deployStorageAccou
   scope: commonResourceGroup
   dependsOn: [
     managedIdentity
-    virtualNetwork
   ]
   params: {
     storageAccountName: storageAccountNaming!.outputs.name
@@ -558,6 +554,7 @@ module serviceBus '../modules/serviceBus.bicep' = if (deployServiceBus) {
     location: location
     tags: commonTags
     skuName: serviceBusSku
+    capacity: serviceBusCapacity
     queues: []
     topics: []
     enableDiagnostics: enableDiagnostics

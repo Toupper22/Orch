@@ -18,6 +18,16 @@ param tags object = {}
 ])
 param skuName string = 'Standard'
 
+@description('Service Bus capacity (only for Premium SKU, 1-16 messaging units)')
+@allowed([
+  1
+  2
+  4
+  8
+  16
+])
+param capacity int = 1
+
 @description('Queues to create')
 param queues array = []
 
@@ -38,6 +48,7 @@ resource serviceBus 'Microsoft.ServiceBus/namespaces@2022-10-01-preview' = {
   sku: {
     name: skuName
     tier: skuName
+    capacity: skuName == 'Premium' ? capacity : null
   }
   properties: {
     minimumTlsVersion: '1.2'
