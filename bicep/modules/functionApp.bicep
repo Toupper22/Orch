@@ -99,6 +99,10 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
           value: 'https://${storageAccountName}.table.${environment().suffixes.storage}'
         }
         {
+          name: 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING'
+          value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};AccountKey=${listKeys(resourceId('Microsoft.Storage/storageAccounts', storageAccountName), '2023-01-01').keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
+        }
+        {
           name: 'WEBSITE_CONTENTOVERVNET'
           value: '1'
         }
