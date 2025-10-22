@@ -21,7 +21,7 @@ param displayName string
 param parameterValues object = {}
 
 @description('Connection parameter values that are not sensitive')
-param parameterValuesNonSecret object = {}
+param additionalParameterValues object = {}
 
 // API Connection display names and IDs by type
 var connectionTypes = {
@@ -57,7 +57,7 @@ resource apiConnection 'Microsoft.Web/connections@2016-06-01' = {
     api: {
       id: connectionTypes[connectionType].id
     }
-    parameterValues: union(parameterValues, parameterValuesNonSecret)
+    parameterValues: union(parameterValues, additionalParameterValues)
   }
 }
 
@@ -68,8 +68,8 @@ output id string = apiConnection.id
 @description('API Connection name')
 output name string = apiConnection.name
 
-@description('API Connection runtime URL (if available)')
-output connectionRuntimeUrl string = contains(apiConnection.properties, 'connectionRuntimeUrl') ? apiConnection.properties.connectionRuntimeUrl : ''
+@description('API Connection status link')
+output statusLink string = length(apiConnection.properties.statuses) > 0 ? apiConnection.properties.statuses[0].status : 'Unknown'
 
 @description('API Connection object')
 output connection object = apiConnection

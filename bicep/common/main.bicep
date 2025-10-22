@@ -482,9 +482,6 @@ module storageAccount '../modules/storageAccount.bicep' = if (deployStorageAccou
 module storageTablesApiConnection '../modules/apiConnection.bicep' = if (deployApiConnections && deployStorageAccount) {
   name: 'storageTablesApiConnection'
   scope: commonResourceGroup
-  dependsOn: [
-    storageAccount
-  ]
   params: {
     connectionName: '${apiConnectionNaming!.outputs.name}-tables'
     location: location
@@ -492,10 +489,10 @@ module storageTablesApiConnection '../modules/apiConnection.bicep' = if (deployA
     connectionType: 'azuretables'
     displayName: 'Common Storage Tables'
     parameterValues: {
-      storageaccount: storageAccount!.outputs.name
-      sharedkey: listKeys(storageAccount!.outputs.id, '2023-01-01').keys[0].value
+      storageaccount: storageAccountNaming!.outputs.name
+      sharedkey: listKeys(resourceId(commonResourceGroup.name, 'Microsoft.Storage/storageAccounts', storageAccountNaming!.outputs.name), '2023-01-01').keys[0].value
     }
-    parameterValuesNonSecret: {}
+    additionalParameterValues: {}
   }
 }
 
@@ -851,5 +848,5 @@ output storageTablesApiConnectionName string = (deployApiConnections && deploySt
 @description('Storage Tables API Connection ID')
 output storageTablesApiConnectionId string = (deployApiConnections && deployStorageAccount) ? storageTablesApiConnection!.outputs.id : ''
 
-@description('Storage Tables API Connection runtime URL')
-output storageTablesApiConnectionRuntimeUrl string = (deployApiConnections && deployStorageAccount) ? storageTablesApiConnection!.outputs.connectionRuntimeUrl : ''
+@description('Storage Tables API Connection status')
+output storageTablesApiConnectionStatus string = (deployApiConnections && deployStorageAccount) ? storageTablesApiConnection!.outputs.statusLink : ''
