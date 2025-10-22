@@ -193,6 +193,14 @@ param subnets array = [
   {
     name: 'integration-subnet'
     addressPrefix: '10.0.1.0/24'
+    delegations: [
+      {
+        name: 'Microsoft.Web.serverFarms'
+        properties: {
+          serviceName: 'Microsoft.Web/serverFarms'
+        }
+      }
+    ]
   }
   {
     name: 'private-endpoint-subnet'

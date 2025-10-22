@@ -72,7 +72,15 @@
   {
     "name": "integration-subnet",
     "addressPrefix": "10.2.1.0/24",
-    "description": "Subnet for integration resources (Function Apps, Logic Apps)"
+    "description": "Subnet for integration resources (Function Apps, Logic Apps)",
+    "delegations": [
+      {
+        "name": "Microsoft.Web.serverFarms",
+        "properties": {
+          "serviceName": "Microsoft.Web/serverFarms"
+        }
+      }
+    ]
   },
   {
     "name": "private-endpoint-subnet",
