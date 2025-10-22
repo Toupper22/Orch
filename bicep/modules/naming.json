@@ -1,0 +1,121 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.38.33.27573",
+      "templateHash": "9076932791527102817"
+    }
+  },
+  "parameters": {
+    "prefix": {
+      "type": "string",
+      "metadata": {
+        "description": "Customer/project prefix for resource naming"
+      }
+    },
+    "environment": {
+      "type": "string",
+      "allowedValues": [
+        "dev",
+        "test",
+        "uat",
+        "prod"
+      ],
+      "metadata": {
+        "description": "Environment name (dev, test, uat, prod)"
+      }
+    },
+    "locationShort": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region short code (e.g., weu for West Europe)"
+      }
+    },
+    "workloadName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional workload or integration name"
+      }
+    },
+    "resourceType": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource type abbreviation"
+      }
+    },
+    "instance": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional instance number for multiple instances"
+      }
+    },
+    "useShortNames": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Use short naming format (for resources with strict character limits like storage accounts)"
+      }
+    }
+  },
+  "variables": {
+    "separator": "-",
+    "environmentShortNames": {
+      "dev": "d",
+      "test": "t",
+      "uat": "u",
+      "prod": "p"
+    },
+    "locationShortNames": {
+      "weu": "we",
+      "eus": "eu",
+      "sdc": "sc",
+      "westeurope": "we",
+      "eastus": "eu",
+      "swedencentral": "sc",
+      "northeurope": "ne",
+      "westus": "wu",
+      "centralus": "cu"
+    },
+    "resourceTypeShortNames": {
+      "st": "st",
+      "kv": "kv",
+      "func": "fn",
+      "logic": "la",
+      "sb": "sbus",
+      "appi": "ai",
+      "plan": "pl",
+      "vnet": "vn",
+      "id": "id"
+    },
+    "nameComponents": "[if(parameters('useShortNames'), createArray(take(parameters('prefix'), 6), variables('environmentShortNames')[parameters('environment')], coalesce(tryGet(variables('locationShortNames'), parameters('locationShort')), take(parameters('locationShort'), 2))), createArray(parameters('prefix'), parameters('environment'), parameters('locationShort')))]",
+    "workloadShortName": "[if(and(parameters('useShortNames'), not(empty(parameters('workloadName')))), take(parameters('workloadName'), 8), parameters('workloadName'))]",
+    "nameWithWorkload": "[if(not(empty(parameters('workloadName'))), concat(variables('nameComponents'), createArray(variables('workloadShortName'))), variables('nameComponents'))]",
+    "resourceTypeShort": "[if(parameters('useShortNames'), coalesce(tryGet(variables('resourceTypeShortNames'), parameters('resourceType')), parameters('resourceType')), parameters('resourceType'))]",
+    "nameWithType": "[concat(variables('nameWithWorkload'), createArray(variables('resourceTypeShort')))]",
+    "instanceShort": "[if(and(parameters('useShortNames'), not(empty(parameters('instance')))), take(parameters('instance'), 2), parameters('instance'))]",
+    "finalComponents": "[if(not(empty(parameters('instance'))), concat(variables('nameWithType'), createArray(variables('instanceShort'))), variables('nameWithType'))]",
+    "resourceName": "[if(parameters('useShortNames'), toLower(replace(join(variables('finalComponents'), ''), '-', '')), join(variables('finalComponents'), variables('separator')))]"
+  },
+  "resources": [],
+  "outputs": {
+    "name": {
+      "type": "string",
+      "value": "[variables('resourceName')]"
+    },
+    "components": {
+      "type": "object",
+      "value": {
+        "prefix": "[parameters('prefix')]",
+        "environment": "[parameters('environment')]",
+        "locationShort": "[parameters('locationShort')]",
+        "workloadName": "[parameters('workloadName')]",
+        "resourceType": "[parameters('resourceType')]",
+        "instance": "[parameters('instance')]"
+      }
+    }
+  }
+}

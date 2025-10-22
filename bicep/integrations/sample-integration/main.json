@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "5407223198475078759"
+      "templateHash": "16189249016207158997"
     }
   },
   "parameters": {
@@ -74,7 +74,6 @@
     "commonVNetName": "[format('{0}-{1}-{2}-vnet', parameters('prefix'), parameters('environment'), parameters('locationShort'))]",
     "commonTags": "[union(parameters('tags'), createObject('Environment', parameters('environment'), 'Integration', parameters('integrationName'), 'ManagedBy', 'Bicep'))]",
     "commonAppServicePlanId": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.Web/serverfarms', format('{0}-{1}-{2}-plan', parameters('prefix'), parameters('environment'), parameters('locationShort')))]",
-    "commonManagedIdentityId": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', replace(format('{0}-{1}-{2}-id', parameters('prefix'), parameters('environment'), parameters('locationShort')), '-', ''))]",
     "integrationSubnetId": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.Network/virtualNetworks/subnets', variables('commonVNetName'), 'integration-subnet')]",
     "serviceBusDataReceiverRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4f6d3b9b-027b-4f4c-9142-0e5a2a2247e0')]",
     "serviceBusDataSenderRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '69a216fc-b8fb-44d8-bc22-1f3c2cd27a39')]",
@@ -122,7 +121,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3174528743679203941"
+              "templateHash": "9076932791527102817"
             }
           },
           "parameters": {
@@ -202,7 +201,7 @@
               "kv": "kv",
               "func": "fn",
               "logic": "la",
-              "sb": "sb",
+              "sb": "sbus",
               "appi": "ai",
               "plan": "pl",
               "vnet": "vn",
@@ -275,7 +274,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3174528743679203941"
+              "templateHash": "9076932791527102817"
             }
           },
           "parameters": {
@@ -355,7 +354,7 @@
               "kv": "kv",
               "func": "fn",
               "logic": "la",
-              "sb": "sb",
+              "sb": "sbus",
               "appi": "ai",
               "plan": "pl",
               "vnet": "vn",
@@ -428,7 +427,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3174528743679203941"
+              "templateHash": "9076932791527102817"
             }
           },
           "parameters": {
@@ -508,7 +507,7 @@
               "kv": "kv",
               "func": "fn",
               "logic": "la",
-              "sb": "sb",
+              "sb": "sbus",
               "appi": "ai",
               "plan": "pl",
               "vnet": "vn",
@@ -584,7 +583,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3174528743679203941"
+              "templateHash": "9076932791527102817"
             }
           },
           "parameters": {
@@ -664,7 +663,7 @@
               "kv": "kv",
               "func": "fn",
               "logic": "la",
-              "sb": "sb",
+              "sb": "sbus",
               "appi": "ai",
               "plan": "pl",
               "vnet": "vn",
@@ -743,7 +742,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3174528743679203941"
+              "templateHash": "9076932791527102817"
             }
           },
           "parameters": {
@@ -823,7 +822,7 @@
               "kv": "kv",
               "func": "fn",
               "logic": "la",
-              "sb": "sb",
+              "sb": "sbus",
               "appi": "ai",
               "plan": "pl",
               "vnet": "vn",
@@ -896,7 +895,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3174528743679203941"
+              "templateHash": "9076932791527102817"
             }
           },
           "parameters": {
@@ -976,7 +975,7 @@
               "kv": "kv",
               "func": "fn",
               "logic": "la",
-              "sb": "sb",
+              "sb": "sbus",
               "appi": "ai",
               "plan": "pl",
               "vnet": "vn",
@@ -2876,7 +2875,7 @@
             "value": "[variables('commonStorageAccountName')]"
           },
           "managedIdentityId": {
-            "value": "[variables('commonManagedIdentityId')]"
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', replace(format('{0}-{1}-{2}-id', parameters('prefix'), parameters('environment'), parameters('locationShort')), '-', '')), '2023-01-31').principalId]"
           },
           "vnetIntegrationSubnetId": {
             "value": "[variables('integrationSubnetId')]"
@@ -3127,7 +3126,7 @@
             "value": "[variables('commonStorageAccountName')]"
           },
           "managedIdentityId": {
-            "value": "[variables('commonManagedIdentityId')]"
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', replace(format('{0}-{1}-{2}-id', parameters('prefix'), parameters('environment'), parameters('locationShort')), '-', '')), '2023-01-31').principalId]"
           },
           "vnetIntegrationSubnetId": {
             "value": "[variables('integrationSubnetId')]"
@@ -3336,7 +3335,7 @@
         "mode": "Incremental",
         "parameters": {
           "principalId": {
-            "value": "[variables('commonManagedIdentityId')]"
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', replace(format('{0}-{1}-{2}-id', parameters('prefix'), parameters('environment'), parameters('locationShort')), '-', '')), '2023-01-31').principalId]"
           },
           "roleDefinitionId": {
             "value": "[variables('serviceBusDataReceiverRoleId')]"
@@ -3436,7 +3435,7 @@
         "mode": "Incremental",
         "parameters": {
           "principalId": {
-            "value": "[variables('commonManagedIdentityId')]"
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', replace(format('{0}-{1}-{2}-id', parameters('prefix'), parameters('environment'), parameters('locationShort')), '-', '')), '2023-01-31').principalId]"
           },
           "roleDefinitionId": {
             "value": "[variables('serviceBusDataSenderRoleId')]"
@@ -3536,7 +3535,7 @@
         "mode": "Incremental",
         "parameters": {
           "principalId": {
-            "value": "[variables('commonManagedIdentityId')]"
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', replace(format('{0}-{1}-{2}-id', parameters('prefix'), parameters('environment'), parameters('locationShort')), '-', '')), '2023-01-31').principalId]"
           },
           "roleDefinitionId": {
             "value": "[variables('storageBlobDataContributorRoleId')]"
@@ -3636,7 +3635,7 @@
         "mode": "Incremental",
         "parameters": {
           "principalId": {
-            "value": "[variables('commonManagedIdentityId')]"
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', replace(format('{0}-{1}-{2}-id', parameters('prefix'), parameters('environment'), parameters('locationShort')), '-', '')), '2023-01-31').principalId]"
           },
           "roleDefinitionId": {
             "value": "[variables('storageBlobDataContributorRoleId')]"

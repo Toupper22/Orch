@@ -58,7 +58,7 @@ var resourceTypeShortNames = {
   kv: 'kv'
   func: 'fn'
   logic: 'la'
-  sb: 'sb'
+  sb: 'sbus'  // Changed from 'sb' - Azure reserves '-sb' suffix
   appi: 'ai'
   plan: 'pl'
   vnet: 'vn'

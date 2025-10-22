@@ -94,7 +94,7 @@ resource integrationSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01
 
 // IDs for passing to modules
 var commonAppServicePlanId = commonAppServicePlan.id
-var commonManagedIdentityId = commonManagedIdentity.id
+var commonManagedIdentityId = commonManagedIdentity.properties.principalId  // Principal ID for RBAC, not resource ID
 var integrationSubnetId = integrationSubnet.id
 
 // ============================================================================

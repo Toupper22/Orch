@@ -3,7 +3,7 @@
   "contentVersion": "1.0.0.0",
   "parameters": {
     "prefix": {
-      "value": "customer"
+      "value": "edmo"
     },
     "environment": {
       "value": "prod"
@@ -20,8 +20,8 @@
     "tags": {
       "value": {
         "Environment": "Production",
-        "Customer": "CUSTOMER_NAME_HERE",
-        "Project": "PROJECT_NAME_HERE",
+        "Customer": "efimademo",
+        "Project": "demoproject",
         "Integration": "Sample Integration"
       }
     },
