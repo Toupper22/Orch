@@ -17,8 +17,8 @@
     "tags": {
       "value": {
         "Environment": "Development",
-        "Customer": "CUSTOMER_NAME_HERE",
-        "Project": "PROJECT_NAME_HERE",
+        "Customer": "efimademo",
+        "Project": "demoproject",
         "CostCenter": "IT-Dev"
       }
     },
@@ -47,10 +47,10 @@
       "value": [{"name":"integration-files","publicAccess":"None"},{"name":"logs","publicAccess":"None"}]
     },
     "appServicePlanSku": {
-      "value": "B1"
+      "value": "Y1"
     },
     "appServicePlanKind": {
-      "value": "app"
+      "value": "functionapp"
     },
     "enableDiagnostics": {
       "value": true
@@ -83,24 +83,6 @@
     },
     "natGatewayIdleTimeoutInMinutes": {
       "value": 4
-    },
-    "deployApplicationInsights": {
-      "value": true
-    },
-    "applicationInsightsRetentionInDays": {
-      "value": 90
-    },
-    "alertEmailReceivers": {
-      "value": [
-        {
-          "name": "Admin",
-          "emailAddress": "kalle.korhonen@efima.com",
-          "useCommonAlertSchema": true
-        }
-      ]
-    },
-    "enableDefaultAlerts": {
-      "value": true
     }
   }
 }
