@@ -366,7 +366,7 @@ module serviceBus '../../modules/serviceBus.bicep' = {
   name: 'serviceBus'
   scope: integrationResourceGroup
   params: {
-    serviceBusName: serviceBusNaming.outputs.name
+    serviceBusName: replace(serviceBusNaming.outputs.name, '-', '')
     location: location
     tags: commonTags
     skuName: serviceBusSku
