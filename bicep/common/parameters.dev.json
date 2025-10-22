@@ -65,7 +65,7 @@
       "value": "functionapp"
     },
     "deployServiceBus": {
-      "value": false
+      "value": true
     },
     "serviceBusSku": {
       "value": "Standard"

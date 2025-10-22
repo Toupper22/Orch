@@ -94,7 +94,7 @@
       "type": "UserAssigned"
     },
     "serviceBus": {
-      "enabled": false,
+      "enabled": true,
       "sku": "Standard",
       "capacity": 1
     },
