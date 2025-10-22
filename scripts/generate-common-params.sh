@@ -67,12 +67,18 @@ CUSTOMER=$(jq -r '.project.customerName' "$SETTINGS_FILE")
 PROJECT=$(jq -r '.project.projectName' "$SETTINGS_FILE")
 
 # Read common infrastructure settings
+DEPLOY_LOG_ANALYTICS=$(jq -r '.commonInfrastructure.logAnalyticsWorkspace.enabled' "$SETTINGS_FILE")
 DEPLOY_KEY_VAULT=$(jq -r '.commonInfrastructure.keyVault.enabled' "$SETTINGS_FILE")
 DEPLOY_STORAGE=$(jq -r '.commonInfrastructure.storageAccount.enabled' "$SETTINGS_FILE")
 DEPLOY_APP_PLAN=$(jq -r '.commonInfrastructure.appServicePlan.enabled' "$SETTINGS_FILE")
 DEPLOY_MANAGED_ID=$(jq -r '.commonInfrastructure.managedIdentity.enabled' "$SETTINGS_FILE")
+DEPLOY_SERVICE_BUS=$(jq -r '.commonInfrastructure.serviceBus.enabled' "$SETTINGS_FILE")
 DEPLOY_NETWORK=$(jq -r '.commonInfrastructure.network.enabled' "$SETTINGS_FILE")
 DEPLOY_NAT=$(jq -r '.commonInfrastructure.network.natGateway.enabled' "$SETTINGS_FILE")
+
+LOG_ANALYTICS_SKU=$(jq -r '.commonInfrastructure.logAnalyticsWorkspace.sku' "$SETTINGS_FILE")
+LOG_ANALYTICS_RETENTION=$(jq -r '.commonInfrastructure.logAnalyticsWorkspace.retentionInDays' "$SETTINGS_FILE")
+LOG_ANALYTICS_QUOTA=$(jq -r '.commonInfrastructure.logAnalyticsWorkspace.dailyQuotaGb' "$SETTINGS_FILE")
 
 KEY_VAULT_SKU=$(jq -r '.commonInfrastructure.keyVault.sku' "$SETTINGS_FILE")
 KEY_VAULT_RETENTION=$(jq -r '.commonInfrastructure.keyVault.softDeleteRetentionInDays' "$SETTINGS_FILE")
@@ -82,11 +88,14 @@ STORAGE_CONTAINERS=$(jq -c '.commonInfrastructure.storageAccount.containers' "$S
 
 APP_PLAN_KIND=$(jq -r '.commonInfrastructure.appServicePlan.kind' "$SETTINGS_FILE")
 
+SERVICE_BUS_SKU=$(jq -r '.commonInfrastructure.serviceBus.sku' "$SETTINGS_FILE")
+SERVICE_BUS_CAPACITY=$(jq -r '.commonInfrastructure.serviceBus.capacity' "$SETTINGS_FILE")
+
 NAT_TIMEOUT=$(jq -r '.commonInfrastructure.network.natGateway.idleTimeoutInMinutes' "$SETTINGS_FILE")
 SUBNETS=$(jq -c '.commonInfrastructure.network.subnets' "$SETTINGS_FILE")
 
 ENABLE_DIAGNOSTICS=$(jq -r '.security.enableDiagnostics' "$SETTINGS_FILE")
-LOG_WORKSPACE_ID=$(jq -r '.security.logAnalyticsWorkspaceId' "$SETTINGS_FILE")
+EXTERNAL_LOG_WORKSPACE_ID=$(jq -r '.security.externalLogAnalyticsWorkspaceId' "$SETTINGS_FILE")
 
 # Process each environment
 for ENV in "${ENVIRONMENTS[@]}"; do
@@ -96,28 +105,28 @@ for ENV in "${ENVIRONMENTS[@]}"; do
     case $ENV in
         dev)
             ENV_LABEL="Development"
-            APP_PLAN_SKU="Y1"
+            APP_PLAN_SKU=$(jq -r '.commonInfrastructure.appServicePlan.sku.dev' "$SETTINGS_FILE")
             COST_CENTER="IT-Dev"
             VNET_PREFIX='["10.0.0.0/16"]'
             SUBNET_DEV=$(echo "$SUBNETS" | jq '.[0].addressPrefix = "10.0.1.0/24" | .[1].addressPrefix = "10.0.2.0/24"')
             ;;
         test)
             ENV_LABEL="Test"
-            APP_PLAN_SKU="Y1"
+            APP_PLAN_SKU=$(jq -r '.commonInfrastructure.appServicePlan.sku.test' "$SETTINGS_FILE")
             COST_CENTER="IT-Test"
             VNET_PREFIX='["10.1.0.0/16"]'
             SUBNET_DEV=$(echo "$SUBNETS" | jq '.[0].addressPrefix = "10.1.1.0/24" | .[1].addressPrefix = "10.1.2.0/24"')
             ;;
         uat)
             ENV_LABEL="UAT"
-            APP_PLAN_SKU="EP1"
+            APP_PLAN_SKU=$(jq -r '.commonInfrastructure.appServicePlan.sku.uat' "$SETTINGS_FILE")
             COST_CENTER="IT-UAT"
             VNET_PREFIX='["10.2.0.0/16"]'
             SUBNET_DEV=$(echo "$SUBNETS" | jq '.[0].addressPrefix = "10.2.1.0/24" | .[1].addressPrefix = "10.2.2.0/24"')
             ;;
         prod)
             ENV_LABEL="Production"
-            APP_PLAN_SKU="EP1"
+            APP_PLAN_SKU=$(jq -r '.commonInfrastructure.appServicePlan.sku.prod' "$SETTINGS_FILE")
             COST_CENTER="IT-Production"
             VNET_PREFIX='["10.3.0.0/16"]'
             SUBNET_DEV=$(echo "$SUBNETS" | jq '.[0].addressPrefix = "10.3.1.0/24" | .[1].addressPrefix = "10.3.2.0/24"')
@@ -164,6 +173,18 @@ for ENV in "${ENVIRONMENTS[@]}"; do
     "deployManagedIdentity": {
       "value": $DEPLOY_MANAGED_ID
     },
+    "deployLogAnalyticsWorkspace": {
+      "value": $DEPLOY_LOG_ANALYTICS
+    },
+    "logAnalyticsWorkspaceSku": {
+      "value": "$LOG_ANALYTICS_SKU"
+    },
+    "logAnalyticsRetentionInDays": {
+      "value": $LOG_ANALYTICS_RETENTION
+    },
+    "logAnalyticsDailyQuotaGb": {
+      "value": $LOG_ANALYTICS_QUOTA
+    },
     "keyVaultSku": {
       "value": "$KEY_VAULT_SKU"
     },
@@ -182,11 +203,20 @@ for ENV in "${ENVIRONMENTS[@]}"; do
     "appServicePlanKind": {
       "value": "$APP_PLAN_KIND"
     },
+    "deployServiceBus": {
+      "value": $DEPLOY_SERVICE_BUS
+    },
+    "serviceBusSku": {
+      "value": "$SERVICE_BUS_SKU"
+    },
+    "serviceBusCapacity": {
+      "value": $SERVICE_BUS_CAPACITY
+    },
     "enableDiagnostics": {
       "value": $ENABLE_DIAGNOSTICS
     },
-    "logAnalyticsWorkspaceId": {
-      "value": "$LOG_WORKSPACE_ID"
+    "externalLogAnalyticsWorkspaceId": {
+      "value": "$EXTERNAL_LOG_WORKSPACE_ID"
     },
     "deployVirtualNetwork": {
       "value": $DEPLOY_NETWORK

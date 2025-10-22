@@ -51,6 +51,12 @@ param deployNatGateway bool = true
 @description('Deploy Application Insights')
 param deployApplicationInsights bool = true
 
+@description('Deploy Log Analytics Workspace')
+param deployLogAnalyticsWorkspace bool = true
+
+@description('Deploy Service Bus Namespace')
+param deployServiceBus bool = false
+
 // Key Vault parameters
 @description('Key Vault SKU')
 @allowed([
@@ -121,8 +127,47 @@ param appServicePlanKind string = 'functionapp'
 @description('Enable diagnostic settings')
 param enableDiagnostics bool = false
 
-@description('Log Analytics Workspace ID for diagnostics')
-param logAnalyticsWorkspaceId string = ''
+@description('External Log Analytics Workspace ID for diagnostics (leave empty to use the deployed workspace)')
+param externalLogAnalyticsWorkspaceId string = ''
+
+// Log Analytics Workspace parameters
+@description('Log Analytics Workspace SKU')
+@allowed([
+  'PerGB2018'
+  'Free'
+  'Standalone'
+  'PerNode'
+  'Standard'
+  'Premium'
+])
+param logAnalyticsWorkspaceSku string = 'PerGB2018'
+
+@description('Log Analytics Workspace retention period in days')
+@minValue(30)
+@maxValue(730)
+param logAnalyticsRetentionInDays int = 90
+
+@description('Log Analytics Workspace daily quota in GB (-1 for unlimited)')
+param logAnalyticsDailyQuotaGb int = -1
+
+// Service Bus parameters
+@description('Service Bus SKU')
+@allowed([
+  'Basic'
+  'Standard'
+  'Premium'
+])
+param serviceBusSku string = 'Standard'
+
+@description('Service Bus capacity (only for Premium SKU)')
+@allowed([
+  1
+  2
+  4
+  8
+  16
+])
+param serviceBusCapacity int = 1
 
 // Network parameters
 @description('Virtual Network address prefixes')
@@ -167,6 +212,9 @@ var commonTags = union(tags, {
   Environment: environment
   ManagedBy: 'Bicep'
 })
+
+// Determine which Log Analytics Workspace to use
+var logAnalyticsWorkspaceId = !empty(externalLogAnalyticsWorkspaceId) ? externalLogAnalyticsWorkspaceId : (deployLogAnalyticsWorkspace ? logAnalyticsWorkspace!.outputs.id : '')
 
 // ============================================================================
 // Resource Group
@@ -282,6 +330,28 @@ module actionGroupNaming '../modules/naming.bicep' = if (deployApplicationInsigh
   }
 }
 
+module logAnalyticsWorkspaceNaming '../modules/naming.bicep' = if (deployLogAnalyticsWorkspace) {
+  name: 'logAnalyticsWorkspaceNaming'
+  scope: commonResourceGroup
+  params: {
+    prefix: prefix
+    environment: environment
+    locationShort: locationShort
+    resourceType: 'log'
+  }
+}
+
+module serviceBusNaming '../modules/naming.bicep' = if (deployServiceBus) {
+  name: 'serviceBusNaming'
+  scope: commonResourceGroup
+  params: {
+    prefix: prefix
+    environment: environment
+    locationShort: locationShort
+    resourceType: 'sb'
+  }
+}
+
 // ============================================================================
 // Managed Identity (deployed first for RBAC assignments)
 // ============================================================================
@@ -305,6 +375,9 @@ module managedIdentity '../modules/managedIdentity.bicep' = if (deployManagedIde
 module keyVault '../modules/keyVault.bicep' = if (deployKeyVault) {
   name: 'keyVault'
   scope: commonResourceGroup
+  dependsOn: [
+    virtualNetwork
+  ]
   params: {
     keyVaultName: replace(keyVaultNaming!.outputs.name, '-', '')
     location: location
@@ -331,6 +404,21 @@ module keyVault '../modules/keyVault.bicep' = if (deployKeyVault) {
     enablePurgeProtection: environment == 'prod'
     enableDiagnostics: enableDiagnostics
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
+    networkAcls: {
+      defaultAction: 'Deny'
+      bypass: 'AzureServices'
+      ipRules: [
+        {
+          value: '217.149.56.100'
+        }
+      ]
+      virtualNetworkRules: deployVirtualNetwork ? [
+        {
+          id: '${virtualNetwork!.outputs.id}/subnets/integration-subnet'
+          ignoreMissingVnetServiceEndpoint: false
+        }
+      ] : []
+    }
   }
 }
 
@@ -343,6 +431,7 @@ module storageAccount '../modules/storageAccount.bicep' = if (deployStorageAccou
   scope: commonResourceGroup
   dependsOn: [
     managedIdentity
+    virtualNetwork
   ]
   params: {
     storageAccountName: storageAccountNaming!.outputs.name
@@ -358,7 +447,9 @@ module storageAccount '../modules/storageAccount.bicep' = if (deployStorageAccou
     ipRules: [
       '217.149.56.100'
     ]
-    virtualNetworkRules: []
+    virtualNetworkRules: deployVirtualNetwork ? [
+      '${virtualNetwork!.outputs.id}/subnets/integration-subnet'
+    ] : []
   }
 }
 
@@ -421,9 +512,56 @@ module virtualNetwork '../modules/virtualNetwork.bicep' = if (deployVirtualNetwo
       name: subnet.name
       addressPrefix: subnet.addressPrefix
       natGatewayId: deployNatGateway && i == 0 ? natGateway!.outputs.id : '' // Attach NAT Gateway to first subnet
-      serviceEndpoints: subnet.?serviceEndpoints ?? []
+      serviceEndpoints: subnet.name == 'integration-subnet' ? [
+        {
+          service: 'Microsoft.KeyVault'
+          locations: ['*']
+        }
+        {
+          service: 'Microsoft.Storage'
+          locations: ['*']
+        }
+      ] : (subnet.?serviceEndpoints ?? [])
       delegations: subnet.?delegations ?? []
     }]
+  }
+}
+
+// ============================================================================
+// Log Analytics Workspace
+// ============================================================================
+
+module logAnalyticsWorkspace '../modules/logAnalyticsWorkspace.bicep' = if (deployLogAnalyticsWorkspace) {
+  name: 'logAnalyticsWorkspace'
+  scope: commonResourceGroup
+  params: {
+    workspaceName: logAnalyticsWorkspaceNaming!.outputs.name
+    location: location
+    tags: commonTags
+    skuName: logAnalyticsWorkspaceSku
+    retentionInDays: logAnalyticsRetentionInDays
+    dailyQuotaGb: logAnalyticsDailyQuotaGb
+    publicNetworkAccessForIngestion: 'Enabled'
+    publicNetworkAccessForQuery: 'Enabled'
+  }
+}
+
+// ============================================================================
+// Service Bus Namespace
+// ============================================================================
+
+module serviceBus '../modules/serviceBus.bicep' = if (deployServiceBus) {
+  name: 'serviceBus'
+  scope: commonResourceGroup
+  params: {
+    serviceBusName: replace(serviceBusNaming!.outputs.name, '-', '')
+    location: location
+    tags: commonTags
+    skuName: serviceBusSku
+    queues: []
+    topics: []
+    enableDiagnostics: enableDiagnostics
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
 }
 
@@ -530,6 +668,17 @@ module exceptionsAlert '../modules/metricAlert.bicep' = if (deployApplicationIns
 // RBAC Role Assignments for Managed Identity
 // ============================================================================
 
+// IMPORTANT: The deployment principal (service principal/app registration) must have
+// permissions to assign roles. This requires one of the following roles:
+// - Owner role at subscription or resource group level
+// - User Access Administrator role at subscription or resource group level
+// - Custom role with Microsoft.Authorization/roleAssignments/write permission
+//
+// Note: Contributor role alone is NOT sufficient for assigning RBAC roles!
+//
+// To grant User Access Administrator role to your service principal:
+// az role assignment create --assignee <app-id> --role "User Access Administrator" --scope /subscriptions/<subscription-id>/resourceGroups/<resource-group-name>
+
 // Note: Key Vault now uses Access Policies instead of RBAC
 // Access policies are configured directly in the Key Vault module
 
@@ -630,3 +779,21 @@ output actionGroupName string = (deployApplicationInsights && length(alertEmailR
 
 @description('Action Group ID')
 output actionGroupId string = (deployApplicationInsights && length(alertEmailReceivers) > 0) ? actionGroup!.outputs.id : ''
+
+@description('Log Analytics Workspace name')
+output logAnalyticsWorkspaceName string = deployLogAnalyticsWorkspace ? logAnalyticsWorkspace!.outputs.name : ''
+
+@description('Log Analytics Workspace ID')
+output logAnalyticsWorkspaceId string = deployLogAnalyticsWorkspace ? logAnalyticsWorkspace!.outputs.id : ''
+
+@description('Log Analytics Workspace customer ID')
+output logAnalyticsCustomerId string = deployLogAnalyticsWorkspace ? logAnalyticsWorkspace!.outputs.customerId : ''
+
+@description('Service Bus Namespace name')
+output serviceBusName string = deployServiceBus ? serviceBus!.outputs.name : ''
+
+@description('Service Bus Namespace ID')
+output serviceBusId string = deployServiceBus ? serviceBus!.outputs.id : ''
+
+@description('Service Bus Namespace endpoint')
+output serviceBusEndpoint string = deployServiceBus ? serviceBus!.outputs.endpoint : ''

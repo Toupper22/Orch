@@ -43,6 +43,12 @@
     }
   },
   "commonInfrastructure": {
+    "logAnalyticsWorkspace": {
+      "enabled": true,
+      "sku": "PerGB2018",
+      "retentionInDays": 90,
+      "dailyQuotaGb": -1
+    },
     "keyVault": {
       "enabled": true,
       "sku": "standard",
@@ -76,8 +82,10 @@
     "appServicePlan": {
       "enabled": true,
       "sku": {
-        "name": "Y1",
-        "tier": "Dynamic"
+        "dev": "B1",
+        "test": "B1",
+        "uat": "B1",
+        "prod": "S2"
       },
       "kind": "functionapp"
     },
@@ -128,9 +136,9 @@
   },
   "security": {
     "enablePrivateEndpoints": false,
-    "allowedIpAddresses": [],
+    "allowedIpAddresses": ["217.149.56.100"],
     "enableDiagnostics": true,
-    "logAnalyticsWorkspaceId": ""
+    "externalLogAnalyticsWorkspaceId": ""
   },
   "environments": {
     "dev": {
