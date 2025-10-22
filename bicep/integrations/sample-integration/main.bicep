@@ -147,8 +147,8 @@ module logicAppNaming '../../modules/naming.bicep' = {
   }
 }
 
-module storageAccountNaming '../../modules/naming.bicep' = {
-  name: 'storageAccountNaming'
+module functionStorageNaming '../../modules/naming.bicep' = {
+  name: 'functionStorageNaming'
   scope: integrationResourceGroup
   params: {
     prefix: prefix
@@ -156,20 +156,91 @@ module storageAccountNaming '../../modules/naming.bicep' = {
     locationShort: locationShort
     workloadName: integrationName
     resourceType: 'st'
+    useShortNames: true
+  }
+}
+
+module archiveStorageNaming '../../modules/naming.bicep' = {
+  name: 'archiveStorageNaming'
+  scope: integrationResourceGroup
+  params: {
+    prefix: prefix
+    environment: environment
+    locationShort: locationShort
+    workloadName: integrationName
+    resourceType: 'st'
+    instance: 'arc'
+    useShortNames: true
+  }
+}
+
+module keyVaultNaming '../../modules/naming.bicep' = {
+  name: 'keyVaultNaming'
+  scope: integrationResourceGroup
+  params: {
+    prefix: prefix
+    environment: environment
+    locationShort: locationShort
+    workloadName: integrationName
+    resourceType: 'kv'
   }
 }
 
 // ============================================================================
-// Integration Storage Account
+// Reference Common Key Vault (for shared secrets)
 // ============================================================================
 
-module integrationStorage '../../modules/storageAccount.bicep' = {
-  name: 'integrationStorage'
+resource commonKeyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+  name: replace('${prefix}-${environment}-${locationShort}-kv', '-', '')
+  scope: commonResourceGroup
+}
+
+// ============================================================================
+// Integration-Specific Key Vault
+// ============================================================================
+
+module integrationKeyVault '../../modules/keyVault.bicep' = {
+  name: 'integrationKeyVault'
   scope: integrationResourceGroup
   params: {
-    storageAccountName: toLower(replace(storageAccountNaming.outputs.name, '-', ''))
+    keyVaultName: replace(keyVaultNaming.outputs.name, '-', '')
     location: location
-    tags: commonTags
+    tags: union(commonTags, { Purpose: 'Integration Secrets' })
+    skuName: 'standard'
+    enableRbacAuthorization: false
+    accessPolicies: [
+      {
+        tenantId: subscription().tenantId
+        objectId: commonManagedIdentity.properties.principalId
+        permissions: {
+          secrets: [
+            'get'
+            'list'
+            'set'
+          ]
+          keys: []
+          certificates: []
+        }
+      }
+    ]
+    enableSoftDelete: true
+    softDeleteRetentionInDays: 90
+    enablePurgeProtection: environment == 'prod'
+  }
+}
+
+// ============================================================================
+// Integration Storage Accounts
+// ============================================================================
+
+// Function App Storage Account
+module functionStorage '../../modules/storageAccount.bicep' = {
+  name: 'functionStorage'
+  scope: integrationResourceGroup
+  params: {
+    storageAccountName: functionStorageNaming.outputs.name
+    location: location
+    tags: union(commonTags, { Purpose: 'Function App Storage' })
     skuName: 'Standard_LRS'
     kind: 'StorageV2'
     accessTier: 'Hot'
@@ -187,7 +258,109 @@ module integrationStorage '../../modules/storageAccount.bicep' = {
         publicAccess: 'None'
       }
     ]
+    tables: [
+      {
+        name: 'Values'
+      }
+      {
+        name: 'Conversions'
+      }
+    ]
+    networkAclDefaultAction: 'Deny'
+    ipRules: [
+      '217.149.56.100'
+    ]
+    virtualNetworkRules: [
+      integrationSubnetId
+    ]
   }
+}
+
+// Archive Storage Account
+module archiveStorage '../../modules/storageAccount.bicep' = {
+  name: 'archiveStorage'
+  scope: integrationResourceGroup
+  params: {
+    storageAccountName: archiveStorageNaming.outputs.name
+    location: location
+    tags: union(commonTags, { Purpose: 'Archive Storage' })
+    skuName: 'Standard_LRS'
+    kind: 'StorageV2'
+    accessTier: 'Cool'
+    containers: [
+      {
+        name: 'archive'
+        publicAccess: 'None'
+      }
+      {
+        name: 'audit'
+        publicAccess: 'None'
+      }
+    ]
+    tables: [
+      {
+        name: 'Values'
+      }
+      {
+        name: 'Conversions'
+      }
+    ]
+    networkAclDefaultAction: 'Deny'
+    ipRules: [
+      '217.149.56.100'
+    ]
+    virtualNetworkRules: [
+      integrationSubnetId
+    ]
+  }
+}
+
+// ============================================================================
+// Store Storage Account Keys in Integration Key Vault
+// ============================================================================
+
+resource functionStorageKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  name: '${integrationKeyVault.outputs.name}/FunctionStorageAccountKey'
+  properties: {
+    value: listKeys(resourceId(integrationResourceGroup.name, 'Microsoft.Storage/storageAccounts', functionStorage.outputs.name), '2023-01-01').keys[0].value
+  }
+  dependsOn: [
+    integrationKeyVault
+    functionStorage
+  ]
+}
+
+resource archiveStorageKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  name: '${integrationKeyVault.outputs.name}/ArchiveStorageAccountKey'
+  properties: {
+    value: listKeys(resourceId(integrationResourceGroup.name, 'Microsoft.Storage/storageAccounts', archiveStorage.outputs.name), '2023-01-01').keys[0].value
+  }
+  dependsOn: [
+    integrationKeyVault
+    archiveStorage
+  ]
+}
+
+resource functionStorageConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  name: '${integrationKeyVault.outputs.name}/FunctionStorageConnectionString'
+  properties: {
+    value: 'DefaultEndpointsProtocol=https;AccountName=${functionStorage.outputs.name};AccountKey=${listKeys(resourceId(integrationResourceGroup.name, 'Microsoft.Storage/storageAccounts', functionStorage.outputs.name), '2023-01-01').keys[0].value};EndpointSuffix=core.windows.net'
+  }
+  dependsOn: [
+    integrationKeyVault
+    functionStorage
+  ]
+}
+
+resource archiveStorageConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  name: '${integrationKeyVault.outputs.name}/ArchiveStorageConnectionString'
+  properties: {
+    value: 'DefaultEndpointsProtocol=https;AccountName=${archiveStorage.outputs.name};AccountKey=${listKeys(resourceId(integrationResourceGroup.name, 'Microsoft.Storage/storageAccounts', archiveStorage.outputs.name), '2023-01-01').keys[0].value};EndpointSuffix=core.windows.net'
+  }
+  dependsOn: [
+    integrationKeyVault
+    archiveStorage
+  ]
 }
 
 // ============================================================================
@@ -237,8 +410,12 @@ module functionApp '../../modules/functionApp.bicep' = {
         value: '${serviceBus.outputs.name}.servicebus.windows.net'
       }
       {
-        name: 'IntegrationStorage__accountName'
-        value: integrationStorage.outputs.name
+        name: 'FunctionStorage__accountName'
+        value: functionStorage.outputs.name
+      }
+      {
+        name: 'ArchiveStorage__accountName'
+        value: archiveStorage.outputs.name
       }
     ]
   }
@@ -266,8 +443,12 @@ module logicApp '../../modules/logicApp.bicep' = {
         value: '${serviceBus.outputs.name}.servicebus.windows.net'
       }
       {
-        name: 'IntegrationStorage__accountName'
-        value: integrationStorage.outputs.name
+        name: 'FunctionStorage__accountName'
+        value: functionStorage.outputs.name
+      }
+      {
+        name: 'ArchiveStorage__accountName'
+        value: archiveStorage.outputs.name
       }
       {
         name: 'FunctionAppUrl'
@@ -311,9 +492,20 @@ module serviceBusSenderRole '../../modules/rbacAssignment.bicep' = {
   }
 }
 
-// Managed Identity needs Integration Storage access
-module integrationStorageRole '../../modules/rbacAssignment.bicep' = {
-  name: 'integrationStorageRole'
+// Managed Identity needs Function Storage access
+module functionStorageRole '../../modules/rbacAssignment.bicep' = {
+  name: 'functionStorageRole'
+  scope: integrationResourceGroup
+  params: {
+    principalId: commonManagedIdentityId
+    roleDefinitionId: storageBlobDataContributorRoleId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Managed Identity needs Archive Storage access
+module archiveStorageRole '../../modules/rbacAssignment.bicep' = {
+  name: 'archiveStorageRole'
   scope: integrationResourceGroup
   params: {
     principalId: commonManagedIdentityId
@@ -341,5 +533,14 @@ output functionAppName string = functionApp.outputs.name
 @description('Logic App name')
 output logicAppName string = logicApp.outputs.name
 
-@description('Integration Storage Account name')
-output integrationStorageName string = integrationStorage.outputs.name
+@description('Function Storage Account name')
+output functionStorageName string = functionStorage.outputs.name
+
+@description('Archive Storage Account name')
+output archiveStorageName string = archiveStorage.outputs.name
+
+@description('Integration Key Vault name')
+output integrationKeyVaultName string = integrationKeyVault.outputs.name
+
+@description('Integration Key Vault URI')
+output integrationKeyVaultUri string = integrationKeyVault.outputs.uri

@@ -215,6 +215,8 @@ Generate parameter files from your global settings:
 
 This automatically creates parameter files in `bicep/common/` for each environment, pulling values from `config/settings.json`. No manual editing required!
 
+**Note:** These common infrastructure parameter files can be safely regenerated anytime. Integration-specific parameter files should be manually maintained. See [Parameter File Management Guide](docs/PARAMETER-FILE-MANAGEMENT.md) for details.
+
 ### 5. Set Up Azure Service Principal
 
 Create a service principal with access to all required subscriptions:
@@ -316,6 +318,31 @@ az deployment sub create \
   --template-file bicep/common/main.bicep \
   --parameters bicep/common/parameters.dev.json \
   --name common-infra-dev-$(date +%Y%m%d-%H%M%S)
+```
+
+### 9. Add Your First Integration
+
+Once common infrastructure is deployed, you can create your first integration:
+
+📘 **[See Detailed Quickstart Guide for Adding New Integrations →](docs/QUICKSTART-NEW-INTEGRATION.md)**
+
+This guide covers:
+- Copying and customizing the sample integration template
+- Creating Function Apps and Logic App workflows
+- Configuring Service Bus queues/topics and storage
+- Deploying and testing your integration
+- Monitoring and troubleshooting
+
+**Quick overview:**
+```bash
+# Copy sample integration as template
+cp -r bicep/integrations/sample-integration bicep/integrations/my-new-integration
+
+# Update integration name and configuration
+# See docs/QUICKSTART-NEW-INTEGRATION.md for detailed steps
+
+# Deploy your integration
+# Via GitHub Actions: Actions → Deploy MyNew Integration
 ```
 
 ## Testing & Validation

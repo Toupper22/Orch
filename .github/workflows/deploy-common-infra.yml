@@ -117,6 +117,7 @@ jobs:
           template: ./bicep/common/main.bicep
           parameters: ./bicep/common/parameters.${{ inputs.environment }}.json
           deploymentName: common-infra-${{ inputs.environment }}-${{ github.run_number }}
+          deploymentMode: Incremental  # Updates existing resources, adds new ones
           failOnStdErr: false
 
       - name: Output Deployment Results

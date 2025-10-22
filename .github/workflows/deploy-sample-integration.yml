@@ -193,6 +193,7 @@ jobs:
           template: ./bicep/integrations/sample-integration/main.bicep
           parameters: ./bicep/integrations/sample-integration/parameters.${{ inputs.environment }}.json
           deploymentName: sample-integration-${{ inputs.environment }}-${{ github.run_number }}
+          deploymentMode: Incremental  # Updates existing resources, adds new ones
           failOnStdErr: false
 
       - name: Deploy Function App Code
@@ -255,7 +256,8 @@ jobs:
           echo "**Queue:** ${{ steps.deploy.outputs.queueName }}" >> $GITHUB_STEP_SUMMARY
           echo "**Function App:** ${{ steps.deploy.outputs.functionAppName }}" >> $GITHUB_STEP_SUMMARY
           echo "**Logic App:** ${{ steps.deploy.outputs.logicAppName }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Storage Account:** ${{ steps.deploy.outputs.integrationStorageName }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Function Storage:** ${{ steps.deploy.outputs.functionStorageName }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Archive Storage:** ${{ steps.deploy.outputs.archiveStorageName }}" >> $GITHUB_STEP_SUMMARY
 
       - name: Azure Logout
         if: always()

@@ -48,6 +48,9 @@ param enableDiagnostics bool = true
 @description('Log Analytics Workspace ID for diagnostics')
 param logAnalyticsWorkspaceId string = ''
 
+@description('Access policies for Key Vault (used when RBAC is disabled)')
+param accessPolicies array = []
+
 // Deploy Key Vault
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   name: keyVaultName
@@ -60,6 +63,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     }
     tenantId: subscription().tenantId
     enableRbacAuthorization: enableRbacAuthorization
+    accessPolicies: !enableRbacAuthorization ? accessPolicies : []
     enableSoftDelete: enableSoftDelete
     softDeleteRetentionInDays: softDeleteRetentionInDays
     enablePurgeProtection: enablePurgeProtection ? true : null

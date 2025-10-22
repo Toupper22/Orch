@@ -58,11 +58,27 @@ param isHnsEnabled bool = false
 @description('Blob containers to create')
 param containers array = []
 
+@description('Table storage tables to create')
+param tables array = []
+
 @description('Enable diagnostic settings')
 param enableDiagnostics bool = false
 
 @description('Log Analytics Workspace ID for diagnostics')
 param logAnalyticsWorkspaceId string = ''
+
+@description('Network ACL default action')
+@allowed([
+  'Allow'
+  'Deny'
+])
+param networkAclDefaultAction string = 'Deny'
+
+@description('IP rules for storage account access')
+param ipRules array = []
+
+@description('Virtual network rules for storage account access')
+param virtualNetworkRules array = []
 
 // Deploy Storage Account
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
@@ -93,8 +109,16 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
       keySource: 'Microsoft.Storage'
     }
     networkAcls: {
-      defaultAction: 'Allow'
+      defaultAction: networkAclDefaultAction
       bypass: 'AzureServices'
+      ipRules: [for ipRule in ipRules: {
+        value: ipRule
+        action: 'Allow'
+      }]
+      virtualNetworkRules: [for vnetRule in virtualNetworkRules: {
+        id: vnetRule
+        action: 'Allow'
+      }]
     }
   }
 }
@@ -123,6 +147,20 @@ resource blobContainers 'Microsoft.Storage/storageAccounts/blobServices/containe
     publicAccess: container.?publicAccess ?? 'None'
     metadata: container.?metadata ?? {}
   }
+}]
+
+// Table Service
+resource tableService 'Microsoft.Storage/storageAccounts/tableServices@2023-01-01' = if (length(tables) > 0) {
+  name: 'default'
+  parent: storageAccount
+  properties: {}
+}
+
+// Create tables
+resource storageTables 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-01-01' = [for table in tables: if (length(tables) > 0) {
+  name: table.name
+  parent: tableService
+  properties: {}
 }]
 
 // Diagnostic Settings for Blob Service

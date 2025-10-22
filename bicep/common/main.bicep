@@ -48,6 +48,9 @@ param deployVirtualNetwork bool = true
 @description('Deploy NAT Gateway')
 param deployNatGateway bool = true
 
+@description('Deploy Application Insights')
+param deployApplicationInsights bool = true
+
 // Key Vault parameters
 @description('Key Vault SKU')
 @allowed([
@@ -87,6 +90,9 @@ param storageContainers array = [
 @description('App Service Plan SKU')
 @allowed([
   'Y1'
+  'B1'
+  'B2'
+  'B3'
   'EP1'
   'EP2'
   'EP3'
@@ -100,7 +106,7 @@ param storageContainers array = [
   'P2V2'
   'P3V2'
 ])
-param appServicePlanSku string = 'Y1'
+param appServicePlanSku string = 'B1'
 
 @description('App Service Plan kind')
 @allowed([
@@ -138,6 +144,21 @@ param subnets array = [
 
 @description('NAT Gateway idle timeout in minutes')
 param natGatewayIdleTimeoutInMinutes int = 4
+
+// Application Insights parameters
+@description('Application Insights retention period in days')
+@minValue(30)
+@maxValue(730)
+param applicationInsightsRetentionInDays int = 90
+
+@description('Application Insights daily data cap in GB (0 = unlimited)')
+param applicationInsightsDailyDataCapInGB int = 5
+
+@description('Email addresses for alert notifications')
+param alertEmailReceivers array = []
+
+@description('Enable default metric alerts')
+param enableDefaultAlerts bool = true
 
 // ============================================================================
 // Variables
@@ -183,6 +204,7 @@ module storageAccountNaming '../modules/naming.bicep' = if (deployStorageAccount
     environment: environment
     locationShort: locationShort
     resourceType: 'st'
+    useShortNames: true
   }
 }
 
@@ -241,6 +263,28 @@ module publicIpNaming '../modules/naming.bicep' = if (deployNatGateway) {
   }
 }
 
+module applicationInsightsNaming '../modules/naming.bicep' = if (deployApplicationInsights) {
+  name: 'applicationInsightsNaming'
+  scope: commonResourceGroup
+  params: {
+    prefix: prefix
+    environment: environment
+    locationShort: locationShort
+    resourceType: 'appi'
+  }
+}
+
+module actionGroupNaming '../modules/naming.bicep' = if (deployApplicationInsights && length(alertEmailReceivers) > 0) {
+  name: 'actionGroupNaming'
+  scope: commonResourceGroup
+  params: {
+    prefix: prefix
+    environment: environment
+    locationShort: locationShort
+    resourceType: 'ag'
+  }
+}
+
 // ============================================================================
 // Managed Identity (deployed first for RBAC assignments)
 // ============================================================================
@@ -272,10 +316,25 @@ module keyVault '../modules/keyVault.bicep' = if (deployKeyVault) {
     location: location
     tags: commonTags
     skuName: keyVaultSku
-    enableRbacAuthorization: true
+    enableRbacAuthorization: false
+    accessPolicies: deployManagedIdentity ? [
+      {
+        tenantId: subscription().tenantId
+        objectId: managedIdentity.outputs.principalId
+        permissions: {
+          secrets: [
+            'get'
+            'list'
+            'set'
+          ]
+          keys: []
+          certificates: []
+        }
+      }
+    ] : []
     enableSoftDelete: true
     softDeleteRetentionInDays: keyVaultSoftDeleteRetentionInDays
-    enablePurgeProtection: true
+    enablePurgeProtection: environment == 'prod'
     enableDiagnostics: enableDiagnostics
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
@@ -292,7 +351,7 @@ module storageAccount '../modules/storageAccount.bicep' = if (deployStorageAccou
     managedIdentity
   ]
   params: {
-    storageAccountName: toLower(replace(storageAccountNaming.outputs.name, '-', ''))
+    storageAccountName: storageAccountNaming.outputs.name
     location: location
     tags: commonTags
     skuName: storageAccountSku
@@ -301,6 +360,11 @@ module storageAccount '../modules/storageAccount.bicep' = if (deployStorageAccou
     containers: storageContainers
     enableDiagnostics: enableDiagnostics
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
+    networkAclDefaultAction: 'Deny'
+    ipRules: [
+      '217.149.56.100'
+    ]
+    virtualNetworkRules: []
   }
 }
 
@@ -376,28 +440,122 @@ module virtualNetwork '../modules/virtualNetwork.bicep' = if (deployVirtualNetwo
 }
 
 // ============================================================================
+// Application Insights and Monitoring
+// ============================================================================
+
+module applicationInsights '../modules/applicationInsights.bicep' = if (deployApplicationInsights) {
+  name: 'applicationInsights'
+  scope: commonResourceGroup
+  params: {
+    name: applicationInsightsNaming.outputs.name
+    location: location
+    tags: commonTags
+    applicationType: 'web'
+    retentionInDays: applicationInsightsRetentionInDays
+    dailyDataCapInGB: applicationInsightsDailyDataCapInGB
+    publicNetworkAccessForIngestion: 'Enabled'
+    publicNetworkAccessForQuery: 'Enabled'
+    workspaceResourceId: enableDiagnostics ? logAnalyticsWorkspaceId : ''
+  }
+}
+
+// Action Group for email alerts
+module actionGroup '../modules/actionGroup.bicep' = if (deployApplicationInsights && length(alertEmailReceivers) > 0) {
+  name: 'actionGroup'
+  scope: commonResourceGroup
+  params: {
+    name: actionGroupNaming.outputs.name
+    location: 'global'
+    tags: commonTags
+    groupShortName: take('${prefix}-${environment}', 12)
+    enabled: true
+    emailReceivers: alertEmailReceivers
+  }
+}
+
+// Sample metric alert for Application Insights availability
+module availabilityAlert '../modules/metricAlert.bicep' = if (deployApplicationInsights && enableDefaultAlerts && length(alertEmailReceivers) > 0) {
+  name: 'availabilityAlert'
+  scope: commonResourceGroup
+  dependsOn: [
+    applicationInsights
+    actionGroup
+  ]
+  params: {
+    name: '${prefix}-${environment}-availability-alert'
+    location: 'global'
+    tags: commonTags
+    description: 'Alert when Application Insights availability drops below 99%'
+    severity: 1
+    enabled: true
+    scopes: [applicationInsights.outputs.id]
+    evaluationFrequency: 'PT5M'
+    windowSize: 'PT15M'
+    criteria: {
+      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
+      allOf: [
+        {
+          name: 'AvailabilityCheck'
+          metricName: 'availabilityResults/availabilityPercentage'
+          metricNamespace: 'Microsoft.Insights/components'
+          operator: 'LessThan'
+          threshold: 99
+          timeAggregation: 'Average'
+          criterionType: 'StaticThresholdCriterion'
+        }
+      ]
+    }
+    actionGroupIds: [actionGroup.outputs.id]
+    autoMitigate: true
+  }
+}
+
+// Alert for Application Insights exceptions
+module exceptionsAlert '../modules/metricAlert.bicep' = if (deployApplicationInsights && enableDefaultAlerts && length(alertEmailReceivers) > 0) {
+  name: 'exceptionsAlert'
+  scope: commonResourceGroup
+  dependsOn: [
+    applicationInsights
+    actionGroup
+  ]
+  params: {
+    name: '${prefix}-${environment}-exceptions-alert'
+    location: 'global'
+    tags: commonTags
+    description: 'Alert when exception count exceeds threshold'
+    severity: 2
+    enabled: true
+    scopes: [applicationInsights.outputs.id]
+    evaluationFrequency: 'PT5M'
+    windowSize: 'PT15M'
+    criteria: {
+      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
+      allOf: [
+        {
+          name: 'ExceptionCheck'
+          metricName: 'exceptions/count'
+          metricNamespace: 'Microsoft.Insights/components'
+          operator: 'GreaterThan'
+          threshold: 10
+          timeAggregation: 'Count'
+          criterionType: 'StaticThresholdCriterion'
+        }
+      ]
+    }
+    actionGroupIds: [actionGroup.outputs.id]
+    autoMitigate: true
+  }
+}
+
+// ============================================================================
 // RBAC Role Assignments for Managed Identity
 // ============================================================================
 
-// Key Vault Secrets User role: 4633458b-17de-408a-b874-0445c86b69e6
-var keyVaultSecretsUserRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
+// Note: Key Vault now uses Access Policies instead of RBAC
+// Access policies are configured directly in the Key Vault module
 
 // Storage Blob Data Contributor role: ba92f5b4-2d11-453d-a403-e96b0029c9fe
 var storageBlobDataContributorRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
-
-module keyVaultRoleAssignment '../modules/rbacAssignment.bicep' = if (deployManagedIdentity && deployKeyVault) {
-  name: 'keyVaultRoleAssignment'
-  scope: commonResourceGroup
-  dependsOn: [
-    keyVault
-    managedIdentity
-  ]
-  params: {
-    principalId: deployManagedIdentity ? managedIdentity.outputs.principalId : ''
-    roleDefinitionId: keyVaultSecretsUserRoleId
-    principalType: 'ServicePrincipal'
-  }
-}
 
 module storageRoleAssignment '../modules/rbacAssignment.bicep' = if (deployManagedIdentity && deployStorageAccount) {
   name: 'storageRoleAssignment'
@@ -479,3 +637,21 @@ output publicIpName string = deployNatGateway ? publicIp.outputs.name : ''
 
 @description('Public IP address')
 output publicIpAddress string = deployNatGateway ? publicIp.outputs.ipAddress : ''
+
+@description('Application Insights name')
+output applicationInsightsName string = deployApplicationInsights ? applicationInsights.outputs.name : ''
+
+@description('Application Insights ID')
+output applicationInsightsId string = deployApplicationInsights ? applicationInsights.outputs.id : ''
+
+@description('Application Insights instrumentation key')
+output applicationInsightsInstrumentationKey string = deployApplicationInsights ? applicationInsights.outputs.instrumentationKey : ''
+
+@description('Application Insights connection string')
+output applicationInsightsConnectionString string = deployApplicationInsights ? applicationInsights.outputs.connectionString : ''
+
+@description('Action Group name')
+output actionGroupName string = (deployApplicationInsights && length(alertEmailReceivers) > 0) ? actionGroup.outputs.name : ''
+
+@description('Action Group ID')
+output actionGroupId string = (deployApplicationInsights && length(alertEmailReceivers) > 0) ? actionGroup.outputs.id : ''

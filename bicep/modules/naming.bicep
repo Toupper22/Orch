@@ -25,27 +25,69 @@ param resourceType string
 @description('Optional instance number for multiple instances')
 param instance string = ''
 
+@description('Use short naming format (for resources with strict character limits like storage accounts)')
+param useShortNames bool = false
+
 // Naming separator
 var separator = '-'
 
+// Short name mappings for environments
+var environmentShortNames = {
+  dev: 'd'
+  test: 't'
+  uat: 'u'
+  prod: 'p'
+}
+
+// Short name mappings for locations
+var locationShortNames = {
+  weu: 'we'
+  eus: 'eu'
+  westeurope: 'we'
+  eastus: 'eu'
+  northeurope: 'ne'
+  westus: 'wu'
+  centralus: 'cu'
+}
+
+// Short name mappings for resource types
+var resourceTypeShortNames = {
+  st: 'st'
+  kv: 'kv'
+  func: 'fn'
+  logic: 'la'
+  sb: 'sb'
+  appi: 'ai'
+  plan: 'pl'
+  vnet: 'vn'
+  id: 'id'
+}
+
 // Build the base name components
-var nameComponents = [
+var nameComponents = useShortNames ? [
+  take(prefix, 6) // Limit prefix to 6 chars for short names
+  environmentShortNames[environment]
+  contains(locationShortNames, locationShort) ? locationShortNames[locationShort] : take(locationShort, 2)
+] : [
   prefix
   environment
   locationShort
 ]
 
 // Add workload name if provided
-var nameWithWorkload = !empty(workloadName) ? concat(nameComponents, [workloadName]) : nameComponents
+var workloadShortName = useShortNames && !empty(workloadName) ? take(workloadName, 8) : workloadName
+var nameWithWorkload = !empty(workloadName) ? concat(nameComponents, [workloadShortName]) : nameComponents
 
 // Add resource type
-var nameWithType = concat(nameWithWorkload, [resourceType])
+var resourceTypeShort = useShortNames && contains(resourceTypeShortNames, resourceType) ? resourceTypeShortNames[resourceType] : resourceType
+var nameWithType = concat(nameWithWorkload, [resourceTypeShort])
 
 // Add instance if provided
-var finalComponents = !empty(instance) ? concat(nameWithType, [instance]) : nameWithType
+var instanceShort = useShortNames && !empty(instance) ? take(instance, 2) : instance
+var finalComponents = !empty(instance) ? concat(nameWithType, [instanceShort]) : nameWithType
 
 // Generate the final name
-var resourceName = join(finalComponents, separator)
+var resourceName = useShortNames ? toLower(replace(join(finalComponents, ''), '-', '')) : join(finalComponents, separator)
 
 // Output the generated name
 output name string = resourceName

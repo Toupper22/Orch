@@ -1,5 +1,11 @@
 // Logic App Standard Module
 // Deploys an Azure Logic App (Standard) with VNet integration
+//
+// NOTE: This uses Logic App Standard (not Consumption tier) which:
+// - Runs on an App Service Plan (cost-effective tiers like B1 or S2)
+// - Supports VNet integration (Consumption tier does NOT support VNet)
+// - Provides better performance and more features
+// - Uses the same App Service Plan as Function Apps for cost efficiency
 
 @description('Name of the Logic App')
 param logicAppName string

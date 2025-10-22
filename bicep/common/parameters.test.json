@@ -47,10 +47,10 @@
       "value": [{"name":"integration-files","publicAccess":"None"},{"name":"logs","publicAccess":"None"}]
     },
     "appServicePlanSku": {
-      "value": "Y1"
+      "value": "B1"
     },
     "appServicePlanKind": {
-      "value": "functionapp"
+      "value": "app"
     },
     "enableDiagnostics": {
       "value": true
@@ -83,6 +83,27 @@
     },
     "natGatewayIdleTimeoutInMinutes": {
       "value": 4
+    },
+    "deployApplicationInsights": {
+      "value": true
+    },
+    "applicationInsightsRetentionInDays": {
+      "value": 90
+    },
+    "applicationInsightsDailyDataCapInGB": {
+      "value": 5
+    },
+    "alertEmailReceivers": {
+      "value": [
+        {
+          "name": "Admin",
+          "emailAddress": "kalle.korhonen@efima.com",
+          "useCommonAlertSchema": true
+        }
+      ]
+    },
+    "enableDefaultAlerts": {
+      "value": true
     }
   }
 }
