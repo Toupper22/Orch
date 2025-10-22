@@ -1,0 +1,239 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.38.33.27573",
+      "templateHash": "15883993757515762029"
+    }
+  },
+  "parameters": {
+    "serviceBusName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Service Bus Namespace"
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for the Service Bus"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Tags to apply to the Service Bus"
+      }
+    },
+    "skuName": {
+      "type": "string",
+      "defaultValue": "Standard",
+      "allowedValues": [
+        "Basic",
+        "Standard",
+        "Premium"
+      ],
+      "metadata": {
+        "description": "Service Bus SKU"
+      }
+    },
+    "capacity": {
+      "type": "int",
+      "defaultValue": 1,
+      "allowedValues": [
+        1,
+        2,
+        4,
+        8,
+        16
+      ],
+      "metadata": {
+        "description": "Service Bus capacity (only for Premium SKU, 1-16 messaging units)"
+      }
+    },
+    "queues": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Queues to create"
+      }
+    },
+    "topics": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Topics to create"
+      }
+    },
+    "enableDiagnostics": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Enable diagnostic settings"
+      }
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Log Analytics Workspace ID for diagnostics"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ServiceBus/namespaces",
+      "apiVersion": "2022-10-01-preview",
+      "name": "[parameters('serviceBusName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "sku": "[if(equals(parameters('skuName'), 'Premium'), createObject('name', parameters('skuName'), 'tier', parameters('skuName'), 'capacity', parameters('capacity')), createObject('name', parameters('skuName'), 'tier', parameters('skuName')))]",
+      "properties": {
+        "minimumTlsVersion": "1.2",
+        "publicNetworkAccess": "Enabled",
+        "disableLocalAuth": false,
+        "zoneRedundant": "[if(equals(parameters('skuName'), 'Premium'), true(), false())]"
+      }
+    },
+    {
+      "copy": {
+        "name": "serviceBusQueues",
+        "count": "[length(parameters('queues'))]"
+      },
+      "type": "Microsoft.ServiceBus/namespaces/queues",
+      "apiVersion": "2022-10-01-preview",
+      "name": "[format('{0}/{1}', parameters('serviceBusName'), parameters('queues')[copyIndex()].name)]",
+      "properties": {
+        "lockDuration": "[coalesce(tryGet(parameters('queues')[copyIndex()], 'lockDuration'), 'PT1M')]",
+        "maxSizeInMegabytes": "[coalesce(tryGet(parameters('queues')[copyIndex()], 'maxSizeInMegabytes'), 1024)]",
+        "requiresDuplicateDetection": "[coalesce(tryGet(parameters('queues')[copyIndex()], 'requiresDuplicateDetection'), false())]",
+        "requiresSession": "[coalesce(tryGet(parameters('queues')[copyIndex()], 'requiresSession'), false())]",
+        "defaultMessageTimeToLive": "[coalesce(tryGet(parameters('queues')[copyIndex()], 'defaultMessageTimeToLive'), 'P14D')]",
+        "deadLetteringOnMessageExpiration": "[coalesce(tryGet(parameters('queues')[copyIndex()], 'deadLetteringOnMessageExpiration'), false())]",
+        "maxDeliveryCount": "[coalesce(tryGet(parameters('queues')[copyIndex()], 'maxDeliveryCount'), 10)]",
+        "enableBatchedOperations": "[coalesce(tryGet(parameters('queues')[copyIndex()], 'enableBatchedOperations'), true())]",
+        "enablePartitioning": "[coalesce(tryGet(parameters('queues')[copyIndex()], 'enablePartitioning'), false())]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ServiceBus/namespaces', parameters('serviceBusName'))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "serviceBusTopics",
+        "count": "[length(parameters('topics'))]"
+      },
+      "type": "Microsoft.ServiceBus/namespaces/topics",
+      "apiVersion": "2022-10-01-preview",
+      "name": "[format('{0}/{1}', parameters('serviceBusName'), parameters('topics')[copyIndex()].name)]",
+      "properties": {
+        "maxSizeInMegabytes": "[coalesce(tryGet(parameters('topics')[copyIndex()], 'maxSizeInMegabytes'), 1024)]",
+        "requiresDuplicateDetection": "[coalesce(tryGet(parameters('topics')[copyIndex()], 'requiresDuplicateDetection'), false())]",
+        "defaultMessageTimeToLive": "[coalesce(tryGet(parameters('topics')[copyIndex()], 'defaultMessageTimeToLive'), 'P14D')]",
+        "enableBatchedOperations": "[coalesce(tryGet(parameters('topics')[copyIndex()], 'enableBatchedOperations'), true())]",
+        "enablePartitioning": "[coalesce(tryGet(parameters('topics')[copyIndex()], 'enablePartitioning'), false())]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ServiceBus/namespaces', parameters('serviceBusName'))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "serviceBusSubscriptions",
+        "count": "[length(parameters('topics'))]"
+      },
+      "condition": "[contains(parameters('topics')[copyIndex()], 'subscriptions')]",
+      "type": "Microsoft.ServiceBus/namespaces/topics/subscriptions",
+      "apiVersion": "2022-10-01-preview",
+      "name": "[format('{0}/{1}/{2}', parameters('serviceBusName'), parameters('topics')[indexOf(parameters('topics'), parameters('topics')[copyIndex()])].name, parameters('topics')[copyIndex()].subscriptions[0].name)]",
+      "properties": {
+        "lockDuration": "[coalesce(tryGet(parameters('topics')[copyIndex()].subscriptions[0], 'lockDuration'), 'PT1M')]",
+        "requiresSession": "[coalesce(tryGet(parameters('topics')[copyIndex()].subscriptions[0], 'requiresSession'), false())]",
+        "defaultMessageTimeToLive": "[coalesce(tryGet(parameters('topics')[copyIndex()].subscriptions[0], 'defaultMessageTimeToLive'), 'P14D')]",
+        "deadLetteringOnMessageExpiration": "[coalesce(tryGet(parameters('topics')[copyIndex()].subscriptions[0], 'deadLetteringOnMessageExpiration'), false())]",
+        "maxDeliveryCount": "[coalesce(tryGet(parameters('topics')[copyIndex()].subscriptions[0], 'maxDeliveryCount'), 10)]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ServiceBus/namespaces/topics', parameters('serviceBusName'), parameters('topics')[indexOf(parameters('topics'), parameters('topics')[copyIndex()])].name)]"
+      ]
+    },
+    {
+      "condition": "[and(parameters('enableDiagnostics'), not(empty(parameters('logAnalyticsWorkspaceId'))))]",
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[format('Microsoft.ServiceBus/namespaces/{0}', parameters('serviceBusName'))]",
+      "name": "[format('{0}-diagnostics', parameters('serviceBusName'))]",
+      "properties": {
+        "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+        "logs": [
+          {
+            "categoryGroup": "allLogs",
+            "enabled": true
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ServiceBus/namespaces', parameters('serviceBusName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "id": {
+      "type": "string",
+      "metadata": {
+        "description": "Service Bus Namespace resource ID"
+      },
+      "value": "[resourceId('Microsoft.ServiceBus/namespaces', parameters('serviceBusName'))]"
+    },
+    "name": {
+      "type": "string",
+      "metadata": {
+        "description": "Service Bus Namespace name"
+      },
+      "value": "[parameters('serviceBusName')]"
+    },
+    "endpoint": {
+      "type": "string",
+      "metadata": {
+        "description": "Service Bus Namespace endpoint"
+      },
+      "value": "[reference(resourceId('Microsoft.ServiceBus/namespaces', parameters('serviceBusName')), '2022-10-01-preview').serviceBusEndpoint]"
+    },
+    "queueNames": {
+      "type": "array",
+      "metadata": {
+        "description": "Queue names"
+      },
+      "copy": {
+        "count": "[length(parameters('queues'))]",
+        "input": "[parameters('queues')[copyIndex()].name]"
+      }
+    },
+    "topicNames": {
+      "type": "array",
+      "metadata": {
+        "description": "Topic names"
+      },
+      "copy": {
+        "count": "[length(parameters('topics'))]",
+        "input": "[parameters('topics')[copyIndex()].name]"
+      }
+    },
+    "serviceBus": {
+      "type": "object",
+      "metadata": {
+        "description": "Service Bus object"
+      },
+      "value": "[reference(resourceId('Microsoft.ServiceBus/namespaces', parameters('serviceBusName')), '2022-10-01-preview', 'full')]"
+    }
+  }
+}

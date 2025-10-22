@@ -22,38 +22,11 @@ permissions:
   id-token: write
   contents: read
 
+# NOTE: Integration parameter files are committed to git and NOT auto-generated
+# This preserves custom configurations specific to each integration
+# Parameter files are located at: bicep/integrations/sample-integration/parameters.*.json
+
 jobs:
-  generate-parameters:
-    name: Generate Integration Parameters
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Set Azure Subscription
-        run: |
-          SUBSCRIPTION_ID=$(jq -r '.subscriptions.${{ inputs.environment }}.subscriptionId' config/subscriptions.json)
-          echo "Setting subscription to: $SUBSCRIPTION_ID"
-          az account set --subscription "$SUBSCRIPTION_ID"
-
-      - name: Generate Integration Parameters
-        run: |
-          chmod +x scripts/generate-integration-params.sh
-          echo "${{ inputs.environment }}" | ./scripts/generate-integration-params.sh || echo "1" | ./scripts/generate-integration-params.sh
-
-      - name: Upload Parameters
-        uses: actions/upload-artifact@v4
-        with:
-          name: integration-parameters
-          path: bicep/integrations/sample-integration/parameters.${{ inputs.environment }}.json
-
   build-function-app:
     name: Build Function App
     runs-on: ubuntu-latest
@@ -83,18 +56,11 @@ jobs:
   validate:
     name: Validate Bicep Templates
     runs-on: ubuntu-latest
-    needs: generate-parameters
     environment: ${{ inputs.environment }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Download Parameters
-        uses: actions/download-artifact@v4
-        with:
-          name: integration-parameters
-          path: bicep/integrations/sample-integration/
 
       - name: Azure Login
         uses: azure/login@v2
@@ -126,12 +92,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download Parameters
-        uses: actions/download-artifact@v4
-        with:
-          name: integration-parameters
-          path: bicep/integrations/sample-integration/
-
       - name: Azure Login
         uses: azure/login@v2
         with:
@@ -162,12 +122,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download Parameters
-        uses: actions/download-artifact@v4
-        with:
-          name: integration-parameters
-          path: bicep/integrations/sample-integration/
-
       - name: Download Function App Package
         uses: actions/download-artifact@v4
         with:
@@ -193,7 +147,6 @@ jobs:
           template: ./bicep/integrations/sample-integration/main.bicep
           parameters: ./bicep/integrations/sample-integration/parameters.${{ inputs.environment }}.json
           deploymentName: sample-integration-${{ inputs.environment }}-${{ github.run_number }}
-          deploymentMode: Incremental  # Updates existing resources, adds new ones
           failOnStdErr: false
 
       - name: Deploy Function App Code

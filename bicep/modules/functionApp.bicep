@@ -16,9 +16,6 @@ param appServicePlanId string
 @description('Storage Account name for Function App')
 param storageAccountName string
 
-@description('Application Insights Instrumentation Key')
-param appInsightsInstrumentationKey string = ''
-
 @description('Application Insights Connection String')
 param appInsightsConnectionString string = ''
 

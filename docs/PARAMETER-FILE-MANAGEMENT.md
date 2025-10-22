@@ -51,9 +51,15 @@ bicep/common/parameters.{env}.json  ← Safe to regenerate
 
 ## Integration-Specific Parameters
 
-### ⚠️ Manual Maintenance Required
+### ⚠️ Manual Maintenance Required - Committed to Git
 
-Integration parameter files contain **integration-specific customizations** and should be manually maintained after initial creation.
+Integration parameter files contain **integration-specific customizations** and are **committed to source control**. They should be manually maintained after initial creation.
+
+**Key Points:**
+- ✅ **Committed to Git** - Version controlled and code reviewed
+- ✅ **Preserved in CI/CD** - Workflow uses committed files, doesn't regenerate
+- ✅ **Fully Customizable** - Add any integration-specific parameters
+- ❌ **Not Auto-Generated** - Must be manually updated
 
 **When to create (first time only):**
 - Creating a new integration

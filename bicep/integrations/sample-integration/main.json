@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "824504110579095557"
+      "templateHash": "5407223198475078759"
     }
   },
   "parameters": {
@@ -2611,7 +2611,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "383866994947336367"
+              "templateHash": "15883993757515762029"
             }
           },
           "parameters": {
@@ -2696,11 +2696,7 @@
               "name": "[parameters('serviceBusName')]",
               "location": "[parameters('location')]",
               "tags": "[parameters('tags')]",
-              "sku": {
-                "name": "[parameters('skuName')]",
-                "tier": "[parameters('skuName')]",
-                "capacity": "[if(equals(parameters('skuName'), 'Premium'), parameters('capacity'), null())]"
-              },
+              "sku": "[if(equals(parameters('skuName'), 'Premium'), createObject('name', parameters('skuName'), 'tier', parameters('skuName'), 'capacity', parameters('capacity')), createObject('name', parameters('skuName'), 'tier', parameters('skuName')))]",
               "properties": {
                 "minimumTlsVersion": "1.2",
                 "publicNetworkAccess": "Enabled",
@@ -2918,7 +2914,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "15863625741292513202"
+              "templateHash": "17397452315107973143"
             }
           },
           "parameters": {
@@ -2951,13 +2947,6 @@
               "type": "string",
               "metadata": {
                 "description": "Storage Account name for Function App"
-              }
-            },
-            "appInsightsInstrumentationKey": {
-              "type": "string",
-              "defaultValue": "",
-              "metadata": {
-                "description": "Application Insights Instrumentation Key"
               }
             },
             "appInsightsConnectionString": {

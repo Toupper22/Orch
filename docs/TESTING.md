@@ -184,8 +184,8 @@ Scope: /subscriptions/xxxxx
   + Microsoft.Network/publicIPAddresses/contoso-dev-sdc-pip
   + Microsoft.Network/natGateways/contoso-dev-sdc-nat
   + Microsoft.Network/virtualNetworks/contoso-dev-sdc-vnet
-  + Microsoft.KeyVault/vaults/contosodesdcv
-  + Microsoft.Storage/storageAccounts/contosodesdcost
+  + Microsoft.KeyVault/vaults/edmodsctkv
+  + Microsoft.Storage/storageAccounts/edmodscst
   ...
 
 ═══════════════════════════════════════════════════════════
@@ -299,7 +299,7 @@ Scope: /subscriptions/xxxxx
 ### Modify Example
 
 ```
-  ~ Microsoft.KeyVault/vaults/contosodesdcv [2023-07-01]
+  ~ Microsoft.KeyVault/vaults/edmodsctkv [2023-07-01]
     ~ properties.softDeleteRetentionInDays: 7 => 90
 ```
 

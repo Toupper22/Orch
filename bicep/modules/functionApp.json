@@ -1,0 +1,184 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.38.33.27573",
+      "templateHash": "17397452315107973143"
+    }
+  },
+  "parameters": {
+    "functionAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Function App"
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for the Function App"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Tags to apply to the Function App"
+      }
+    },
+    "appServicePlanId": {
+      "type": "string",
+      "metadata": {
+        "description": "App Service Plan resource ID"
+      }
+    },
+    "storageAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "Storage Account name for Function App"
+      }
+    },
+    "appInsightsConnectionString": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Application Insights Connection String"
+      }
+    },
+    "managedIdentityId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Managed Identity resource ID"
+      }
+    },
+    "vnetIntegrationSubnetId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "VNet integration subnet ID"
+      }
+    },
+    "runtime": {
+      "type": "string",
+      "defaultValue": "dotnet-isolated",
+      "allowedValues": [
+        "dotnet",
+        "dotnet-isolated",
+        "node",
+        "python",
+        "java",
+        "powershell"
+      ],
+      "metadata": {
+        "description": "Runtime stack"
+      }
+    },
+    "runtimeVersion": {
+      "type": "string",
+      "defaultValue": "8.0",
+      "metadata": {
+        "description": "Runtime version"
+      }
+    },
+    "appSettings": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Application settings"
+      }
+    },
+    "enableVNetIntegration": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable VNet integration"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2023-01-01",
+      "name": "[parameters('functionAppName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "kind": "functionapp",
+      "identity": {
+        "type": "[if(not(empty(parameters('managedIdentityId'))), 'UserAssigned', 'SystemAssigned')]",
+        "userAssignedIdentities": "[if(not(empty(parameters('managedIdentityId'))), createObject(format('{0}', parameters('managedIdentityId')), createObject()), null())]"
+      },
+      "properties": {
+        "serverFarmId": "[parameters('appServicePlanId')]",
+        "httpsOnly": true,
+        "clientAffinityEnabled": false,
+        "virtualNetworkSubnetId": "[if(and(parameters('enableVNetIntegration'), not(empty(parameters('vnetIntegrationSubnetId')))), parameters('vnetIntegrationSubnetId'), null())]",
+        "siteConfig": {
+          "ftpsState": "Disabled",
+          "minTlsVersion": "1.2",
+          "http20Enabled": true,
+          "netFrameworkVersion": "[if(or(equals(parameters('runtime'), 'dotnet'), equals(parameters('runtime'), 'dotnet-isolated')), format('v{0}', parameters('runtimeVersion')), null())]",
+          "nodeVersion": "[if(equals(parameters('runtime'), 'node'), parameters('runtimeVersion'), null())]",
+          "pythonVersion": "[if(equals(parameters('runtime'), 'python'), parameters('runtimeVersion'), null())]",
+          "javaVersion": "[if(equals(parameters('runtime'), 'java'), parameters('runtimeVersion'), null())]",
+          "powerShellVersion": "[if(equals(parameters('runtime'), 'powershell'), parameters('runtimeVersion'), null())]",
+          "use32BitWorkerProcess": false,
+          "alwaysOn": true,
+          "appSettings": "[concat(createArray(createObject('name', 'FUNCTIONS_EXTENSION_VERSION', 'value', '~4'), createObject('name', 'FUNCTIONS_WORKER_RUNTIME', 'value', parameters('runtime')), createObject('name', 'AzureWebJobsStorage__accountName', 'value', parameters('storageAccountName')), createObject('name', 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING', 'value', format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey=***;EndpointSuffix=core.windows.net', parameters('storageAccountName'))), createObject('name', 'WEBSITE_CONTENTSHARE', 'value', toLower(parameters('functionAppName'))), createObject('name', 'WEBSITE_RUN_FROM_PACKAGE', 'value', '1')), if(not(empty(parameters('appInsightsConnectionString'))), createArray(createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', parameters('appInsightsConnectionString')), createObject('name', 'ApplicationInsightsAgent_EXTENSION_VERSION', 'value', '~3')), createArray()), parameters('appSettings'))]"
+        }
+      }
+    },
+    {
+      "condition": "[and(parameters('enableVNetIntegration'), not(empty(parameters('vnetIntegrationSubnetId'))))]",
+      "type": "Microsoft.Web/sites/networkConfig",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/{1}', parameters('functionAppName'), 'virtualNetwork')]",
+      "properties": {
+        "subnetResourceId": "[parameters('vnetIntegrationSubnetId')]",
+        "swiftSupported": true
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', parameters('functionAppName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "id": {
+      "type": "string",
+      "metadata": {
+        "description": "Function App resource ID"
+      },
+      "value": "[resourceId('Microsoft.Web/sites', parameters('functionAppName'))]"
+    },
+    "name": {
+      "type": "string",
+      "metadata": {
+        "description": "Function App name"
+      },
+      "value": "[parameters('functionAppName')]"
+    },
+    "defaultHostname": {
+      "type": "string",
+      "metadata": {
+        "description": "Function App default hostname"
+      },
+      "value": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2023-01-01').defaultHostName]"
+    },
+    "principalId": {
+      "type": "string",
+      "metadata": {
+        "description": "Function App principal ID"
+      },
+      "value": "[if(not(empty(parameters('managedIdentityId'))), '', reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2023-01-01', 'full').identity.principalId)]"
+    },
+    "functionApp": {
+      "type": "object",
+      "metadata": {
+        "description": "Function App object"
+      },
+      "value": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2023-01-01', 'full')]"
+    }
+  }
+}

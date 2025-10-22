@@ -45,10 +45,13 @@ resource serviceBus 'Microsoft.ServiceBus/namespaces@2022-10-01-preview' = {
   name: serviceBusName
   location: location
   tags: tags
-  sku: {
+  sku: skuName == 'Premium' ? {
     name: skuName
     tier: skuName
-    capacity: skuName == 'Premium' ? capacity : null
+    capacity: capacity
+  } : {
+    name: skuName
+    tier: skuName
   }
   properties: {
     minimumTlsVersion: '1.2'

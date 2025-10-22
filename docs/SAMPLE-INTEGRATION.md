@@ -67,16 +67,29 @@ graph LR
 
 ### Infrastructure Components
 
-| Resource | Purpose | Deployment |
-|----------|---------|------------|
-| **Service Bus Namespace** | Message queue | Integration-specific |
-| **Service Bus Queue** | `incoming-messages` queue | Integration-specific |
-| **Function App** | Message transformer (.NET 8) | Integration-specific |
-| **Logic App Standard** | Workflow orchestrator | Integration-specific |
-| **Storage Account** | Stores transformed messages | Integration-specific |
-| **App Service Plan** | Hosts Function & Logic Apps | Shared (common infra) |
-| **Virtual Network** | Network isolation | Shared (common infra) |
-| **Managed Identity** | Authentication | Shared (common infra) |
+#### Integration-Specific Resources (in `edmo-dev-sample-rg`)
+
+| Resource | Name Example | Purpose |
+|----------|--------------|---------|
+| **Service Bus Namespace** | `edmodscsamplesb` | Message queuing |
+| **Service Bus Queue** | `incoming-messages` | Receives incoming messages |
+| **Function App** | `edmo-dev-sdc-sample-func` | Message transformer (.NET 8) |
+| **Logic App Standard** | `edmo-dev-sdc-sample-logic` | Workflow orchestrator |
+| **Integration Key Vault** | `edmodscsamplekv` | Integration-specific secrets |
+| **Function Storage** | `edmodscsamplest` | Function App runtime storage |
+| **Archive Storage** | `edmodscsamplestarc` | Long-term message archival |
+
+#### Shared Common Resources (from `edmo-dev-common-rg`)
+
+| Resource | Name Example | Purpose |
+|----------|--------------|---------|
+| **App Service Plan** | `edmo-dev-sdc-plan` | Hosts Function & Logic Apps |
+| **Virtual Network** | `edmo-dev-sdc-vnet` | Network isolation |
+| **Managed Identity** | `edmodscid` | Authentication |
+| **Common Key Vault** | `edmodsctkv` | Shared secrets |
+| **Common Storage** | `edmodscst` | Shared config/logs |
+
+**Architecture Note**: Each integration gets its own Key Vault and storage accounts for isolation, but shares networking, compute, and identity resources for efficiency.
 
 ### Application Components
 
@@ -182,36 +195,64 @@ Before deploying the sample integration:
 
 ### Option 1: Automated Deployment (GitHub Actions)
 
-1. **Generate integration parameters**:
+1. **Verify parameter files exist** (they are committed to git):
    ```bash
-   ./scripts/generate-integration-params.sh
-   # Select environment (1-4)
+   ls bicep/integrations/sample-integration/parameters.*.json
+   # Should show: dev, test, uat, prod parameter files
    ```
 
-2. **Deploy via GitHub Actions**:
+2. **Optional: Customize parameters** for your environment:
+   ```bash
+   # Edit to customize Service Bus SKU, tags, etc.
+   vim bicep/integrations/sample-integration/parameters.dev.json
+   git add bicep/integrations/sample-integration/parameters.dev.json
+   git commit -m "Customize sample integration for dev"
+   ```
+
+3. **Deploy via GitHub Actions**:
    - Go to **Actions** → **Deploy Sample Integration**
    - Click **Run workflow**
    - Select environment
    - Check **What-If** to preview (optional)
    - Run workflow
 
-3. **Monitor deployment** in Actions tab
+4. **Monitor deployment** in Actions tab
+
+**Note**: Parameter files are **not auto-generated** in the workflow. They use the committed files to preserve your customizations.
 
 ### Option 2: Manual Deployment (Azure CLI)
 
-#### Step 1: Generate Parameters
+#### Step 1: Review/Customize Parameters
+
+Parameter files are already committed to the repository. Review and customize if needed:
 
 ```bash
-# Generate integration parameters
-./scripts/generate-integration-params.sh
-# Select: 1 (dev)
+# Check existing parameter file
+cat bicep/integrations/sample-integration/parameters.dev.json
+
+# Customize if needed
+vim bicep/integrations/sample-integration/parameters.dev.json
 ```
 
-This script automatically:
-- Reads values from common infrastructure parameter file
-- Generates simplified parameter file with essential configuration
-- Creates: `bicep/integrations/sample-integration/parameters.dev.json`
-- Common infrastructure resources are auto-discovered using naming convention
+**Example customization**:
+```json
+{
+  "parameters": {
+    "serviceBusSku": {
+      "value": "Premium"  // Upgrade from Standard
+    },
+    "tags": {
+      "value": {
+        "Environment": "Development",
+        "Customer": "YourCompany",  // Customize
+        "Project": "YourProject"     // Customize
+      }
+    }
+  }
+}
+```
+
+Common infrastructure resources are auto-discovered using naming convention.
 
 #### Step 2: Build Function App
 
@@ -433,12 +474,19 @@ curl -X POST "https://$FUNCTION_URL/api/TransformMessage?code=$FUNCTION_KEY" \
 ### Security & Authentication
 
 - **Managed Identity** used for all Azure service connections
-- **No connection strings** or keys in code
+- **No connection strings** or keys in application code
 - **VNet Integration** for Function and Logic Apps
+- **Multiple Key Vaults** for secrets isolation:
+  - **Integration Key Vault** (`edmodscsamplekv`): Stores integration-specific secrets
+    - Function storage keys and connection strings
+    - Archive storage keys and connection strings
+  - **Common Key Vault** (`edmodsctkv`): Stores shared secrets
+    - `blobConnectionString`: Auto-created for common storage access
 - **RBAC roles** automatically assigned:
   - Service Bus Data Receiver
   - Service Bus Data Sender
   - Storage Blob Data Contributor
+  - Key Vault Secrets User
 
 ### Network Integration
 

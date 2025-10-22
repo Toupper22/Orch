@@ -45,25 +45,62 @@ Orch/
 
 ### 2. Bicep Modules Created ✅
 
-#### Infrastructure Modules
+#### Core Infrastructure Modules
 
 | Module | Purpose | Key Features |
 |--------|---------|--------------|
-| **naming.bicep** | Generates consistent resource names | Follows Azure CAF standards, configurable patterns |
-| **keyVault.bicep** | Deploys Azure Key Vault | RBAC, soft delete, purge protection, diagnostics |
-| **storageAccount.bicep** | Deploys Azure Storage Account | TLS 1.2, blob containers, soft delete, diagnostics |
+| **naming.bicep** | Generates consistent resource names | Follows Azure CAF standards, short & standard formats |
+| **keyVault.bicep** | Deploys Azure Key Vault | Access policies, soft delete, purge protection, diagnostics |
+| **storageAccount.bicep** | Deploys Azure Storage Account | TLS 1.2, containers, tables, soft delete, diagnostics |
 | **managedIdentity.bicep** | Deploys User-Assigned Managed Identity | Pre-configured RBAC assignments |
 | **appServicePlan.bicep** | Deploys App Service Plan | Multiple SKU options (Consumption to Premium) |
+| **rbacAssignment.bicep** | Assigns RBAC roles | Supports all principal types |
+
+#### Network Modules
+
+| Module | Purpose | Key Features |
+|--------|---------|--------------|
 | **virtualNetwork.bicep** | Deploys Virtual Network with subnets | Service endpoints, delegations, NAT Gateway integration |
 | **natGateway.bicep** | Deploys NAT Gateway | Static outbound IP, SNAT port management |
 | **publicIp.bicep** | Deploys Public IP Address | Standard SKU, static allocation, zone redundancy |
-| **rbacAssignment.bicep** | Assigns RBAC roles | Supports all principal types |
 
-#### Main Deployment
+#### Compute Modules
+
+| Module | Purpose | Key Features |
+|--------|---------|--------------|
+| **functionApp.bicep** | Deploys Azure Function App | VNet integration, managed identity, app settings |
+| **logicApp.bicep** | Deploys Logic App Standard | VNet integration, managed identity, workflow hosting |
+
+#### Integration Modules
+
+| Module | Purpose | Key Features |
+|--------|---------|--------------|
+| **serviceBus.bicep** | Deploys Service Bus namespace | Queues, topics, subscriptions, SKU options |
+| **apiConnection.bicep** | Creates API Connection for Logic Apps | Azure Tables, Blob, Service Bus connections |
+
+#### Secrets Management Modules
+
+| Module | Purpose | Key Features |
+|--------|---------|--------------|
+| **keyVaultSecret.bicep** | Creates generic Key Vault secret | Secure parameter handling, tagging |
+| **storageKeySecret.bicep** | Stores storage account key in Key Vault | Auto-retrieves keys via listKeys(), primary/secondary |
+| **storageConnectionStringSecret.bicep** | Stores storage connection string | Auto-builds connection string with key |
+
+#### Observability Modules
+
+| Module | Purpose | Key Features |
+|--------|---------|--------------|
+| **applicationInsights.bicep** | Deploys Application Insights | Web/other app types, retention config, workspace integration |
+| **logAnalyticsWorkspace.bicep** | Deploys Log Analytics Workspace | Retention, daily quota, network access |
+| **actionGroup.bicep** | Deploys Action Group for alerts | Email receivers, enabled/disabled state |
+| **metricAlert.bicep** | Creates metric alert rules | Threshold criteria, action groups, auto-mitigation |
+
+#### Main Deployments
 
 | File | Purpose | Scope |
 |------|---------|-------|
-| **main.bicep** | Orchestrates common infrastructure | Subscription-level deployment |
+| **bicep/common/main.bicep** | Orchestrates common infrastructure | Subscription-level deployment |
+| **bicep/integrations/sample-integration/main.bicep** | Orchestrates sample integration | Subscription-level deployment |
 
 ### 3. Configuration System ✅
 
@@ -189,15 +226,18 @@ The template deploys a shared infrastructure layer used across all integrations:
 - **Purpose**: Contains all shared resources
 
 #### 2. Key Vault
-- **Naming**: `{prefix}{env}{location}kv`
-- **Features**: RBAC, soft delete, purge protection
-- **Access**: Managed Identity has "Key Vault Secrets User" role
+- **Naming**: `{prefix}{env-short}{loc-short}kv` (e.g., `edmodsctkv`)
+- **Features**: Access policies, soft delete, purge protection
+- **Access**: Managed Identity has secrets get, list, set permissions
+- **Auto-Secrets**: `blobConnectionString` automatically created
 
 #### 3. Storage Account
-- **Naming**: `{prefix}{env}{location}st`
-- **Features**: TLS 1.2, soft delete, default containers
+- **Naming**: `{prefix}{env-short}{loc-short}st` (e.g., `edmodscst`)
+- **Features**: TLS 1.2, soft delete, containers and tables
 - **Containers**: `integration-files`, `logs`
+- **Tables**: `Configuration`, `Logs`
 - **Access**: Managed Identity has "Storage Blob Data Contributor" role
+- **API Connection**: Azure Tables connection auto-created for Logic Apps
 
 #### 4. App Service Plan
 - **Naming**: `{prefix}-{env}-{location}-plan`
@@ -312,15 +352,18 @@ Default: West Europe (configurable)
 
 ## Success Metrics
 
-This Phase 1 implementation delivers:
+This implementation delivers:
 
-✅ **Complete common infrastructure** - Ready to deploy
+✅ **Complete common infrastructure** - Ready to deploy with monitoring and alerting
+✅ **Sample integration template** - End-to-end working example
 ✅ **4 environment configurations** - Dev, Test, UAT, Prod
-✅ **9 reusable Bicep modules** - Well-tested and documented (including networking)
-✅ **Automated deployment pipeline** - GitHub Actions
-✅ **Comprehensive documentation** - README, setup guide, troubleshooting
-✅ **Security by default** - RBAC, managed identities, Key Vault
-✅ **Developer tooling** - Validation scripts, linting
+✅ **20 reusable Bicep modules** - Well-tested and documented
+✅ **Automated deployment pipelines** - GitHub Actions for common + integrations
+✅ **Comprehensive documentation** - README, guides, troubleshooting
+✅ **Security by default** - Access policies, managed identities, Key Vault with auto-secrets
+✅ **API Connections** - Pre-configured for Logic Apps
+✅ **Observability** - Application Insights, Log Analytics, metric alerts
+✅ **Developer tooling** - Validation scripts, linting, parameter generation
 
 ## Notes for Developers
 
@@ -386,5 +429,7 @@ Developers can now:
 ---
 
 **Created**: 2025-10-21
-**Phase**: 1 (MVP) - Complete
-**Next Phase**: Integration patterns and templates
+**Last Updated**: 2025-10-22
+**Status**: Complete - Production Ready
+**Modules**: 20 Bicep modules
+**Integrations**: Sample integration included

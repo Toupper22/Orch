@@ -49,17 +49,24 @@ Shared resources deployed to a common resource group, used across all integratio
 
 - **Virtual Network**: Isolated network environment with subnets
 - **NAT Gateway**: Outbound connectivity with static public IP
-- **Key Vault**: Centralized secrets management with RBAC
-- **Storage Account**: Shared storage for integration files and logs
+- **Key Vault**: Centralized secrets management (auto-populated with storage connection string)
+- **Storage Account**: Shared storage for integration files, logs, and configuration tables
 - **App Service Plan**: Hosting platform for Function Apps and Logic Apps
 - **Managed Identity**: Shared identity for simplified RBAC assignments
+- **Application Insights**: Shared monitoring and telemetry
+- **Log Analytics Workspace**: Centralized logging and diagnostics
+- **API Connections**: Pre-configured Logic Apps connections to common storage tables
 
 ### 2. Integration Layer
 
 Each integration has its own resource group containing:
-- Logic Apps or Function Apps
-- Integration-specific Service Bus queues/topics
-- References to shared common resources
+- **Logic Apps Standard**: Workflow orchestration
+- **Function Apps**: Custom processing logic
+- **Integration Key Vault**: Integration-specific secrets (isolated from common)
+- **Function Storage Account**: Function App runtime storage
+- **Archive Storage Account**: Long-term data archival
+- **Service Bus Namespace**: Integration-specific queues/topics
+- **References**: Uses shared common infrastructure (VNet, App Plan, Managed Identity)
 
 ```mermaid
 graph TB
@@ -389,26 +396,50 @@ Before deploying to any environment:
 Orch/
 ├── .github/
 │   └── workflows/
-│       └── deploy-common-infra.yml    # Common infra deployment workflow
+│       ├── deploy-common-infra.yml         # Common infra deployment workflow
+│       └── deploy-sample-integration.yml   # Sample integration deployment
 ├── bicep/
 │   ├── common/
-│   │   ├── main.bicep                  # Main common infrastructure
-│   │   ├── parameters.dev.json         # Dev environment parameters
-│   │   ├── parameters.test.json        # Test environment parameters
-│   │   ├── parameters.uat.json         # UAT environment parameters
-│   │   └── parameters.prod.json        # Prod environment parameters
-│   ├── integrations/                   # Integration-specific templates
+│   │   ├── main.bicep                      # Main common infrastructure
+│   │   ├── parameters.dev.json             # Dev environment parameters
+│   │   ├── parameters.test.json            # Test environment parameters
+│   │   ├── parameters.uat.json             # UAT environment parameters
+│   │   └── parameters.prod.json            # Prod environment parameters
+│   ├── integrations/
+│   │   └── sample-integration/             # Sample integration template
+│   │       ├── main.bicep                  # Integration infrastructure
+│   │       └── parameters.*.json           # Integration parameters
 │   └── modules/
-│       ├── naming.bicep                # Naming convention module
-│       ├── keyVault.bicep              # Key Vault module
-│       ├── storageAccount.bicep        # Storage Account module
-│       ├── managedIdentity.bicep       # Managed Identity module
-│       ├── appServicePlan.bicep        # App Service Plan module
-│       └── rbacAssignment.bicep        # RBAC assignment module
+│       ├── naming.bicep                    # Naming convention module
+│       ├── keyVault.bicep                  # Key Vault deployment
+│       ├── keyVaultSecret.bicep            # Key Vault secret creation
+│       ├── storageAccount.bicep            # Storage Account deployment
+│       ├── storageKeySecret.bicep          # Storage key → Key Vault secret
+│       ├── storageConnectionStringSecret.bicep  # Storage connection string → Key Vault
+│       ├── managedIdentity.bicep           # Managed Identity deployment
+│       ├── appServicePlan.bicep            # App Service Plan deployment
+│       ├── functionApp.bicep               # Function App deployment
+│       ├── logicApp.bicep                  # Logic App deployment
+│       ├── apiConnection.bicep             # API Connection for Logic Apps
+│       ├── serviceBus.bicep                # Service Bus namespace/queues/topics
+│       ├── virtualNetwork.bicep            # Virtual Network with subnets
+│       ├── natGateway.bicep                # NAT Gateway deployment
+│       ├── publicIp.bicep                  # Public IP deployment
+│       ├── applicationInsights.bicep       # Application Insights deployment
+│       ├── logAnalyticsWorkspace.bicep     # Log Analytics Workspace
+│       ├── actionGroup.bicep               # Action Group for alerts
+│       ├── metricAlert.bicep               # Metric alert rules
+│       └── rbacAssignment.bicep            # RBAC role assignment
 ├── config/
-│   └── settings.json                   # Project configuration
-├── docs/                               # Additional documentation
-└── README.md                           # This file
+│   ├── settings.json                       # Project configuration
+│   └── subscriptions.json                  # Subscription mappings
+├── docs/                                   # Additional documentation
+├── scripts/
+│   ├── generate-common-params.sh           # Generate common parameters
+│   ├── generate-integration-params.sh      # Generate integration parameters
+│   ├── test-deployment.sh                  # Comprehensive testing
+│   └── validate-bicep.sh                   # Bicep validation
+└── README.md                               # This file
 ```
 
 ## Configuration
@@ -507,25 +538,32 @@ Integration-specific deployments will use a similar pattern with their own param
 **Purpose**: Centralized secrets management for all integrations
 
 **Features**:
-- RBAC-based authorization
+- Access policy-based authorization (with managed identity access)
 - Soft delete with configurable retention (7-90 days)
 - Purge protection enabled in production
 - Network ACLs with Azure Services bypass
 - Diagnostic logging to Log Analytics
+- **Auto-populated** with `blobConnectionString` secret for common storage
 
-**Access**: Managed Identity has "Key Vault Secrets User" role
+**Access**: Managed Identity has secrets `get`, `list`, and `set` permissions
+
+**Automatic Secrets**:
+- `blobConnectionString`: Connection string to common storage account (auto-created)
 
 ### Storage Account
 
-**Purpose**: Shared storage for integration files, logs, and artifacts
+**Purpose**: Shared storage for integration files, logs, and configuration data
 
 **Features**:
 - TLS 1.2 minimum
 - Blob public access disabled
 - Soft delete for blobs and containers (7 days)
 - Default containers: `integration-files`, `logs`
+- Default tables: `Configuration`, `Logs`
 
 **Access**: Managed Identity has "Storage Blob Data Contributor" role
+
+**API Connections**: Automatically creates Azure Tables API connection for Logic Apps
 
 ### App Service Plan
 
@@ -591,18 +629,38 @@ Integration-specific deployments will use a similar pattern with their own param
 
 All resources follow a consistent naming pattern:
 
+**Standard Format** (with hyphens):
 ```
-{prefix}-{environment}-{location}-{resource-type}-{instance}
+{prefix}-{environment}-{location}-{resource-type}
 ```
 
-Examples:
-- Resource Group: `contoso-dev-common-rg`
-- Key Vault: `contosodesdcv` (no hyphens, max 24 chars)
-- Storage Account: `contosodesdcost` (lowercase, no hyphens)
-- App Service Plan: `contoso-dev-sdc-plan`
-- Virtual Network: `contoso-dev-sdc-vnet`
-- NAT Gateway: `contoso-dev-sdc-nat`
-- Public IP: `contoso-dev-sdc-pip`
+**Short Format** (no hyphens, for resources with character limits):
+```
+{prefix}{env-short}{loc-short}{resource-type}
+```
+
+**Examples** (using prefix `edmo`):
+- Resource Group: `edmo-dev-common-rg`
+- Key Vault: `edmodsctkv` (short format, no hyphens, max 24 chars)
+- Storage Account: `edmodscst` (short format, lowercase, no hyphens)
+- App Service Plan: `edmo-dev-sdc-plan`
+- Virtual Network: `edmo-dev-sdc-vnet`
+- NAT Gateway: `edmo-dev-sdc-nat`
+- Public IP: `edmo-dev-sdc-pip`
+- Managed Identity: `edmodscid` (short format)
+
+**Integration-Specific** (includes workload name):
+- Integration Key Vault: `edmodscsamplekv`
+- Function Storage: `edmodscsamplest`
+- Archive Storage: `edmodscsamplestarc`
+
+**Environment Abbreviations**:
+- `dev` → `d`, `test` → `t`, `uat` → `u`, `prod` → `p`
+
+**Location Abbreviations**:
+- `swedencentral` / `sdc` → `sc`
+- `westeurope` / `weu` → `we`
+- `northeurope` / `neu` → `ne`
 
 Resource type abbreviations follow [Azure CAF standards](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/azure-best-practices/resource-abbreviations).
 
@@ -699,9 +757,10 @@ After deploying common infrastructure:
 
 1. **Verify Resources**: Check Azure Portal for created resources
 2. **Test Access**: Verify Managed Identity can access Key Vault and Storage
-3. **Add Secrets**: Populate Key Vault with integration-specific secrets
-4. **Deploy First Integration**: Use the integration template (Phase 2)
-5. **Configure Monitoring**: Set up Application Insights and alerts
+3. **Review Auto-Created Secrets**: Key Vault now contains `blobConnectionString` automatically
+4. **Test API Connection**: Verify Logic Apps can connect to common storage tables
+5. **Deploy First Integration**: See [Quick Start Guide for New Integrations](docs/QUICKSTART-NEW-INTEGRATION.md)
+6. **Configure Monitoring**: Application Insights and Log Analytics are ready with default alerts
 
 ## Contributing
 
@@ -719,5 +778,5 @@ This template is provided as-is for use within your organization.
 
 ---
 
-**Version**: 1.0.0
-**Last Updated**: 2025-10-21
+**Version**: 1.1.0
+**Last Updated**: 2025-10-22
