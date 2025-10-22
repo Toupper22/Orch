@@ -229,10 +229,6 @@ var commonTags = union(tags, {
 // Determine which Log Analytics Workspace to use
 var logAnalyticsWorkspaceId = !empty(externalLogAnalyticsWorkspaceId) ? externalLogAnalyticsWorkspaceId : (deployLogAnalyticsWorkspace ? logAnalyticsWorkspace!.outputs.id : '')
 
-// Storage account name (must be calculated here for use in listKeys)
-// Pattern: {prefix}{env}{locationShort}st (no dashes, lowercase)
-var storageAccountNameCalculated = toLower(replace('${prefix}${environment}${locationShort}st', '-', ''))
-
 // ============================================================================
 // Resource Group
 // ============================================================================
@@ -458,7 +454,7 @@ module storageAccount '../modules/storageAccount.bicep' = if (deployStorageAccou
     managedIdentity
   ]
   params: {
-    storageAccountName: storageAccountNameCalculated
+    storageAccountName: storageAccountNaming!.outputs.name
     location: location
     tags: commonTags
     skuName: storageAccountSku
@@ -475,6 +471,21 @@ module storageAccount '../modules/storageAccount.bicep' = if (deployStorageAccou
     virtualNetworkRules: deployVirtualNetwork ? [
       '${virtualNetwork!.outputs.id}/subnets/integration-subnet'
     ] : []
+  }
+}
+
+// ============================================================================
+// Store Storage Account Connection String in Key Vault
+// ============================================================================
+
+module storageConnectionStringSecret '../modules/storageConnectionStringSecret.bicep' = if (deployKeyVault && deployStorageAccount) {
+  name: 'storageConnectionStringSecret'
+  scope: commonResourceGroup
+  params: {
+    keyVaultName: keyVault!.outputs.name
+    secretName: 'blobConnectionString'
+    storageAccountResourceGroup: commonResourceGroup.name
+    storageAccountName: storageAccountNaming!.outputs.name
   }
 }
 
@@ -496,7 +507,7 @@ module storageTablesApiConnection '../modules/apiConnection.bicep' = if (deployA
     connectionType: 'azuretables'
     displayName: 'Common Storage Tables'
     storageAccountResourceGroup: commonResourceGroup.name
-    storageAccountName: storageAccountNameCalculated
+    storageAccountName: storageAccountNaming!.outputs.name
     parameterValues: {}
     additionalParameterValues: {}
   }
