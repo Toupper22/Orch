@@ -309,7 +309,7 @@ module keyVault '../modules/keyVault.bicep' = if (deployKeyVault) {
   name: 'keyVault'
   scope: commonResourceGroup
   params: {
-    keyVaultName: replace(keyVaultNaming.outputs.name, '-', '')
+    keyVaultName: replace(keyVaultNaming!.outputs.name, '-', '')
     location: location
     tags: commonTags
     skuName: keyVaultSku
@@ -348,7 +348,7 @@ module storageAccount '../modules/storageAccount.bicep' = if (deployStorageAccou
     managedIdentity
   ]
   params: {
-    storageAccountName: storageAccountNaming.outputs.name
+    storageAccountName: storageAccountNaming!.outputs.name
     location: location
     tags: commonTags
     skuName: storageAccountSku
@@ -373,7 +373,7 @@ module appServicePlan '../modules/appServicePlan.bicep' = if (deployAppServicePl
   name: 'appServicePlan'
   scope: commonResourceGroup
   params: {
-    appServicePlanName: appServicePlanNaming.outputs.name
+    appServicePlanName: appServicePlanNaming!.outputs.name
     location: location
     tags: commonTags
     skuName: appServicePlanSku
@@ -390,7 +390,7 @@ module publicIp '../modules/publicIp.bicep' = if (deployNatGateway) {
   name: 'publicIp'
   scope: commonResourceGroup
   params: {
-    publicIpName: publicIpNaming.outputs.name
+    publicIpName: publicIpNaming!.outputs.name
     location: location
     tags: commonTags
     skuName: 'Standard'
@@ -406,10 +406,10 @@ module natGateway '../modules/natGateway.bicep' = if (deployNatGateway) {
     publicIp
   ]
   params: {
-    natGatewayName: natGatewayNaming.outputs.name
+    natGatewayName: natGatewayNaming!.outputs.name
     location: location
     tags: commonTags
-    publicIpAddressIds: deployNatGateway ? [publicIp.outputs.id] : []
+    publicIpAddressIds: deployNatGateway ? [publicIp!.outputs.id] : []
     idleTimeoutInMinutes: natGatewayIdleTimeoutInMinutes
   }
 }
@@ -422,14 +422,14 @@ module virtualNetwork '../modules/virtualNetwork.bicep' = if (deployVirtualNetwo
     natGateway
   ]
   params: {
-    virtualNetworkName: virtualNetworkNaming.outputs.name
+    virtualNetworkName: virtualNetworkNaming!.outputs.name
     location: location
     tags: commonTags
     addressPrefixes: vnetAddressPrefixes
     subnets: [for (subnet, i) in subnets: {
       name: subnet.name
       addressPrefix: subnet.addressPrefix
-      natGatewayId: deployNatGateway && i == 0 ? natGateway.outputs.id : '' // Attach NAT Gateway to first subnet
+      natGatewayId: deployNatGateway && i == 0 ? natGateway!.outputs.id : '' // Attach NAT Gateway to first subnet
       serviceEndpoints: subnet.?serviceEndpoints ?? []
       delegations: subnet.?delegations ?? []
     }]
@@ -444,7 +444,7 @@ module applicationInsights '../modules/applicationInsights.bicep' = if (deployAp
   name: 'applicationInsights'
   scope: commonResourceGroup
   params: {
-    name: applicationInsightsNaming.outputs.name
+    name: applicationInsightsNaming!.outputs.name
     location: location
     tags: commonTags
     applicationType: 'web'
@@ -461,7 +461,7 @@ module actionGroup '../modules/actionGroup.bicep' = if (deployApplicationInsight
   name: 'actionGroup'
   scope: commonResourceGroup
   params: {
-    name: actionGroupNaming.outputs.name
+    name: actionGroupNaming!.outputs.name
     location: 'global'
     tags: commonTags
     groupShortName: take('${prefix}-${environment}', 12)
