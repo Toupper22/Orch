@@ -42,8 +42,7 @@ jobs:
 
       - name: Setup NuGet Authentication
         run: |
-          dotnet nuget add source https://pkgs.dev.azure.com/efima/_packaging/EfimaLayerFeed/nuget/v3/index.json \
-            --name EfimaLayerFeed \
+          dotnet nuget update source EfimaLayerFeed \
             --username ${{ github.actor }} \
             --password ${{ secrets.EFIMA_FEED_PAT }} \
             --store-password-in-clear-text
