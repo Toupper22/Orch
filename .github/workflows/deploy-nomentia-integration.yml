@@ -17,6 +17,21 @@ on:
         required: false
         type: boolean
         default: false
+      deployInfrastructure:
+        description: 'Deploy infrastructure (Function App, Storage, Service Bus, etc.)'
+        required: false
+        type: boolean
+        default: true
+      deployFunctionApp:
+        description: 'Deploy Function App code'
+        required: false
+        type: boolean
+        default: true
+      deployLogicApps:
+        description: 'Deploy Logic Apps workflows'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -30,6 +45,7 @@ jobs:
   build-function-app:
     name: Build Function App
     runs-on: ubuntu-latest
+    if: ${{ inputs.deployFunctionApp == true && inputs.whatIf == false }}
 
     steps:
       - name: Checkout code
@@ -54,15 +70,28 @@ jobs:
           dotnet build --configuration Release
           dotnet publish --configuration Release --output ./publish
 
+      - name: Verify .azurefunctions Folder Exists
+        run: |
+          if [ -d "src/Efima.IL.Nomentia/publish/.azurefunctions" ]; then
+            echo "✅ .azurefunctions folder found in publish output"
+            ls -la src/Efima.IL.Nomentia/publish/.azurefunctions/
+          else
+            echo "❌ ERROR: .azurefunctions folder NOT found in publish output"
+            echo "This will cause deployment to fail. Check .csproj configuration."
+            exit 1
+          fi
+
       - name: Upload Function App Package
         uses: actions/upload-artifact@v4
         with:
           name: function-app-package
           path: src/Efima.IL.Nomentia/publish
+          include-hidden-files: true
 
   validate:
     name: Validate Bicep Templates
     runs-on: ubuntu-latest
+    if: ${{ inputs.deployInfrastructure == true }}
     environment: ${{ inputs.environment }}
 
     steps:
@@ -122,14 +151,23 @@ jobs:
     name: Deploy to ${{ inputs.environment }}
     runs-on: ubuntu-latest
     needs: [validate, build-function-app]
-    if: ${{ inputs.whatIf == false }}
+    if: |
+      always() &&
+      inputs.whatIf == false &&
+      inputs.deployInfrastructure == true &&
+      needs.validate.result == 'success' &&
+      (needs.build-function-app.result == 'success' || needs.build-function-app.result == 'skipped')
     environment: ${{ inputs.environment }}
+    outputs:
+      resourceGroupName: ${{ steps.deploy.outputs.resourceGroupName }}
+      functionAppName: ${{ steps.deploy.outputs.functionAppName }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Download Function App Package
+        if: ${{ inputs.deployFunctionApp == true }}
         uses: actions/download-artifact@v4
         with:
           name: function-app-package
@@ -157,6 +195,7 @@ jobs:
           failOnStdErr: false
 
       - name: Temporarily Allow Public Access to Function Storage
+        if: ${{ inputs.deployFunctionApp == true }}
         run: |
           FUNCTION_STORAGE_NAME="${{ steps.deploy.outputs.functionStorageName }}"
           RESOURCE_GROUP="${{ steps.deploy.outputs.resourceGroupName }}"
@@ -170,6 +209,7 @@ jobs:
           echo "✅ Public access temporarily enabled for initial startup"
 
       - name: Restart Function App to Initialize with Storage Access
+        if: ${{ inputs.deployFunctionApp == true }}
         run: |
           FUNCTION_APP_NAME="${{ steps.deploy.outputs.functionAppName }}"
           RESOURCE_GROUP="${{ steps.deploy.outputs.resourceGroupName }}"
@@ -183,6 +223,7 @@ jobs:
           sleep 60
 
       - name: Wait for Function App to be Ready
+        if: ${{ inputs.deployFunctionApp == true }}
         run: |
           FUNCTION_APP_NAME="${{ steps.deploy.outputs.functionAppName }}"
           RESOURCE_GROUP="${{ steps.deploy.outputs.resourceGroupName }}"
@@ -214,14 +255,21 @@ jobs:
           done
 
       - name: Deploy Function App Code
+        if: ${{ inputs.deployFunctionApp == true }}
         run: |
           FUNCTION_APP_NAME="${{ steps.deploy.outputs.functionAppName }}"
           RESOURCE_GROUP="${{ steps.deploy.outputs.resourceGroupName }}"
           echo "Deploying to Function App: $FUNCTION_APP_NAME"
 
           cd function-app-package
-          zip -r ../function-app.zip .
+          # Include hidden files (.azurefunctions folder) in zip
+          shopt -s dotglob
+          zip -r ../function-app.zip *
+          shopt -u dotglob
           cd ..
+
+          echo "Verifying .azurefunctions folder is in the zip..."
+          unzip -l ../function-app.zip | grep ".azurefunctions" || echo "WARNING: .azurefunctions folder not found in zip!"
 
           # Try zip deployment with retries
           echo "Attempting zip deployment with retries..."
@@ -279,6 +327,7 @@ jobs:
           echo "✅ Network restrictions re-enabled"
 
       - name: Verify Function App Health
+        if: ${{ inputs.deployFunctionApp == true }}
         run: |
           FUNCTION_APP_NAME="${{ steps.deploy.outputs.functionAppName }}"
           RESOURCE_GROUP="${{ steps.deploy.outputs.resourceGroupName }}"
@@ -323,6 +372,193 @@ jobs:
           echo "**Function Storage:** ${{ steps.deploy.outputs.functionStorageName }}" >> $GITHUB_STEP_SUMMARY
           echo "**Integration Storage:** ${{ steps.deploy.outputs.integrationStorageName }}" >> $GITHUB_STEP_SUMMARY
           echo "**Key Vault:** ${{ steps.deploy.outputs.integrationKeyVaultName }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Azure Logout
+        if: always()
+        run: az logout
+
+  deploy-logic-apps:
+    name: Deploy Logic Apps
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: |
+      always() &&
+      inputs.whatIf == false &&
+      inputs.deployLogicApps == true &&
+      (needs.deploy.result == 'success' || needs.deploy.result == 'skipped')
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set Azure Subscription
+        run: |
+          SUBSCRIPTION_ID=$(jq -r '.subscriptions.${{ inputs.environment }}.subscriptionId' config/subscriptions.json)
+          az account set --subscription "$SUBSCRIPTION_ID"
+
+      - name: Load Deployment Parameters
+        id: load_params
+        run: |
+          PARAMS=$(jq -c '{prefix: .parameters.prefix.value, locationShort: .parameters.locationShort.value}' bicep/integrations/nomentia/parameters.${{ inputs.environment }}.json)
+          echo "params=$PARAMS" >> $GITHUB_OUTPUT
+
+      - name: Load Workflow Definition - D365FO to Nomentia AR Transactions
+        id: load_artransactions
+        run: |
+          if [ -f "src/Efima.IL.Nomentia/LogicApps/d365fo-nomentia-artransactions/workflow.json" ]; then
+            WORKFLOW=$(cat src/Efima.IL.Nomentia/LogicApps/d365fo-nomentia-artransactions/workflow.json | jq -c)
+            echo "workflow<<EOF" >> $GITHUB_OUTPUT
+            echo "$WORKFLOW" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Workflow definition not found, skipping"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy D365FO to Nomentia AR Transactions Logic App
+        if: steps.load_artransactions.outputs.exists == 'true'
+        uses: azure/arm-deploy@v2
+        with:
+          scope: subscription
+          region: swedencentral
+          template: ./bicep/integrations/nomentia/single-workflow.bicep
+          parameters: >
+            prefix=${{ fromJson(steps.load_params.outputs.params).prefix }}
+            environment=${{ inputs.environment }}
+            location=swedencentral
+            locationShort=${{ fromJson(steps.load_params.outputs.params).locationShort }}
+            integrationName=nomentia
+            workflowName=d365fo-nomentia-artransactions
+            workflowDefinition='${{ steps.load_artransactions.outputs.workflow }}'
+          deploymentName: nomentia-artransactions-${{ inputs.environment }}-${{ github.run_number }}
+
+      - name: Load Workflow Definition - ERP to Nomentia Outbound Payments
+        id: load_outboundpayments
+        run: |
+          if [ -f "src/Efima.IL.Nomentia/LogicApps/erp-nomentia-outboundpayments/workflow.json" ]; then
+            WORKFLOW=$(cat src/Efima.IL.Nomentia/LogicApps/erp-nomentia-outboundpayments/workflow.json | jq -c)
+            echo "workflow<<EOF" >> $GITHUB_OUTPUT
+            echo "$WORKFLOW" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Workflow definition not found, skipping"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy ERP to Nomentia Outbound Payments Logic App
+        if: steps.load_outboundpayments.outputs.exists == 'true'
+        uses: azure/arm-deploy@v2
+        with:
+          scope: subscription
+          region: swedencentral
+          template: ./bicep/integrations/nomentia/single-workflow.bicep
+          parameters: >
+            prefix=${{ fromJson(steps.load_params.outputs.params).prefix }}
+            environment=${{ inputs.environment }}
+            location=swedencentral
+            locationShort=${{ fromJson(steps.load_params.outputs.params).locationShort }}
+            integrationName=nomentia
+            workflowName=erp-nomentia-outboundpayments
+            workflowDefinition='${{ steps.load_outboundpayments.outputs.workflow }}'
+          deploymentName: nomentia-outboundpayments-${{ inputs.environment }}-${{ github.run_number }}
+
+      - name: Load Workflow Definition - Nomentia to D365FO Posted Bank Statements
+        id: load_bankstatements
+        run: |
+          if [ -f "src/Efima.IL.Nomentia/LogicApps/nomentia-d365fo-postedbankstatements/workflow.json" ]; then
+            WORKFLOW=$(cat src/Efima.IL.Nomentia/LogicApps/nomentia-d365fo-postedbankstatements/workflow.json | jq -c)
+            echo "workflow<<EOF" >> $GITHUB_OUTPUT
+            echo "$WORKFLOW" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Workflow definition not found, skipping"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy Nomentia to D365FO Posted Bank Statements Logic App
+        if: steps.load_bankstatements.outputs.exists == 'true'
+        uses: azure/arm-deploy@v2
+        with:
+          scope: subscription
+          region: swedencentral
+          template: ./bicep/integrations/nomentia/single-workflow.bicep
+          parameters: >
+            prefix=${{ fromJson(steps.load_params.outputs.params).prefix }}
+            environment=${{ inputs.environment }}
+            location=swedencentral
+            locationShort=${{ fromJson(steps.load_params.outputs.params).locationShort }}
+            integrationName=nomentia
+            workflowName=nomentia-d365fo-postedbankstatements
+            workflowDefinition='${{ steps.load_bankstatements.outputs.workflow }}'
+          deploymentName: nomentia-bankstatements-${{ inputs.environment }}-${{ github.run_number }}
+
+      - name: Load Workflow Definition - Nomentia to ERP Reference Payments
+        id: load_referencepayments
+        run: |
+          if [ -f "src/Efima.IL.Nomentia/LogicApps/nomentia-erp-referencepayments/workflow.json" ]; then
+            WORKFLOW=$(cat src/Efima.IL.Nomentia/LogicApps/nomentia-erp-referencepayments/workflow.json | jq -c)
+            echo "workflow<<EOF" >> $GITHUB_OUTPUT
+            echo "$WORKFLOW" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Workflow definition not found, skipping"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy Nomentia to ERP Reference Payments Logic App
+        if: steps.load_referencepayments.outputs.exists == 'true'
+        uses: azure/arm-deploy@v2
+        with:
+          scope: subscription
+          region: swedencentral
+          template: ./bicep/integrations/nomentia/single-workflow.bicep
+          parameters: >
+            prefix=${{ fromJson(steps.load_params.outputs.params).prefix }}
+            environment=${{ inputs.environment }}
+            location=swedencentral
+            locationShort=${{ fromJson(steps.load_params.outputs.params).locationShort }}
+            integrationName=nomentia
+            workflowName=nomentia-erp-referencepayments
+            workflowDefinition='${{ steps.load_referencepayments.outputs.workflow }}'
+          deploymentName: nomentia-referencepayments-${{ inputs.environment }}-${{ github.run_number }}
+
+      - name: Output Logic Apps Deployment Summary
+        run: |
+          echo "## Logic Apps Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployed Logic Apps" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.load_artransactions.outputs.exists }}" == "true" ]; then
+            echo "- ✅ D365FO to Nomentia AR Transactions" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⚠️ D365FO to Nomentia AR Transactions (workflow.json not found)" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ steps.load_outboundpayments.outputs.exists }}" == "true" ]; then
+            echo "- ✅ ERP to Nomentia Outbound Payments" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⚠️ ERP to Nomentia Outbound Payments (workflow.json not found)" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ steps.load_bankstatements.outputs.exists }}" == "true" ]; then
+            echo "- ✅ Nomentia to D365FO Posted Bank Statements" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⚠️ Nomentia to D365FO Posted Bank Statements (workflow.json not found)" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ steps.load_referencepayments.outputs.exists }}" == "true" ]; then
+            echo "- ✅ Nomentia to ERP Reference Payments" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⚠️ Nomentia to ERP Reference Payments (workflow.json not found)" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Azure Logout
         if: always()

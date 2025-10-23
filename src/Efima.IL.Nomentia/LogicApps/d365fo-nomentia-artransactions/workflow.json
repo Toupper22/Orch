@@ -1,0 +1,138 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "functionAppUrl": {
+      "type": "string"
+    },
+    "d365ExportEndpoint": {
+      "type": "string"
+    },
+    "$connections": {
+      "type": "object",
+      "defaultValue": {}
+    }
+  },
+  "triggers": {
+    "Recurrence": {
+      "recurrence": {
+        "frequency": "Hour",
+        "interval": 4
+      },
+      "evaluatedRecurrence": {
+        "frequency": "Hour",
+        "interval": 4
+      },
+      "type": "Recurrence"
+    }
+  },
+  "actions": {
+    "Initialize_variable_-_Package_Count": {
+      "runAfter": {},
+      "type": "InitializeVariable",
+      "inputs": {
+        "variables": [
+          {
+            "name": "PackageCount",
+            "type": "integer",
+            "value": 0
+          }
+        ]
+      }
+    },
+    "Check_D365_For_Export_Packages": {
+      "runAfter": {
+        "Initialize_variable_-_Package_Count": [
+          "Succeeded"
+        ]
+      },
+      "type": "Http",
+      "inputs": {
+        "method": "GET",
+        "uri": "@parameters('d365ExportEndpoint')",
+        "authentication": {
+          "type": "ManagedServiceIdentity"
+        }
+      }
+    },
+    "For_each_Export_Package": {
+      "foreach": "@body('Check_D365_For_Export_Packages')?['value']",
+      "actions": {
+        "Download_Package": {
+          "runAfter": {},
+          "type": "Http",
+          "inputs": {
+            "method": "GET",
+            "uri": "@{parameters('d365ExportEndpoint')}/@{items('For_each_Export_Package')?['PackageId']}/download",
+            "authentication": {
+              "type": "ManagedServiceIdentity"
+            }
+          }
+        },
+        "Transform_AR_Transactions": {
+          "runAfter": {
+            "Download_Package": [
+              "Succeeded"
+            ]
+          },
+          "type": "Http",
+          "inputs": {
+            "method": "POST",
+            "uri": "@{parameters('functionAppUrl')}/api/D365ArTransactionsTransform",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentData": "@{base64(body('Download_Package'))}"
+            },
+            "authentication": {
+              "type": "ManagedServiceIdentity"
+            }
+          }
+        },
+        "Upload_to_SFTP": {
+          "runAfter": {
+            "Transform_AR_Transactions": [
+              "Succeeded"
+            ]
+          },
+          "type": "ApiConnection",
+          "inputs": {
+            "host": {
+              "connection": {
+                "name": "@parameters('$connections')['sftp']['connectionId']"
+              }
+            },
+            "method": "post",
+            "path": "/datasets/default/files",
+            "queries": {
+              "folderPath": "/nomentia/artransactions",
+              "name": "@{items('For_each_Export_Package')?['PackageName']}_@{utcNow('yyyyMMddHHmmss')}.xml",
+              "queryParametersSingleEncoded": true
+            },
+            "body": "@body('Transform_AR_Transactions')"
+          }
+        },
+        "Increment_Package_Count": {
+          "runAfter": {
+            "Upload_to_SFTP": [
+              "Succeeded"
+            ]
+          },
+          "type": "IncrementVariable",
+          "inputs": {
+            "name": "PackageCount",
+            "value": 1
+          }
+        }
+      },
+      "runAfter": {
+        "Check_D365_For_Export_Packages": [
+          "Succeeded"
+        ]
+      },
+      "type": "Foreach"
+    }
+  },
+  "outputs": {}
+}

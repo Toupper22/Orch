@@ -1,0 +1,131 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "functionAppUrl": {
+      "type": "string"
+    },
+    "$connections": {
+      "type": "object",
+      "defaultValue": {}
+    }
+  },
+  "triggers": {
+    "Recurrence": {
+      "recurrence": {
+        "frequency": "Hour",
+        "interval": 6
+      },
+      "evaluatedRecurrence": {
+        "frequency": "Hour",
+        "interval": 6
+      },
+      "type": "Recurrence"
+    }
+  },
+  "actions": {
+    "List_Payment_Files_from_Storage": {
+      "runAfter": {},
+      "type": "ApiConnection",
+      "inputs": {
+        "host": {
+          "connection": {
+            "name": "@parameters('$connections')['azureblob']['connectionId']"
+          }
+        },
+        "method": "get",
+        "path": "/v2/datasets/@{encodeURIComponent('integrationStorageAccount')}/folderlisting",
+        "queries": {
+          "folderPath": "/payments/outbound"
+        }
+      }
+    },
+    "For_each_Payment_File": {
+      "foreach": "@body('List_Payment_Files_from_Storage')",
+      "actions": {
+        "Get_File_Content": {
+          "runAfter": {},
+          "type": "ApiConnection",
+          "inputs": {
+            "host": {
+              "connection": {
+                "name": "@parameters('$connections')['azureblob']['connectionId']"
+              }
+            },
+            "method": "get",
+            "path": "/v2/datasets/@{encodeURIComponent('integrationStorageAccount')}/files/@{encodeURIComponent(items('For_each_Payment_File')?['Path'])}/content"
+          }
+        },
+        "Upload_to_Nomentia_SFTP": {
+          "runAfter": {
+            "Get_File_Content": [
+              "Succeeded"
+            ]
+          },
+          "type": "ApiConnection",
+          "inputs": {
+            "host": {
+              "connection": {
+                "name": "@parameters('$connections')['sftp']['connectionId']"
+              }
+            },
+            "method": "post",
+            "path": "/datasets/default/files",
+            "queries": {
+              "folderPath": "/nomentia/payments/outbound",
+              "name": "@{items('For_each_Payment_File')?['Name']}",
+              "queryParametersSingleEncoded": true
+            },
+            "body": "@body('Get_File_Content')"
+          }
+        },
+        "Archive_File": {
+          "runAfter": {
+            "Upload_to_Nomentia_SFTP": [
+              "Succeeded"
+            ]
+          },
+          "type": "ApiConnection",
+          "inputs": {
+            "host": {
+              "connection": {
+                "name": "@parameters('$connections')['azureblob']['connectionId']"
+              }
+            },
+            "method": "post",
+            "path": "/v2/datasets/@{encodeURIComponent('integrationStorageAccount')}/files",
+            "queries": {
+              "folderPath": "/payments/archive",
+              "name": "@{items('For_each_Payment_File')?['Name']}"
+            },
+            "body": "@body('Get_File_Content')"
+          }
+        },
+        "Delete_Original_File": {
+          "runAfter": {
+            "Archive_File": [
+              "Succeeded"
+            ]
+          },
+          "type": "ApiConnection",
+          "inputs": {
+            "host": {
+              "connection": {
+                "name": "@parameters('$connections')['azureblob']['connectionId']"
+              }
+            },
+            "method": "delete",
+            "path": "/v2/datasets/@{encodeURIComponent('integrationStorageAccount')}/files/@{encodeURIComponent(items('For_each_Payment_File')?['Path'])}"
+          }
+        }
+      },
+      "runAfter": {
+        "List_Payment_Files_from_Storage": [
+          "Succeeded"
+        ]
+      },
+      "type": "Foreach"
+    }
+  },
+  "outputs": {}
+}

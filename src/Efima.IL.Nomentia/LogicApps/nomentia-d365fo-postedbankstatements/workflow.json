@@ -1,0 +1,152 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "functionAppUrl": {
+      "type": "string"
+    },
+    "d365ImportEndpoint": {
+      "type": "string"
+    },
+    "$connections": {
+      "type": "object",
+      "defaultValue": {}
+    }
+  },
+  "triggers": {
+    "Recurrence": {
+      "recurrence": {
+        "frequency": "Hour",
+        "interval": 2
+      },
+      "evaluatedRecurrence": {
+        "frequency": "Hour",
+        "interval": 2
+      },
+      "type": "Recurrence"
+    }
+  },
+  "actions": {
+    "List_Bank_Statement_Files_from_SFTP": {
+      "runAfter": {},
+      "type": "ApiConnection",
+      "inputs": {
+        "host": {
+          "connection": {
+            "name": "@parameters('$connections')['sftp']['connectionId']"
+          }
+        },
+        "method": "get",
+        "path": "/datasets/default/folderlisting",
+        "queries": {
+          "folderPath": "/nomentia/bankstatements"
+        }
+      }
+    },
+    "For_each_Bank_Statement": {
+      "foreach": "@body('List_Bank_Statement_Files_from_SFTP')",
+      "actions": {
+        "Get_File_from_SFTP": {
+          "runAfter": {},
+          "type": "ApiConnection",
+          "inputs": {
+            "host": {
+              "connection": {
+                "name": "@parameters('$connections')['sftp']['connectionId']"
+              }
+            },
+            "method": "get",
+            "path": "/datasets/default/files/@{encodeURIComponent(items('For_each_Bank_Statement')?['Path'])}/content"
+          }
+        },
+        "Transform_Bank_Statement": {
+          "runAfter": {
+            "Get_File_from_SFTP": [
+              "Succeeded"
+            ]
+          },
+          "type": "Http",
+          "inputs": {
+            "method": "POST",
+            "uri": "@{parameters('functionAppUrl')}/api/BankStatementTransform",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentData": "@{base64(body('Get_File_from_SFTP'))}"
+            },
+            "authentication": {
+              "type": "ManagedServiceIdentity"
+            }
+          }
+        },
+        "Import_to_D365": {
+          "runAfter": {
+            "Transform_Bank_Statement": [
+              "Succeeded"
+            ]
+          },
+          "type": "Http",
+          "inputs": {
+            "method": "POST",
+            "uri": "@parameters('d365ImportEndpoint')",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": "@body('Transform_Bank_Statement')",
+            "authentication": {
+              "type": "ManagedServiceIdentity"
+            }
+          }
+        },
+        "Move_to_Processed": {
+          "runAfter": {
+            "Import_to_D365": [
+              "Succeeded"
+            ]
+          },
+          "type": "ApiConnection",
+          "inputs": {
+            "host": {
+              "connection": {
+                "name": "@parameters('$connections')['sftp']['connectionId']"
+              }
+            },
+            "method": "post",
+            "path": "/datasets/default/files",
+            "queries": {
+              "folderPath": "/nomentia/bankstatements/processed",
+              "name": "@{items('For_each_Bank_Statement')?['Name']}",
+              "queryParametersSingleEncoded": true
+            },
+            "body": "@body('Get_File_from_SFTP')"
+          }
+        },
+        "Delete_Original": {
+          "runAfter": {
+            "Move_to_Processed": [
+              "Succeeded"
+            ]
+          },
+          "type": "ApiConnection",
+          "inputs": {
+            "host": {
+              "connection": {
+                "name": "@parameters('$connections')['sftp']['connectionId']"
+              }
+            },
+            "method": "delete",
+            "path": "/datasets/default/files/@{encodeURIComponent(items('For_each_Bank_Statement')?['Path'])}"
+          }
+        }
+      },
+      "runAfter": {
+        "List_Bank_Statement_Files_from_SFTP": [
+          "Succeeded"
+        ]
+      },
+      "type": "Foreach"
+    }
+  },
+  "outputs": {}
+}
