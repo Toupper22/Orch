@@ -40,6 +40,13 @@ param tags object = {}
 ])
 param serviceBusSku string = 'Standard'
 
+@description('Storage firewall default action (use Allow for initial deployment, then Deny)')
+@allowed([
+  'Allow'
+  'Deny'
+])
+param storageFirewallDefault string = 'Allow'
+
 // ============================================================================
 // Variables
 // ============================================================================
@@ -259,13 +266,13 @@ module functionStorage '../../modules/storageAccount.bicep' = {
         shareQuota: 5120
       }
     ]
-    networkAclDefaultAction: 'Deny'
-    ipRules: [
+    networkAclDefaultAction: storageFirewallDefault
+    ipRules: storageFirewallDefault == 'Deny' ? [
       '217.149.56.100'
-    ]
-    virtualNetworkRules: [
+    ] : []
+    virtualNetworkRules: storageFirewallDefault == 'Deny' ? [
       integrationSubnetId
-    ]
+    ] : []
   }
 }
 
@@ -306,13 +313,13 @@ module integrationStorage '../../modules/storageAccount.bicep' = {
         name: 'Conversions'
       }
     ]
-    networkAclDefaultAction: 'Deny'
-    ipRules: [
+    networkAclDefaultAction: storageFirewallDefault
+    ipRules: storageFirewallDefault == 'Deny' ? [
       '217.149.56.100'
-    ]
-    virtualNetworkRules: [
+    ] : []
+    virtualNetworkRules: storageFirewallDefault == 'Deny' ? [
       integrationSubnetId
-    ]
+    ] : []
   }
 }
 
