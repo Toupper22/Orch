@@ -154,8 +154,8 @@ jobs:
     if: |
       always() &&
       inputs.whatIf == false &&
-      inputs.deployInfrastructure == true &&
-      needs.validate.result == 'success' &&
+      (inputs.deployInfrastructure == true || inputs.deployFunctionApp == true) &&
+      (needs.validate.result == 'success' || needs.validate.result == 'skipped') &&
       (needs.build-function-app.result == 'success' || needs.build-function-app.result == 'skipped')
     environment: ${{ inputs.environment }}
     outputs:
@@ -185,6 +185,7 @@ jobs:
 
       - name: Deploy Infrastructure
         id: deploy
+        if: ${{ inputs.deployInfrastructure == true }}
         uses: azure/arm-deploy@v2
         with:
           scope: subscription
@@ -194,8 +195,28 @@ jobs:
           deploymentName: nomentia-integration-${{ inputs.environment }}-${{ github.run_number }}
           failOnStdErr: false
 
+      - name: Get Existing Deployment Info
+        id: existing
+        if: ${{ inputs.deployInfrastructure == false && inputs.deployFunctionApp == true }}
+        run: |
+          # When infrastructure deployment is skipped, get resource names from parameters file
+          PREFIX=$(jq -r '.parameters.prefix.value' bicep/integrations/nomentia/parameters.${{ inputs.environment }}.json)
+          LOCATION_SHORT=$(jq -r '.parameters.locationShort.value' bicep/integrations/nomentia/parameters.${{ inputs.environment }}.json)
+          ENV="${{ inputs.environment }}"
+
+          # Match the naming convention from main.bicep
+          RESOURCE_GROUP="${PREFIX}-${ENV}-nomentia-rg"
+          FUNCTION_APP="${PREFIX}-${ENV}-${LOCATION_SHORT}-nomentia-func"
+
+          echo "resourceGroupName=$RESOURCE_GROUP" >> $GITHUB_OUTPUT
+          echo "functionAppName=$FUNCTION_APP" >> $GITHUB_OUTPUT
+
+          echo "📋 Using existing deployment:"
+          echo "   Resource Group: $RESOURCE_GROUP"
+          echo "   Function App: $FUNCTION_APP"
+
       - name: Temporarily Allow Public Access to Function Storage
-        if: ${{ inputs.deployFunctionApp == true }}
+        if: ${{ inputs.deployFunctionApp == true && inputs.deployInfrastructure == true }}
         run: |
           FUNCTION_STORAGE_NAME="${{ steps.deploy.outputs.functionStorageName }}"
           RESOURCE_GROUP="${{ steps.deploy.outputs.resourceGroupName }}"
@@ -209,7 +230,7 @@ jobs:
           echo "✅ Public access temporarily enabled for initial startup"
 
       - name: Restart Function App to Initialize with Storage Access
-        if: ${{ inputs.deployFunctionApp == true }}
+        if: ${{ inputs.deployFunctionApp == true && inputs.deployInfrastructure == true }}
         run: |
           FUNCTION_APP_NAME="${{ steps.deploy.outputs.functionAppName }}"
           RESOURCE_GROUP="${{ steps.deploy.outputs.resourceGroupName }}"
@@ -223,7 +244,7 @@ jobs:
           sleep 60
 
       - name: Wait for Function App to be Ready
-        if: ${{ inputs.deployFunctionApp == true }}
+        if: ${{ inputs.deployFunctionApp == true && inputs.deployInfrastructure == true }}
         run: |
           FUNCTION_APP_NAME="${{ steps.deploy.outputs.functionAppName }}"
           RESOURCE_GROUP="${{ steps.deploy.outputs.resourceGroupName }}"
@@ -257,36 +278,62 @@ jobs:
       - name: Deploy Function App Code
         if: ${{ inputs.deployFunctionApp == true }}
         run: |
-          FUNCTION_APP_NAME="${{ steps.deploy.outputs.functionAppName }}"
-          RESOURCE_GROUP="${{ steps.deploy.outputs.resourceGroupName }}"
+          # Use outputs from either infrastructure deployment or existing deployment
+          FUNCTION_APP_NAME="${{ steps.deploy.outputs.functionAppName || steps.existing.outputs.functionAppName }}"
+          RESOURCE_GROUP="${{ steps.deploy.outputs.resourceGroupName || steps.existing.outputs.resourceGroupName }}"
           echo "Deploying to Function App: $FUNCTION_APP_NAME"
 
+          # Verify function-app-package directory exists
+          if [ ! -d "function-app-package" ]; then
+            echo "❌ ERROR: function-app-package directory not found!"
+            echo "This means the artifact download step was skipped or failed."
+            exit 1
+          fi
+
+          echo "📦 Creating deployment package..."
           cd function-app-package
+
           # Include hidden files (.azurefunctions folder) in zip
           shopt -s dotglob
           zip -r ../function-app.zip *
           shopt -u dotglob
           cd ..
 
-          echo "Verifying .azurefunctions folder is in the zip..."
-          unzip -l ../function-app.zip | grep ".azurefunctions" || echo "WARNING: .azurefunctions folder not found in zip!"
+          echo "✅ Deployment package created: $(ls -lh function-app.zip | awk '{print $5}')"
+
+          echo "🔍 Verifying .azurefunctions folder is in the zip..."
+          if unzip -l function-app.zip | grep -q ".azurefunctions"; then
+            echo "✅ .azurefunctions folder found in zip"
+            unzip -l function-app.zip | grep ".azurefunctions" | head -5
+          else
+            echo "❌ ERROR: .azurefunctions folder NOT found in zip!"
+            echo "Deployment will fail. Aborting."
+            exit 1
+          fi
 
           # Try zip deployment with retries
-          echo "Attempting zip deployment with retries..."
+          echo ""
+          echo "🚀 Starting zip deployment to Azure..."
+          echo "   Function App: $FUNCTION_APP_NAME"
+          echo "   Resource Group: $RESOURCE_GROUP"
+          echo "   Package Size: $(ls -lh function-app.zip | awk '{print $5}')"
+          echo ""
+
           MAX_RETRIES=3
           RETRY_COUNT=0
           SUCCESS=false
 
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            echo "Deployment attempt $((RETRY_COUNT + 1))/$MAX_RETRIES..."
+            echo "📤 Deployment attempt $((RETRY_COUNT + 1))/$MAX_RETRIES..."
 
             if az functionapp deployment source config-zip \
               --resource-group $RESOURCE_GROUP \
               --name $FUNCTION_APP_NAME \
               --src function-app.zip \
-              --timeout 600; then
+              --timeout 600 \
+              --verbose; then
               SUCCESS=true
-              echo "✅ Zip deployment successful"
+              echo "✅ Zip deployment successful!"
               break
             else
               RETRY_COUNT=$((RETRY_COUNT + 1))
@@ -299,7 +346,10 @@ jobs:
           done
 
           if [ "$SUCCESS" = false ]; then
-            echo "❌ All zip deployment attempts failed, trying alternative method..."
+            echo ""
+            echo "❌ All $MAX_RETRIES zip deployment attempts failed!"
+            echo "Trying alternative deployment method using Azure Functions Core Tools..."
+            echo ""
 
             # Alternative: Use Functions Core Tools with explicit runtime
             npm install -g azure-functions-core-tools@4 --unsafe-perm true
@@ -313,7 +363,7 @@ jobs:
           fi
 
       - name: Re-enable Network Restrictions on Function Storage
-        if: always()
+        if: ${{ always() && inputs.deployFunctionApp == true && inputs.deployInfrastructure == true }}
         run: |
           FUNCTION_STORAGE_NAME="${{ steps.deploy.outputs.functionStorageName }}"
           RESOURCE_GROUP="${{ steps.deploy.outputs.resourceGroupName }}"
@@ -329,8 +379,9 @@ jobs:
       - name: Verify Function App Health
         if: ${{ inputs.deployFunctionApp == true }}
         run: |
-          FUNCTION_APP_NAME="${{ steps.deploy.outputs.functionAppName }}"
-          RESOURCE_GROUP="${{ steps.deploy.outputs.resourceGroupName }}"
+          # Use outputs from either infrastructure deployment or existing deployment
+          FUNCTION_APP_NAME="${{ steps.deploy.outputs.functionAppName || steps.existing.outputs.functionAppName }}"
+          RESOURCE_GROUP="${{ steps.deploy.outputs.resourceGroupName || steps.existing.outputs.resourceGroupName }}"
 
           echo "Checking Function App health after deployment..."
 
