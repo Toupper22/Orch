@@ -50,7 +50,6 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
     serverFarmId: appServicePlanId
     httpsOnly: true
     clientAffinityEnabled: false
-    virtualNetworkSubnetId: enableVNetIntegration && !empty(vnetIntegrationSubnetId) ? vnetIntegrationSubnetId : null
     siteConfig: {
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
@@ -125,6 +124,9 @@ resource vnetConnection 'Microsoft.Web/sites/networkConfig@2023-01-01' = if (ena
     subnetResourceId: vnetIntegrationSubnetId
     swiftSupported: true
   }
+  dependsOn: [
+    functionApp
+  ]
 }
 
 // Outputs
