@@ -527,6 +527,64 @@ module integrationStorageRole '../../modules/rbacAssignment.bicep' = {
   }
 }
 
+// Website Contributor role for managed identity to restart Function App
+var websiteContributorRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'de139f84-1756-47ae-9be6-808fbbe84772')
+
+module functionAppContributorRole '../../modules/rbacAssignment.bicep' = {
+  name: 'functionAppContributorRole'
+  scope: integrationResourceGroup
+  params: {
+    principalId: commonManagedIdentityPrincipalId
+    roleDefinitionId: websiteContributorRoleId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// ============================================================================
+// Post-Deployment: Restart Function App
+// ============================================================================
+
+resource restartFunctionApp 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
+  name: 'restart-${functionApp.outputs.name}'
+  location: location
+  kind: 'AzureCLI'
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${commonManagedIdentityId}': {}
+    }
+  }
+  properties: {
+    azCliVersion: '2.50.0'
+    retentionInterval: 'PT1H'
+    timeout: 'PT10M'
+    cleanupPreference: 'OnSuccess'
+    scriptContent: '''
+      az functionapp restart --name ${functionAppName} --resource-group ${resourceGroupName}
+      echo "Function App restarted successfully"
+    '''
+    environmentVariables: [
+      {
+        name: 'functionAppName'
+        value: functionApp.outputs.name
+      }
+      {
+        name: 'resourceGroupName'
+        value: integrationResourceGroup.name
+      }
+    ]
+  }
+  dependsOn: [
+    functionApp
+    functionStorage
+    integrationStorage
+    functionStorageBlobRole
+    functionStorageQueueRole
+    functionStorageTableRole
+    functionAppContributorRole
+  ]
+}
+
 // ============================================================================
 // Outputs
 // ============================================================================

@@ -27,6 +27,9 @@
     },
     "serviceBusSku": {
       "value": "Standard"
+    },
+    "storageFirewallDefault": {
+      "value": "Deny"
     }
   }
 }
