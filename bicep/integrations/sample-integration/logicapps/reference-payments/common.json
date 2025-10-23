@@ -1,0 +1,59 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {},
+  "triggers": {
+    "manual": {
+      "type": "Request",
+      "kind": "Http",
+      "inputs": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "fileName": {"type": "string"},
+            "filePath": {"type": "string"},
+            "status": {"type": "string"},
+            "workflowType": {"type": "string"}
+          }
+        }
+      }
+    }
+  },
+  "actions": {
+    "Archive_File": {
+      "type": "ApiConnection",
+      "inputs": {
+        "host": {
+          "connection": {"name": "@parameters('$connections')['sftp']['connectionId']"}
+        },
+        "method": "post",
+        "path": "/datasets/default/CopyFile",
+        "queries": {
+          "source": "@triggerBody()?['filePath']",
+          "destination": "/payments/reference/archive/@{triggerBody()?['fileName']}",
+          "overwrite": true
+        }
+      },
+      "runAfter": {}
+    },
+    "Log_To_Table": {
+      "type": "ApiConnection",
+      "inputs": {
+        "host": {
+          "connection": {"name": "@parameters('$connections')['azuretables']['connectionId']"}
+        },
+        "method": "post",
+        "path": "/v2/storageAccounts/@{encodeURIComponent(encodeURIComponent('AccountName'))}/tables/@{encodeURIComponent('Logs')}/entities",
+        "body": {
+          "PartitionKey": "reference-payments",
+          "RowKey": "@{guid()}",
+          "FileName": "@{triggerBody()?['fileName']}",
+          "Status": "@{triggerBody()?['status']}",
+          "ProcessedDate": "@{utcNow()}"
+        }
+      },
+      "runAfter": {"Archive_File": ["Succeeded"]}
+    }
+  },
+  "outputs": {}
+}

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "prefix": {
+      "value": "edmo"
+    },
+    "environment": {
+      "value": "dev"
+    },
+    "location": {
+      "value": "swedencentral"
+    },
+    "locationShort": {
+      "value": "sdc"
+    },
+    "integrationName": {
+      "value": "sample"
+    },
+    "workflowType": {
+      "value": "statements"
+    },
+    "tags": {
+      "value": {
+        "Environment": "Development",
+        "Customer": "efimademo",
+        "Project": "demoproject"
+      }
+    }
+  }
+}

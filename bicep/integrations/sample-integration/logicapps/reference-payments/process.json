@@ -1,0 +1,70 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {},
+  "triggers": {
+    "manual": {
+      "type": "Request",
+      "kind": "Http",
+      "inputs": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "fileName": {"type": "string"},
+            "filePath": {"type": "string"},
+            "workflowType": {"type": "string"}
+          }
+        }
+      }
+    }
+  },
+  "actions": {
+    "Get_File_Content": {
+      "type": "ApiConnection",
+      "inputs": {
+        "host": {
+          "connection": {"name": "@parameters('$connections')['sftp']['connectionId']"}
+        },
+        "method": "get",
+        "path": "/datasets/default/files/@{encodeURIComponent(encodeURIComponent(triggerBody()?['filePath']))}/content"
+      },
+      "runAfter": {}
+    },
+    "Parse_Payment_File": {
+      "type": "Compose",
+      "inputs": "@json(body('Get_File_Content'))",
+      "runAfter": {"Get_File_Content": ["Succeeded"]}
+    },
+    "Store_In_Container": {
+      "type": "ApiConnection",
+      "inputs": {
+        "host": {
+          "connection": {"name": "@parameters('$connections')['azureblob']['connectionId']"}
+        },
+        "method": "post",
+        "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('integration-files'))}/files",
+        "queries": {
+          "folderPath": "/payments/reference/processed",
+          "name": "@{triggerBody()?['fileName']}"
+        },
+        "body": "@outputs('Parse_Payment_File')"
+      },
+      "runAfter": {"Parse_Payment_File": ["Succeeded"]}
+    },
+    "Call_Common_Logic_App": {
+      "type": "Http",
+      "inputs": {
+        "method": "POST",
+        "uri": "@parameters('commonLogicAppUrl')",
+        "body": {
+          "fileName": "@triggerBody()?['fileName']",
+          "status": "success",
+          "workflowType": "reference-payments"
+        },
+        "authentication": {"type": "ManagedServiceIdentity"}
+      },
+      "runAfter": {"Store_In_Container": ["Succeeded"]}
+    }
+  },
+  "outputs": {}
+}

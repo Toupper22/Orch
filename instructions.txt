@@ -1,8 +1,0 @@
-still left to do:
-
-- keyvaults should allow access from shared vnet and that ip 217.149.56.100
-- loganaslytics workspace is missing from infra
-- Is it possible to create api connection to azure table storage to infra, so logic apps can share it?
-- What is the rbac role that deploy infra is trying to give? It will fail as app reg has only contributor role
-- Can we select to use service bus in generic settings and if yes, the deloy sb namespace with infra to common rg?
-- Can you still check all of places, like documentation and settings files that we use B1 license for app service plan in every other tier, but in prod S2

@@ -1,0 +1,184 @@
+name: Deploy Nomentia Integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - test
+          - uat
+          - prod
+      whatIf:
+        description: 'Run what-if deployment (preview changes without deploying)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+# NOTE: Integration parameter files are committed to git and NOT auto-generated
+# This preserves custom configurations specific to each integration
+# Parameter files are located at: bicep/integrations/nomentia/parameters.*.json
+
+jobs:
+  build-function-app:
+    name: Build Function App
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build Function App
+        run: |
+          cd src/Efima.IL.Nomentia
+          dotnet restore
+          dotnet build --configuration Release
+          dotnet publish --configuration Release --output ./publish
+
+      - name: Upload Function App Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: function-app-package
+          path: src/Efima.IL.Nomentia/publish
+
+  validate:
+    name: Validate Bicep Templates
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set Azure Subscription
+        run: |
+          SUBSCRIPTION_ID=$(jq -r '.subscriptions.${{ inputs.environment }}.subscriptionId' config/subscriptions.json)
+          az account set --subscription "$SUBSCRIPTION_ID"
+
+      - name: Validate Bicep template
+        uses: azure/arm-deploy@v2
+        with:
+          scope: subscription
+          region: swedencentral
+          template: ./bicep/integrations/nomentia/main.bicep
+          parameters: ./bicep/integrations/nomentia/parameters.${{ inputs.environment }}.json
+          deploymentMode: Validate
+
+  preview:
+    name: Preview Changes (What-If)
+    runs-on: ubuntu-latest
+    needs: validate
+    if: ${{ inputs.whatIf == true }}
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set Azure Subscription
+        run: |
+          SUBSCRIPTION_ID=$(jq -r '.subscriptions.${{ inputs.environment }}.subscriptionId' config/subscriptions.json)
+          az account set --subscription "$SUBSCRIPTION_ID"
+
+      - name: Run What-If Analysis
+        uses: azure/arm-deploy@v2
+        with:
+          scope: subscription
+          region: swedencentral
+          template: ./bicep/integrations/nomentia/main.bicep
+          parameters: ./bicep/integrations/nomentia/parameters.${{ inputs.environment }}.json
+          additionalArguments: --what-if
+
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    needs: [validate, build-function-app]
+    if: ${{ inputs.whatIf == false }}
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Function App Package
+        uses: actions/download-artifact@v4
+        with:
+          name: function-app-package
+          path: function-app-package
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set Azure Subscription
+        run: |
+          SUBSCRIPTION_ID=$(jq -r '.subscriptions.${{ inputs.environment }}.subscriptionId' config/subscriptions.json)
+          az account set --subscription "$SUBSCRIPTION_ID"
+
+      - name: Deploy Infrastructure
+        id: deploy
+        uses: azure/arm-deploy@v2
+        with:
+          scope: subscription
+          region: swedencentral
+          template: ./bicep/integrations/nomentia/main.bicep
+          parameters: ./bicep/integrations/nomentia/parameters.${{ inputs.environment }}.json
+          deploymentName: nomentia-integration-${{ inputs.environment }}-${{ github.run_number }}
+          failOnStdErr: false
+
+      - name: Deploy Function App Code
+        run: |
+          FUNCTION_APP_NAME="${{ steps.deploy.outputs.functionAppName }}"
+          echo "Deploying to Function App: $FUNCTION_APP_NAME"
+
+          cd function-app-package
+          zip -r ../function-app.zip .
+          cd ..
+
+          az functionapp deployment source config-zip \
+            --resource-group ${{ steps.deploy.outputs.resourceGroupName }} \
+            --name $FUNCTION_APP_NAME \
+            --src function-app.zip
+
+      - name: Output Deployment Results
+        run: |
+          echo "## Deployment Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployment Name:** nomentia-integration-${{ inputs.environment }}-${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployed Resources" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Resource Group:** ${{ steps.deploy.outputs.resourceGroupName }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Service Bus:** ${{ steps.deploy.outputs.serviceBusName }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Function App:** ${{ steps.deploy.outputs.functionAppName }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Function Storage:** ${{ steps.deploy.outputs.functionStorageName }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Integration Storage:** ${{ steps.deploy.outputs.integrationStorageName }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Key Vault:** ${{ steps.deploy.outputs.integrationKeyVaultName }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Azure Logout
+        if: always()
+        run: az logout

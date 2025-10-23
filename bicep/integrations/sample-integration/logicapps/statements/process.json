@@ -1,0 +1,140 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {},
+  "triggers": {
+    "manual": {
+      "type": "Request",
+      "kind": "Http",
+      "inputs": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "fileName": {
+              "type": "string"
+            },
+            "filePath": {
+              "type": "string"
+            },
+            "workflowType": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "actions": {
+    "Get_File_Content": {
+      "type": "ApiConnection",
+      "inputs": {
+        "host": {
+          "connection": {
+            "name": "@parameters('$connections')['sftp']['connectionId']"
+          }
+        },
+        "method": "get",
+        "path": "/datasets/default/files/@{encodeURIComponent(encodeURIComponent(triggerBody()?['filePath']))}/content"
+      },
+      "runAfter": {}
+    },
+    "Parse_Statement_File": {
+      "type": "Compose",
+      "inputs": "@json(body('Get_File_Content'))",
+      "runAfter": {
+        "Get_File_Content": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Transform_To_Standard_Format": {
+      "type": "Compose",
+      "inputs": {
+        "statementId": "@{outputs('Parse_Statement_File')?['statementId']}",
+        "accountNumber": "@{outputs('Parse_Statement_File')?['accountNumber']}",
+        "balance": "@{outputs('Parse_Statement_File')?['balance']}",
+        "transactions": "@outputs('Parse_Statement_File')?['transactions']",
+        "processedDate": "@{utcNow()}"
+      },
+      "runAfter": {
+        "Parse_Statement_File": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Store_In_Blob_Container": {
+      "type": "ApiConnection",
+      "inputs": {
+        "host": {
+          "connection": {
+            "name": "@parameters('$connections')['azureblob']['connectionId']"
+          }
+        },
+        "method": "post",
+        "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('integration-files'))}/files",
+        "queries": {
+          "folderPath": "/statements/processed",
+          "name": "@{triggerBody()?['fileName']}",
+          "queryParametersSingleEncoded": true
+        },
+        "body": "@outputs('Transform_To_Standard_Format')"
+      },
+      "runAfter": {
+        "Transform_To_Standard_Format": [
+          "Succeeded"
+        ]
+      },
+      "runtimeConfiguration": {
+        "contentTransfer": {
+          "transferMode": "Chunked"
+        }
+      }
+    },
+    "Call_Common_Logic_App": {
+      "type": "Http",
+      "inputs": {
+        "method": "POST",
+        "uri": "@parameters('commonLogicAppUrl')",
+        "body": {
+          "fileName": "@triggerBody()?['fileName']",
+          "filePath": "@triggerBody()?['filePath']",
+          "status": "success",
+          "processedFile": "@body('Store_In_Blob_Container')",
+          "workflowType": "statements"
+        },
+        "authentication": {
+          "type": "ManagedServiceIdentity"
+        }
+      },
+      "runAfter": {
+        "Store_In_Blob_Container": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Handle_Error": {
+      "type": "Http",
+      "inputs": {
+        "method": "POST",
+        "uri": "@parameters('commonLogicAppUrl')",
+        "body": {
+          "fileName": "@triggerBody()?['fileName']",
+          "filePath": "@triggerBody()?['filePath']",
+          "status": "failed",
+          "error": "@{result('Get_File_Content')}",
+          "workflowType": "statements"
+        },
+        "authentication": {
+          "type": "ManagedServiceIdentity"
+        }
+      },
+      "runAfter": {
+        "Store_In_Blob_Container": [
+          "Failed",
+          "TimedOut"
+        ]
+      }
+    }
+  },
+  "outputs": {}
+}

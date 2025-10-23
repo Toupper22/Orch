@@ -1,0 +1,49 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {},
+  "triggers": {
+    "Recurrence": {
+      "recurrence": {
+        "frequency": "Hour",
+        "interval": 2
+      },
+      "type": "Recurrence"
+    }
+  },
+  "actions": {
+    "Check_For_New_Files": {
+      "type": "ApiConnection",
+      "inputs": {
+        "host": {
+          "connection": {"name": "@parameters('$connections')['sftp']['connectionId']"}
+        },
+        "method": "get",
+        "path": "/datasets/default/folderlisting",
+        "queries": {"folderPath": "/payments/sepa/inbox"}
+      },
+      "runAfter": {}
+    },
+    "For_Each_File": {
+      "type": "Foreach",
+      "foreach": "@body('Check_For_New_Files')",
+      "actions": {
+        "Call_Process_Logic_App": {
+          "type": "Http",
+          "inputs": {
+            "method": "POST",
+            "uri": "@parameters('processLogicAppUrl')",
+            "body": {
+              "fileName": "@item()?['Name']",
+              "filePath": "@item()?['Path']",
+              "workflowType": "sepa-payments"
+            },
+            "authentication": {"type": "ManagedServiceIdentity"}
+          }
+        }
+      },
+      "runAfter": {"Check_For_New_Files": ["Succeeded"]}
+    }
+  },
+  "outputs": {}
+}

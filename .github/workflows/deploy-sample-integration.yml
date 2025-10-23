@@ -1,4 +1,4 @@
-name: Deploy Sample Integration
+name: Deploy Sample Integration (All)
 
 on:
   workflow_dispatch:
@@ -17,19 +17,36 @@ on:
         required: false
         type: boolean
         default: false
+      deployInfrastructure:
+        description: 'Deploy main infrastructure (Function App, Storage, Service Bus, etc.)'
+        required: false
+        type: boolean
+        default: true
+      deployStatements:
+        description: 'Deploy Statements workflow (Logic Apps)'
+        required: false
+        type: boolean
+        default: true
+      deployReferencePayments:
+        description: 'Deploy Reference Payments workflow (Logic Apps)'
+        required: false
+        type: boolean
+        default: true
+      deploySepaPayments:
+        description: 'Deploy SEPA Payments workflow (Logic Apps)'
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   id-token: write
   contents: read
 
-# NOTE: Integration parameter files are committed to git and NOT auto-generated
-# This preserves custom configurations specific to each integration
-# Parameter files are located at: bicep/integrations/sample-integration/parameters.*.json
-
 jobs:
   build-function-app:
     name: Build Function App
     runs-on: ubuntu-latest
+    if: ${{ inputs.deployInfrastructure == true && inputs.whatIf == false }}
 
     steps:
       - name: Checkout code
@@ -53,9 +70,10 @@ jobs:
           name: function-app-package
           path: src/sample-integration/function-app/publish
 
-  validate:
-    name: Validate Bicep Templates
+  validate-infrastructure:
+    name: Validate Infrastructure
     runs-on: ubuntu-latest
+    if: ${{ inputs.deployInfrastructure == true }}
     environment: ${{ inputs.environment }}
 
     steps:
@@ -81,11 +99,11 @@ jobs:
           parameters: ./bicep/integrations/sample-integration/parameters.${{ inputs.environment }}.json
           deploymentMode: Validate
 
-  preview:
-    name: Preview Changes (What-If)
+  preview-infrastructure:
+    name: Preview Infrastructure Changes
     runs-on: ubuntu-latest
-    needs: validate
-    if: ${{ inputs.whatIf == true }}
+    needs: validate-infrastructure
+    if: ${{ inputs.whatIf == true && inputs.deployInfrastructure == true }}
     environment: ${{ inputs.environment }}
 
     steps:
@@ -111,12 +129,15 @@ jobs:
           parameters: ./bicep/integrations/sample-integration/parameters.${{ inputs.environment }}.json
           additionalArguments: --what-if
 
-  deploy:
-    name: Deploy to ${{ inputs.environment }}
+  deploy-infrastructure:
+    name: Deploy Infrastructure
     runs-on: ubuntu-latest
-    needs: [validate, build-function-app]
-    if: ${{ inputs.whatIf == false }}
+    needs: [validate-infrastructure, build-function-app]
+    if: ${{ inputs.whatIf == false && inputs.deployInfrastructure == true }}
     environment: ${{ inputs.environment }}
+    outputs:
+      resourceGroupName: ${{ steps.deploy.outputs.resourceGroupName }}
+      functionAppName: ${{ steps.deploy.outputs.functionAppName }}
 
     steps:
       - name: Checkout code
@@ -195,9 +216,9 @@ jobs:
             --data-binary @workflow.zip \
             "https://$LOGIC_APP_NAME.scm.azurewebsites.net/api/zipdeploy"
 
-      - name: Output Deployment Results
+      - name: Output Infrastructure Deployment Results
         run: |
-          echo "## Deployment Results" >> $GITHUB_STEP_SUMMARY
+          echo "## Infrastructure Deployment Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
           echo "**Deployment Name:** sample-integration-${{ inputs.environment }}-${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
@@ -212,6 +233,206 @@ jobs:
           echo "**Function Storage:** ${{ steps.deploy.outputs.functionStorageName }}" >> $GITHUB_STEP_SUMMARY
           echo "**Archive Storage:** ${{ steps.deploy.outputs.archiveStorageName }}" >> $GITHUB_STEP_SUMMARY
 
+  deploy-statements-workflow:
+    name: Deploy Statements Workflow
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure]
+    if: |
+      always() &&
+      inputs.whatIf == false &&
+      inputs.deployStatements == true &&
+      (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped')
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set Azure Subscription
+        run: |
+          SUBSCRIPTION_ID=$(jq -r '.subscriptions.${{ inputs.environment }}.subscriptionId' config/subscriptions.json)
+          az account set --subscription "$SUBSCRIPTION_ID"
+
+      - name: Load Workflow Definitions
+        id: load_workflows
+        run: |
+          STARTER_WORKFLOW=$(cat bicep/integrations/sample-integration/logicapps/statements/starter.json | jq -c)
+          PROCESS_WORKFLOW=$(cat bicep/integrations/sample-integration/logicapps/statements/process.json | jq -c)
+          COMMON_WORKFLOW=$(cat bicep/integrations/sample-integration/logicapps/statements/common.json | jq -c)
+
+          echo "starter_workflow<<EOF" >> $GITHUB_OUTPUT
+          echo "$STARTER_WORKFLOW" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "process_workflow<<EOF" >> $GITHUB_OUTPUT
+          echo "$PROCESS_WORKFLOW" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "common_workflow<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMON_WORKFLOW" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Deploy Statements Workflows
+        uses: azure/arm-deploy@v2
+        with:
+          scope: subscription
+          region: swedencentral
+          template: ./bicep/integrations/sample-integration/workflow-type.bicep
+          parameters: >
+            ./bicep/integrations/sample-integration/logicapps/statements/parameters.${{ inputs.environment }}.json
+            starterWorkflowDefinition='${{ steps.load_workflows.outputs.starter_workflow }}'
+            processWorkflowDefinition='${{ steps.load_workflows.outputs.process_workflow }}'
+            commonWorkflowDefinition='${{ steps.load_workflows.outputs.common_workflow }}'
+          deploymentName: sample-integration-statements-${{ inputs.environment }}-${{ github.run_number }}
+
+      - name: Output Statements Deployment
+        run: |
+          echo "## Statements Workflow Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow Type:** statements" >> $GITHUB_STEP_SUMMARY
+
+  deploy-reference-payments-workflow:
+    name: Deploy Reference Payments Workflow
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure]
+    if: |
+      always() &&
+      inputs.whatIf == false &&
+      inputs.deployReferencePayments == true &&
+      (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped')
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set Azure Subscription
+        run: |
+          SUBSCRIPTION_ID=$(jq -r '.subscriptions.${{ inputs.environment }}.subscriptionId' config/subscriptions.json)
+          az account set --subscription "$SUBSCRIPTION_ID"
+
+      - name: Load Workflow Definitions
+        id: load_workflows
+        run: |
+          STARTER_WORKFLOW=$(cat bicep/integrations/sample-integration/logicapps/reference-payments/starter.json | jq -c)
+          PROCESS_WORKFLOW=$(cat bicep/integrations/sample-integration/logicapps/reference-payments/process.json | jq -c)
+          COMMON_WORKFLOW=$(cat bicep/integrations/sample-integration/logicapps/reference-payments/common.json | jq -c)
+
+          echo "starter_workflow<<EOF" >> $GITHUB_OUTPUT
+          echo "$STARTER_WORKFLOW" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "process_workflow<<EOF" >> $GITHUB_OUTPUT
+          echo "$PROCESS_WORKFLOW" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "common_workflow<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMON_WORKFLOW" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Deploy Reference Payments Workflows
+        uses: azure/arm-deploy@v2
+        with:
+          scope: subscription
+          region: swedencentral
+          template: ./bicep/integrations/sample-integration/workflow-type.bicep
+          parameters: >
+            ./bicep/integrations/sample-integration/logicapps/reference-payments/parameters.${{ inputs.environment }}.json
+            starterWorkflowDefinition='${{ steps.load_workflows.outputs.starter_workflow }}'
+            processWorkflowDefinition='${{ steps.load_workflows.outputs.process_workflow }}'
+            commonWorkflowDefinition='${{ steps.load_workflows.outputs.common_workflow }}'
+          deploymentName: sample-integration-reference-payments-${{ inputs.environment }}-${{ github.run_number }}
+
+      - name: Output Reference Payments Deployment
+        run: |
+          echo "## Reference Payments Workflow Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow Type:** reference-payments" >> $GITHUB_STEP_SUMMARY
+
+  deploy-sepa-payments-workflow:
+    name: Deploy SEPA Payments Workflow
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure]
+    if: |
+      always() &&
+      inputs.whatIf == false &&
+      inputs.deploySepaPayments == true &&
+      (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped')
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set Azure Subscription
+        run: |
+          SUBSCRIPTION_ID=$(jq -r '.subscriptions.${{ inputs.environment }}.subscriptionId' config/subscriptions.json)
+          az account set --subscription "$SUBSCRIPTION_ID"
+
+      - name: Load Workflow Definitions
+        id: load_workflows
+        run: |
+          STARTER_WORKFLOW=$(cat bicep/integrations/sample-integration/logicapps/sepa-payments/starter.json | jq -c)
+          PROCESS_WORKFLOW=$(cat bicep/integrations/sample-integration/logicapps/sepa-payments/process.json | jq -c)
+          COMMON_WORKFLOW=$(cat bicep/integrations/sample-integration/logicapps/sepa-payments/common.json | jq -c)
+
+          echo "starter_workflow<<EOF" >> $GITHUB_OUTPUT
+          echo "$STARTER_WORKFLOW" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "process_workflow<<EOF" >> $GITHUB_OUTPUT
+          echo "$PROCESS_WORKFLOW" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "common_workflow<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMON_WORKFLOW" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Deploy SEPA Payments Workflows
+        uses: azure/arm-deploy@v2
+        with:
+          scope: subscription
+          region: swedencentral
+          template: ./bicep/integrations/sample-integration/workflow-type.bicep
+          parameters: >
+            ./bicep/integrations/sample-integration/logicapps/sepa-payments/parameters.${{ inputs.environment }}.json
+            starterWorkflowDefinition='${{ steps.load_workflows.outputs.starter_workflow }}'
+            processWorkflowDefinition='${{ steps.load_workflows.outputs.process_workflow }}'
+            commonWorkflowDefinition='${{ steps.load_workflows.outputs.common_workflow }}'
+          deploymentName: sample-integration-sepa-payments-${{ inputs.environment }}-${{ github.run_number }}
+
+      - name: Output SEPA Payments Deployment
+        run: |
+          echo "## SEPA Payments Workflow Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow Type:** sepa-payments" >> $GITHUB_STEP_SUMMARY
+
+  azure-logout:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure, deploy-statements-workflow, deploy-reference-payments-workflow, deploy-sepa-payments-workflow]
+    if: always()
+
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+        continue-on-error: true
+
       - name: Azure Logout
         if: always()
         run: az logout
+        continue-on-error: true

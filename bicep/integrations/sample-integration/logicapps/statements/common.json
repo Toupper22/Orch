@@ -1,0 +1,200 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {},
+  "triggers": {
+    "manual": {
+      "type": "Request",
+      "kind": "Http",
+      "inputs": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "fileName": {
+              "type": "string"
+            },
+            "filePath": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "processedFile": {
+              "type": "object"
+            },
+            "error": {
+              "type": "object"
+            },
+            "workflowType": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "actions": {
+    "Check_Status": {
+      "type": "If",
+      "expression": {
+        "and": [
+          {
+            "equals": [
+              "@triggerBody()?['status']",
+              "success"
+            ]
+          }
+        ]
+      },
+      "actions": {
+        "Archive_Successful_File": {
+          "type": "ApiConnection",
+          "inputs": {
+            "host": {
+              "connection": {
+                "name": "@parameters('$connections')['sftp']['connectionId']"
+              }
+            },
+            "method": "post",
+            "path": "/datasets/default/CopyFile",
+            "queries": {
+              "source": "@triggerBody()?['filePath']",
+              "destination": "/statements/archive/@{triggerBody()?['fileName']}",
+              "overwrite": true
+            }
+          }
+        },
+        "Delete_Original_File": {
+          "type": "ApiConnection",
+          "inputs": {
+            "host": {
+              "connection": {
+                "name": "@parameters('$connections')['sftp']['connectionId']"
+              }
+            },
+            "method": "delete",
+            "path": "/datasets/default/files/@{encodeURIComponent(encodeURIComponent(triggerBody()?['filePath']))}"
+          },
+          "runAfter": {
+            "Archive_Successful_File": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Log_Success_To_Table": {
+          "type": "ApiConnection",
+          "inputs": {
+            "host": {
+              "connection": {
+                "name": "@parameters('$connections')['azuretables']['connectionId']"
+              }
+            },
+            "method": "post",
+            "path": "/v2/storageAccounts/@{encodeURIComponent(encodeURIComponent('AccountName'))}/tables/@{encodeURIComponent('Logs')}/entities",
+            "body": {
+              "PartitionKey": "@{triggerBody()?['workflowType']}",
+              "RowKey": "@{guid()}",
+              "FileName": "@{triggerBody()?['fileName']}",
+              "Status": "Success",
+              "ProcessedDate": "@{utcNow()}",
+              "WorkflowType": "@{triggerBody()?['workflowType']}"
+            }
+          },
+          "runAfter": {
+            "Delete_Original_File": [
+              "Succeeded"
+            ]
+          }
+        }
+      },
+      "else": {
+        "actions": {
+          "Move_To_Error_Folder": {
+            "type": "ApiConnection",
+            "inputs": {
+              "host": {
+                "connection": {
+                  "name": "@parameters('$connections')['sftp']['connectionId']"
+                }
+              },
+              "method": "post",
+              "path": "/datasets/default/CopyFile",
+              "queries": {
+                "source": "@triggerBody()?['filePath']",
+                "destination": "/statements/error/@{triggerBody()?['fileName']}",
+                "overwrite": true
+              }
+            }
+          },
+          "Delete_Failed_File_From_Inbox": {
+            "type": "ApiConnection",
+            "inputs": {
+              "host": {
+                "connection": {
+                  "name": "@parameters('$connections')['sftp']['connectionId']"
+                }
+              },
+              "method": "delete",
+              "path": "/datasets/default/files/@{encodeURIComponent(encodeURIComponent(triggerBody()?['filePath']))}"
+            },
+            "runAfter": {
+              "Move_To_Error_Folder": [
+                "Succeeded"
+              ]
+            }
+          },
+          "Log_Error_To_Table": {
+            "type": "ApiConnection",
+            "inputs": {
+              "host": {
+                "connection": {
+                  "name": "@parameters('$connections')['azuretables']['connectionId']"
+                }
+              },
+              "method": "post",
+              "path": "/v2/storageAccounts/@{encodeURIComponent(encodeURIComponent('AccountName'))}/tables/@{encodeURIComponent('Logs')}/entities",
+              "body": {
+                "PartitionKey": "@{triggerBody()?['workflowType']}",
+                "RowKey": "@{guid()}",
+                "FileName": "@{triggerBody()?['fileName']}",
+                "Status": "Failed",
+                "Error": "@{triggerBody()?['error']}",
+                "ProcessedDate": "@{utcNow()}",
+                "WorkflowType": "@{triggerBody()?['workflowType']}"
+              }
+            },
+            "runAfter": {
+              "Delete_Failed_File_From_Inbox": [
+                "Succeeded"
+              ]
+            }
+          },
+          "Send_Error_Email": {
+            "type": "ApiConnection",
+            "inputs": {
+              "host": {
+                "connection": {
+                  "name": "@parameters('$connections')['office365']['connectionId']"
+                }
+              },
+              "method": "post",
+              "path": "/v2/Mail",
+              "body": {
+                "To": "@parameters('errorNotificationEmail')",
+                "Subject": "Error Processing Statement File: @{triggerBody()?['fileName']}",
+                "Body": "<p>An error occurred while processing the statement file.<br><br>File: @{triggerBody()?['fileName']}<br>Error: @{triggerBody()?['error']}</p>"
+              }
+            },
+            "runAfter": {
+              "Log_Error_To_Table": [
+                "Succeeded"
+              ]
+            }
+          }
+        }
+      },
+      "runAfter": {}
+    }
+  },
+  "outputs": {}
+}
