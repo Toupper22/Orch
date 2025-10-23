@@ -61,6 +61,9 @@ param containers array = []
 @description('Table storage tables to create')
 param tables array = []
 
+@description('File shares to create')
+param fileShares array = []
+
 @description('Enable diagnostic settings')
 param enableDiagnostics bool = false
 
@@ -161,6 +164,28 @@ resource storageTables 'Microsoft.Storage/storageAccounts/tableServices/tables@2
   name: table.name
   parent: tableService
   properties: {}
+}]
+
+// File Service
+resource fileService 'Microsoft.Storage/storageAccounts/fileServices@2023-01-01' = if (length(fileShares) > 0) {
+  name: 'default'
+  parent: storageAccount
+  properties: {
+    shareDeleteRetentionPolicy: {
+      enabled: true
+      days: 7
+    }
+  }
+}
+
+// Create file shares
+resource storageFileShares 'Microsoft.Storage/storageAccounts/fileServices/shares@2023-01-01' = [for fileShare in fileShares: if (length(fileShares) > 0) {
+  name: fileShare.name
+  parent: fileService
+  properties: {
+    shareQuota: fileShare.?shareQuota ?? 5120
+    enabledProtocols: fileShare.?enabledProtocols ?? 'SMB'
+  }
 }]
 
 // Diagnostic Settings for Blob Service

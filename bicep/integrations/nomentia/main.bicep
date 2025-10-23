@@ -253,6 +253,12 @@ module functionStorage '../../modules/storageAccount.bicep' = {
         name: 'Conversions'
       }
     ]
+    fileShares: [
+      {
+        name: toLower(functionAppNaming.outputs.name)
+        shareQuota: 5120
+      }
+    ]
     networkAclDefaultAction: 'Deny'
     ipRules: [
       '217.149.56.100'
