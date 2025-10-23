@@ -156,6 +156,29 @@ jobs:
           deploymentName: nomentia-integration-${{ inputs.environment }}-${{ github.run_number }}
           failOnStdErr: false
 
+      - name: Wait for Function App to be Ready
+        run: |
+          FUNCTION_APP_NAME="${{ steps.deploy.outputs.functionAppName }}"
+          echo "Waiting for Function App to be ready: $FUNCTION_APP_NAME"
+          
+          # Wait up to 5 minutes for Function App to be ready
+          for i in {1..30}; do
+            STATUS=$(az functionapp show --name $FUNCTION_APP_NAME --resource-group ${{ steps.deploy.outputs.resourceGroupName }} --query "state" -o tsv)
+            echo "Function App status: $STATUS (attempt $i/30)"
+            
+            if [ "$STATUS" = "Running" ]; then
+              echo "✅ Function App is ready"
+              break
+            fi
+            
+            if [ $i -eq 30 ]; then
+              echo "❌ Function App not ready after 5 minutes"
+              exit 1
+            fi
+            
+            sleep 10
+          done
+
       - name: Deploy Function App Code
         run: |
           FUNCTION_APP_NAME="${{ steps.deploy.outputs.functionAppName }}"
@@ -165,10 +188,32 @@ jobs:
           zip -r ../function-app.zip .
           cd ..
 
-          az functionapp deployment source config-zip \
+          # Try zip deployment first
+          echo "Attempting zip deployment..."
+          if ! az functionapp deployment source config-zip \
             --resource-group ${{ steps.deploy.outputs.resourceGroupName }} \
             --name $FUNCTION_APP_NAME \
-            --src function-app.zip
+            --src function-app.zip \
+            --timeout 600; then
+            
+            echo "❌ Zip deployment failed, trying alternative method..."
+            
+            # Alternative: Use Functions Core Tools
+            npm install -g azure-functions-core-tools@4 --unsafe-perm true
+            
+            # Set up publish profile
+            echo "Getting publish profile..."
+            PUBLISH_PROFILE=$(az functionapp deployment list-publishing-profiles \
+              --resource-group ${{ steps.deploy.outputs.resourceGroupName }} \
+              --name $FUNCTION_APP_NAME \
+              --xml)
+              
+            # Deploy using Core Tools
+            cd function-app-package
+            func azure functionapp publish $FUNCTION_APP_NAME --nozip
+          else
+            echo "✅ Zip deployment successful"
+          fi
 
       - name: Output Deployment Results
         run: |

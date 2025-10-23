@@ -66,7 +66,7 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       http20Enabled: true
-      netFrameworkVersion: runtime == 'dotnet' || runtime == 'dotnet-isolated' ? 'v${runtimeVersion}' : null
+      netFrameworkVersion: runtime == 'dotnet-isolated' ? 'v8.0' : (runtime == 'dotnet' ? 'v${runtimeVersion}' : null)
       nodeVersion: runtime == 'node' ? runtimeVersion : null
       pythonVersion: runtime == 'python' ? runtimeVersion : null
       javaVersion: runtime == 'java' ? runtimeVersion : null
@@ -80,7 +80,15 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
         }
         {
           name: 'FUNCTIONS_WORKER_RUNTIME'
-          value: runtime
+          value: 'dotnet-isolated'
+        }
+        {
+          name: 'DOTNET_ISOLATED_DEBUG'
+          value: 'false'
+        }
+        {
+          name: 'WEBSITE_USE_PLACEHOLDER_DOTNETISOLATED'
+          value: '1'
         }
         {
           name: 'AzureWebJobsStorage__accountName'

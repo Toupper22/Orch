@@ -8,5 +8,12 @@
       }
     },
     "fileLoggingMode": "always"
+  },
+  "functionTimeout": "00:05:00",
+  "retry": {
+    "strategy": "exponentialBackoff",
+    "maxRetryCount": 3,
+    "minimumInterval": "00:00:02",
+    "maximumInterval": "00:00:10"
   }
 }
