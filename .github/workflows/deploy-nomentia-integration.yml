@@ -160,59 +160,76 @@ jobs:
         run: |
           FUNCTION_APP_NAME="${{ steps.deploy.outputs.functionAppName }}"
           echo "Waiting for Function App to be ready: $FUNCTION_APP_NAME"
-          
-          # Wait up to 5 minutes for Function App to be ready
-          for i in {1..30}; do
-            STATUS=$(az functionapp show --name $FUNCTION_APP_NAME --resource-group ${{ steps.deploy.outputs.resourceGroupName }} --query "state" -o tsv)
-            echo "Function App status: $STATUS (attempt $i/30)"
-            
+
+          # Wait up to 10 minutes for Function App to be ready (longer timeout)
+          for i in {1..60}; do
+            STATUS=$(az functionapp show --name $FUNCTION_APP_NAME --resource-group ${{ steps.deploy.outputs.resourceGroupName }} --query "state" -o tsv 2>&1)
+            echo "Function App status: $STATUS (attempt $i/60)"
+
             if [ "$STATUS" = "Running" ]; then
+              echo "✅ Function App is running, waiting 30 seconds for full initialization..."
+              sleep 30
               echo "✅ Function App is ready"
               break
             fi
-            
-            if [ $i -eq 30 ]; then
-              echo "❌ Function App not ready after 5 minutes"
+
+            if [ $i -eq 60 ]; then
+              echo "❌ Function App not ready after 10 minutes"
               exit 1
             fi
-            
+
             sleep 10
           done
 
       - name: Deploy Function App Code
         run: |
           FUNCTION_APP_NAME="${{ steps.deploy.outputs.functionAppName }}"
+          RESOURCE_GROUP="${{ steps.deploy.outputs.resourceGroupName }}"
           echo "Deploying to Function App: $FUNCTION_APP_NAME"
 
           cd function-app-package
           zip -r ../function-app.zip .
           cd ..
 
-          # Try zip deployment first
-          echo "Attempting zip deployment..."
-          if ! az functionapp deployment source config-zip \
-            --resource-group ${{ steps.deploy.outputs.resourceGroupName }} \
-            --name $FUNCTION_APP_NAME \
-            --src function-app.zip \
-            --timeout 600; then
-            
-            echo "❌ Zip deployment failed, trying alternative method..."
-            
-            # Alternative: Use Functions Core Tools
-            npm install -g azure-functions-core-tools@4 --unsafe-perm true
-            
-            # Set up publish profile
-            echo "Getting publish profile..."
-            PUBLISH_PROFILE=$(az functionapp deployment list-publishing-profiles \
-              --resource-group ${{ steps.deploy.outputs.resourceGroupName }} \
+          # Try zip deployment with retries
+          echo "Attempting zip deployment with retries..."
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          SUCCESS=false
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "Deployment attempt $((RETRY_COUNT + 1))/$MAX_RETRIES..."
+
+            if az functionapp deployment source config-zip \
+              --resource-group $RESOURCE_GROUP \
               --name $FUNCTION_APP_NAME \
-              --xml)
-              
-            # Deploy using Core Tools
+              --src function-app.zip \
+              --timeout 600; then
+              SUCCESS=true
+              echo "✅ Zip deployment successful"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                WAIT_TIME=$((30 * RETRY_COUNT))
+                echo "⚠️ Deployment attempt $RETRY_COUNT failed, waiting ${WAIT_TIME}s before retry..."
+                sleep $WAIT_TIME
+              fi
+            fi
+          done
+
+          if [ "$SUCCESS" = false ]; then
+            echo "❌ All zip deployment attempts failed, trying alternative method..."
+
+            # Alternative: Use Functions Core Tools with explicit runtime
+            npm install -g azure-functions-core-tools@4 --unsafe-perm true
+
+            # Deploy using Core Tools with explicit .NET isolated runtime flag
             cd function-app-package
-            func azure functionapp publish $FUNCTION_APP_NAME --nozip
-          else
-            echo "✅ Zip deployment successful"
+            echo "Deploying with Azure Functions Core Tools (dotnet-isolated runtime)..."
+            func azure functionapp publish $FUNCTION_APP_NAME --dotnet-isolated
+
+            echo "✅ Deployment successful via Functions Core Tools"
           fi
 
       - name: Output Deployment Results
