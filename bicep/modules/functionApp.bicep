@@ -28,20 +28,6 @@ param managedIdentityClientId string = ''
 @description('VNet integration subnet ID')
 param vnetIntegrationSubnetId string = ''
 
-@description('Runtime stack')
-@allowed([
-  'dotnet'
-  'dotnet-isolated'
-  'node'
-  'python'
-  'java'
-  'powershell'
-])
-param runtime string = 'dotnet-isolated'
-
-@description('Runtime version')
-param runtimeVersion string = '8.0'
-
 @description('Application settings')
 param appSettings array = []
 
@@ -53,7 +39,7 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
   name: functionAppName
   location: location
   tags: tags
-  kind: 'functionapp'
+  kind: 'functionapp,linux'
   identity: {
     type: !empty(managedIdentityId) ? 'UserAssigned' : 'SystemAssigned'
     userAssignedIdentities: !empty(managedIdentityId) ? {
@@ -69,11 +55,7 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       http20Enabled: true
-      netFrameworkVersion: runtime == 'dotnet-isolated' ? 'v8.0' : (runtime == 'dotnet' ? 'v${runtimeVersion}' : null)
-      nodeVersion: runtime == 'node' ? runtimeVersion : null
-      pythonVersion: runtime == 'python' ? runtimeVersion : null
-      javaVersion: runtime == 'java' ? runtimeVersion : null
-      powerShellVersion: runtime == 'powershell' ? runtimeVersion : null
+      linuxFxVersion: 'DOTNET-ISOLATED|8.0'
       use32BitWorkerProcess: false
       alwaysOn: true
       appSettings: concat([
@@ -94,6 +76,14 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
           value: '1'
         }
         {
+          name: 'WEBSITE_ENABLE_SYNC_UPDATE_SITE'
+          value: 'true'
+        }
+        {
+          name: 'WEBSITE_RUN_FROM_PACKAGE'
+          value: '1'
+        }
+        {
           name: 'AzureWebJobsStorage__accountName'
           value: storageAccountName
         }
@@ -102,8 +92,8 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
           value: 'managedidentity'
         }
         {
-          name: 'AzureWebJobsStorage__clientId'
-          value: managedIdentityClientId
+          name: 'AzureWebJobsStorage__accountName'
+          value: storageAccountName
         }
         {
           name: 'AzureWebJobsStorage__blobServiceUri'
@@ -118,6 +108,10 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
           value: 'https://${storageAccountName}.table.${environment().suffixes.storage}'
         }
         {
+          name: 'AzureWebJobsStorage'
+          value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};AccountKey=${listKeys(resourceId('Microsoft.Storage/storageAccounts', storageAccountName), '2023-01-01').keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
+        }
+        {
           name: 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING'
           value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};AccountKey=${listKeys(resourceId('Microsoft.Storage/storageAccounts', storageAccountName), '2023-01-01').keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
         }
@@ -128,10 +122,6 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
         {
           name: 'WEBSITE_CONTENTSHARE'
           value: toLower(functionAppName)
-        }
-        {
-          name: 'WEBSITE_RUN_FROM_PACKAGE'
-          value: '1'
         }
       ], !empty(appInsightsConnectionString) ? [
         {

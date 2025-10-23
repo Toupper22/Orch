@@ -409,8 +409,6 @@ module functionApp '../../modules/functionApp.bicep' = {
     managedIdentityClientId: commonManagedIdentityClientId
     vnetIntegrationSubnetId: integrationSubnetId
     enableVNetIntegration: true
-    runtime: 'dotnet-isolated'
-    runtimeVersion: '8.0'
     appSettings: [
       {
         name: 'ServiceBusConnection__fullyQualifiedNamespace'
