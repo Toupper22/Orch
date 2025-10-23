@@ -22,6 +22,9 @@ param appInsightsConnectionString string = ''
 @description('Managed Identity resource ID')
 param managedIdentityId string = ''
 
+@description('Managed Identity Client ID for identity-based storage connections')
+param managedIdentityClientId string = ''
+
 @description('VNet integration subnet ID')
 param vnetIntegrationSubnetId string = ''
 
@@ -93,6 +96,14 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
         {
           name: 'AzureWebJobsStorage__accountName'
           value: storageAccountName
+        }
+        {
+          name: 'AzureWebJobsStorage__credential'
+          value: 'managedidentity'
+        }
+        {
+          name: 'AzureWebJobsStorage__clientId'
+          value: managedIdentityClientId
         }
         {
           name: 'AzureWebJobsStorage__blobServiceUri'

@@ -101,6 +101,7 @@ resource integrationSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01
 var commonAppServicePlanId = commonAppServicePlan.id
 var commonManagedIdentityId = commonManagedIdentity.id  // Full resource ID for identity assignment
 var commonManagedIdentityPrincipalId = commonManagedIdentity.properties.principalId  // Principal ID for RBAC
+var commonManagedIdentityClientId = commonManagedIdentity.properties.clientId  // Client ID for identity-based connections
 var integrationSubnetId = integrationSubnet.id
 var commonApplicationInsightsConnectionString = commonApplicationInsights.properties.ConnectionString
 
@@ -405,6 +406,7 @@ module functionApp '../../modules/functionApp.bicep' = {
     storageAccountName: functionStorage.outputs.name
     appInsightsConnectionString: commonApplicationInsightsConnectionString
     managedIdentityId: commonManagedIdentityId
+    managedIdentityClientId: commonManagedIdentityClientId
     vnetIntegrationSubnetId: integrationSubnetId
     enableVNetIntegration: true
     runtime: 'dotnet-isolated'
@@ -443,6 +445,12 @@ var serviceBusDataSenderRoleId = subscriptionResourceId('Microsoft.Authorization
 // Storage Blob Data Contributor role: ba92f5b4-2d11-453d-a403-e96b0029c9fe
 var storageBlobDataContributorRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
 
+// Storage Queue Data Contributor role: 974c5e8b-45b9-4653-ba55-5f855dd0fb88
+var storageQueueDataContributorRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')
+
+// Storage Table Data Contributor role: 0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3
+var storageTableDataContributorRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')
+
 // Managed Identity needs Service Bus access
 module serviceBusReceiverRole '../../modules/rbacAssignment.bicep' = {
   name: 'serviceBusReceiverRole'
@@ -464,13 +472,35 @@ module serviceBusSenderRole '../../modules/rbacAssignment.bicep' = {
   }
 }
 
-// Managed Identity needs Function Storage access
-module functionStorageRole '../../modules/rbacAssignment.bicep' = {
-  name: 'functionStorageRole'
+// Managed Identity needs Function Storage access (Blob)
+module functionStorageBlobRole '../../modules/rbacAssignment.bicep' = {
+  name: 'functionStorageBlobRole'
   scope: integrationResourceGroup
   params: {
     principalId: commonManagedIdentityPrincipalId
     roleDefinitionId: storageBlobDataContributorRoleId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Managed Identity needs Function Storage access (Queue)
+module functionStorageQueueRole '../../modules/rbacAssignment.bicep' = {
+  name: 'functionStorageQueueRole'
+  scope: integrationResourceGroup
+  params: {
+    principalId: commonManagedIdentityPrincipalId
+    roleDefinitionId: storageQueueDataContributorRoleId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Managed Identity needs Function Storage access (Table)
+module functionStorageTableRole '../../modules/rbacAssignment.bicep' = {
+  name: 'functionStorageTableRole'
+  scope: integrationResourceGroup
+  params: {
+    principalId: commonManagedIdentityPrincipalId
+    roleDefinitionId: storageTableDataContributorRoleId
     principalType: 'ServicePrincipal'
   }
 }
