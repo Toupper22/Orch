@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "8887228568270570241"
+      "templateHash": "963198876287049882"
     }
   },
   "parameters": {
@@ -2781,7 +2781,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "13098320997934557379"
+              "templateHash": "10107938035720378948"
             }
           },
           "parameters": {
@@ -2883,7 +2883,7 @@
                   "linuxFxVersion": "DOTNET-ISOLATED|8.0",
                   "use32BitWorkerProcess": false,
                   "alwaysOn": true,
-                  "appSettings": "[concat(createArray(createObject('name', 'FUNCTIONS_EXTENSION_VERSION', 'value', '~4'), createObject('name', 'FUNCTIONS_WORKER_RUNTIME', 'value', 'dotnet-isolated'), createObject('name', 'DOTNET_ISOLATED_DEBUG', 'value', 'false'), createObject('name', 'WEBSITE_USE_PLACEHOLDER_DOTNETISOLATED', 'value', '1'), createObject('name', 'WEBSITE_ENABLE_SYNC_UPDATE_SITE', 'value', 'true'), createObject('name', 'WEBSITE_RUN_FROM_PACKAGE', 'value', '1'), createObject('name', 'AzureWebJobsStorage__accountName', 'value', parameters('storageAccountName')), createObject('name', 'AzureWebJobsStorage__credential', 'value', 'managedidentity'), createObject('name', 'AzureWebJobsStorage__accountName', 'value', parameters('storageAccountName')), createObject('name', 'AzureWebJobsStorage__blobServiceUri', 'value', format('https://{0}.blob.{1}', parameters('storageAccountName'), environment().suffixes.storage)), createObject('name', 'AzureWebJobsStorage__queueServiceUri', 'value', format('https://{0}.queue.{1}', parameters('storageAccountName'), environment().suffixes.storage)), createObject('name', 'AzureWebJobsStorage__tableServiceUri', 'value', format('https://{0}.table.{1}', parameters('storageAccountName'), environment().suffixes.storage)), createObject('name', 'AzureWebJobsStorage', 'value', format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', parameters('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-01-01').keys[0].value, environment().suffixes.storage)), createObject('name', 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING', 'value', format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', parameters('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-01-01').keys[0].value, environment().suffixes.storage)), createObject('name', 'WEBSITE_CONTENTOVERVNET', 'value', '1'), createObject('name', 'WEBSITE_CONTENTSHARE', 'value', toLower(parameters('functionAppName')))), if(not(empty(parameters('appInsightsConnectionString'))), createArray(createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', parameters('appInsightsConnectionString')), createObject('name', 'ApplicationInsightsAgent_EXTENSION_VERSION', 'value', '~3')), createArray()), parameters('appSettings'))]"
+                  "appSettings": "[concat(createArray(createObject('name', 'FUNCTIONS_EXTENSION_VERSION', 'value', '~4'), createObject('name', 'FUNCTIONS_WORKER_RUNTIME', 'value', 'dotnet-isolated'), createObject('name', 'DOTNET_ISOLATED_DEBUG', 'value', 'false'), createObject('name', 'WEBSITE_USE_PLACEHOLDER_DOTNETISOLATED', 'value', '1'), createObject('name', 'WEBSITE_ENABLE_SYNC_UPDATE_SITE', 'value', 'true'), createObject('name', 'WEBSITE_RUN_FROM_PACKAGE', 'value', '1'), createObject('name', 'AzureWebJobsStorage__accountName', 'value', parameters('storageAccountName')), createObject('name', 'AzureWebJobsStorage__credential', 'value', 'managedidentity'), createObject('name', 'AzureWebJobsStorage__clientId', 'value', parameters('managedIdentityClientId')), createObject('name', 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING', 'value', format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', parameters('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-01-01').keys[0].value, environment().suffixes.storage)), createObject('name', 'WEBSITE_CONTENTSHARE', 'value', toLower(parameters('functionAppName')))), if(not(empty(parameters('appInsightsConnectionString'))), createArray(createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', parameters('appInsightsConnectionString')), createObject('name', 'ApplicationInsightsAgent_EXTENSION_VERSION', 'value', '~3')), createArray()), parameters('appSettings'))]"
                 }
               }
             },

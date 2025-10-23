@@ -42,7 +42,7 @@ resource logicApp 'Microsoft.Web/sites@2023-01-01' = {
   name: logicAppName
   location: location
   tags: tags
-  kind: 'functionapp,workflowapp'
+  kind: 'functionapp,workflowapp,linux'
   identity: {
     type: !empty(managedIdentityId) ? 'UserAssigned' : 'SystemAssigned'
     userAssignedIdentities: !empty(managedIdentityId) ? {
@@ -58,7 +58,6 @@ resource logicApp 'Microsoft.Web/sites@2023-01-01' = {
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       http20Enabled: true
-      netFrameworkVersion: 'v6.0'
       use32BitWorkerProcess: false
       alwaysOn: true
       appSettings: concat([

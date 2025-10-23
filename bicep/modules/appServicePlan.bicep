@@ -49,6 +49,9 @@ param maximumElasticWorkerCount int = 1
 @description('Number of workers (pre-warmed instances for Elastic Premium)')
 param targetWorkerCount int = 0
 
+@description('Deploy Linux App Service Plan (true) or Windows (false)')
+param isLinux bool = true
+
 // SKU tier mapping
 var skuTierMap = {
   Y1: 'Dynamic'
@@ -80,7 +83,7 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
     tier: skuTierMap[skuName]
   }
   properties: {
-    reserved: false
+    reserved: isLinux
     zoneRedundant: zoneRedundant
     maximumElasticWorkerCount: skuName == 'Y1' ? 1 : maximumElasticWorkerCount
     targetWorkerCount: skuName == 'Y1' ? 0 : targetWorkerCount

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "4486168931816758423"
+      "templateHash": "9147010079546304028"
     }
   },
   "parameters": {
@@ -303,7 +303,15 @@
       "defaultValue": [
         {
           "name": "integration-subnet",
-          "addressPrefix": "10.0.1.0/24"
+          "addressPrefix": "10.0.1.0/24",
+          "delegations": [
+            {
+              "name": "Microsoft.Web.serverFarms",
+              "properties": {
+                "serviceName": "Microsoft.Web/serverFarms"
+              }
+            }
+          ]
         },
         {
           "name": "private-endpoint-subnet",
@@ -390,7 +398,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3174528743679203941"
+              "templateHash": "9076932791527102817"
             }
           },
           "parameters": {
@@ -470,7 +478,7 @@
               "kv": "kv",
               "func": "fn",
               "logic": "la",
-              "sb": "sb",
+              "sb": "sbus",
               "appi": "ai",
               "plan": "pl",
               "vnet": "vn",
@@ -544,7 +552,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3174528743679203941"
+              "templateHash": "9076932791527102817"
             }
           },
           "parameters": {
@@ -624,7 +632,7 @@
               "kv": "kv",
               "func": "fn",
               "logic": "la",
-              "sb": "sb",
+              "sb": "sbus",
               "appi": "ai",
               "plan": "pl",
               "vnet": "vn",
@@ -695,7 +703,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3174528743679203941"
+              "templateHash": "9076932791527102817"
             }
           },
           "parameters": {
@@ -775,7 +783,7 @@
               "kv": "kv",
               "func": "fn",
               "logic": "la",
-              "sb": "sb",
+              "sb": "sbus",
               "appi": "ai",
               "plan": "pl",
               "vnet": "vn",
@@ -846,7 +854,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3174528743679203941"
+              "templateHash": "9076932791527102817"
             }
           },
           "parameters": {
@@ -926,7 +934,7 @@
               "kv": "kv",
               "func": "fn",
               "logic": "la",
-              "sb": "sb",
+              "sb": "sbus",
               "appi": "ai",
               "plan": "pl",
               "vnet": "vn",
@@ -997,7 +1005,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3174528743679203941"
+              "templateHash": "9076932791527102817"
             }
           },
           "parameters": {
@@ -1077,7 +1085,7 @@
               "kv": "kv",
               "func": "fn",
               "logic": "la",
-              "sb": "sb",
+              "sb": "sbus",
               "appi": "ai",
               "plan": "pl",
               "vnet": "vn",
@@ -1148,7 +1156,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3174528743679203941"
+              "templateHash": "9076932791527102817"
             }
           },
           "parameters": {
@@ -1228,7 +1236,7 @@
               "kv": "kv",
               "func": "fn",
               "logic": "la",
-              "sb": "sb",
+              "sb": "sbus",
               "appi": "ai",
               "plan": "pl",
               "vnet": "vn",
@@ -1299,7 +1307,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3174528743679203941"
+              "templateHash": "9076932791527102817"
             }
           },
           "parameters": {
@@ -1379,7 +1387,7 @@
               "kv": "kv",
               "func": "fn",
               "logic": "la",
-              "sb": "sb",
+              "sb": "sbus",
               "appi": "ai",
               "plan": "pl",
               "vnet": "vn",
@@ -1450,7 +1458,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3174528743679203941"
+              "templateHash": "9076932791527102817"
             }
           },
           "parameters": {
@@ -1530,7 +1538,7 @@
               "kv": "kv",
               "func": "fn",
               "logic": "la",
-              "sb": "sb",
+              "sb": "sbus",
               "appi": "ai",
               "plan": "pl",
               "vnet": "vn",
@@ -1601,7 +1609,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3174528743679203941"
+              "templateHash": "9076932791527102817"
             }
           },
           "parameters": {
@@ -1681,7 +1689,7 @@
               "kv": "kv",
               "func": "fn",
               "logic": "la",
-              "sb": "sb",
+              "sb": "sbus",
               "appi": "ai",
               "plan": "pl",
               "vnet": "vn",
@@ -1752,7 +1760,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3174528743679203941"
+              "templateHash": "9076932791527102817"
             }
           },
           "parameters": {
@@ -1832,7 +1840,7 @@
               "kv": "kv",
               "func": "fn",
               "logic": "la",
-              "sb": "sb",
+              "sb": "sbus",
               "appi": "ai",
               "plan": "pl",
               "vnet": "vn",
@@ -1903,7 +1911,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3174528743679203941"
+              "templateHash": "9076932791527102817"
             }
           },
           "parameters": {
@@ -1983,7 +1991,7 @@
               "kv": "kv",
               "func": "fn",
               "logic": "la",
-              "sb": "sb",
+              "sb": "sbus",
               "appi": "ai",
               "plan": "pl",
               "vnet": "vn",
@@ -2054,7 +2062,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3174528743679203941"
+              "templateHash": "9076932791527102817"
             }
           },
           "parameters": {
@@ -2134,7 +2142,7 @@
               "kv": "kv",
               "func": "fn",
               "logic": "la",
-              "sb": "sb",
+              "sb": "sbus",
               "appi": "ai",
               "plan": "pl",
               "vnet": "vn",
@@ -3344,6 +3352,9 @@
           },
           "kind": {
             "value": "[parameters('appServicePlanKind')]"
+          },
+          "isLinux": {
+            "value": true
           }
         },
         "template": {
@@ -3353,7 +3364,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3679906323409539681"
+              "templateHash": "13840907312305340964"
             }
           },
           "parameters": {
@@ -3434,6 +3445,13 @@
               "metadata": {
                 "description": "Number of workers (pre-warmed instances for Elastic Premium)"
               }
+            },
+            "isLinux": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Deploy Linux App Service Plan (true) or Windows (false)"
+              }
             }
           },
           "variables": {
@@ -3469,7 +3487,7 @@
                 "tier": "[variables('skuTierMap')[parameters('skuName')]]"
               },
               "properties": {
-                "reserved": false,
+                "reserved": "[parameters('isLinux')]",
                 "zoneRedundant": "[parameters('zoneRedundant')]",
                 "maximumElasticWorkerCount": "[if(equals(parameters('skuName'), 'Y1'), 1, parameters('maximumElasticWorkerCount'))]",
                 "targetWorkerCount": "[if(equals(parameters('skuName'), 'Y1'), 0, parameters('targetWorkerCount'))]"
@@ -4243,7 +4261,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "383866994947336367"
+              "templateHash": "15883993757515762029"
             }
           },
           "parameters": {
@@ -4328,11 +4346,7 @@
               "name": "[parameters('serviceBusName')]",
               "location": "[parameters('location')]",
               "tags": "[parameters('tags')]",
-              "sku": {
-                "name": "[parameters('skuName')]",
-                "tier": "[parameters('skuName')]",
-                "capacity": "[if(equals(parameters('skuName'), 'Premium'), parameters('capacity'), null())]"
-              },
+              "sku": "[if(equals(parameters('skuName'), 'Premium'), createObject('name', parameters('skuName'), 'tier', parameters('skuName'), 'capacity', parameters('capacity')), createObject('name', parameters('skuName'), 'tier', parameters('skuName')))]",
               "properties": {
                 "minimumTlsVersion": "1.2",
                 "publicNetworkAccess": "Enabled",

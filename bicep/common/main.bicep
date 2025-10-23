@@ -534,6 +534,7 @@ module appServicePlan '../modules/appServicePlan.bicep' = if (deployAppServicePl
     tags: commonTags
     skuName: appServicePlanSku
     kind: appServicePlanKind
+    isLinux: true
   }
 }
 
