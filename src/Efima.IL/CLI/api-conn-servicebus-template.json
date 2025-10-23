@@ -1,0 +1,58 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"Tier": {
+			"type": "String"
+		},
+		"CustomerId": {
+			"type": "String"
+		},
+		"Location": {
+			"defaultValue": "[resourceGroup().location]",
+			"type": "string"
+		},
+		"IntegrationGroup": {
+			"type": "String"
+		},
+		"IntegrationGroupShort": {
+			"type": "string",
+			"defaultValue": ""
+		},
+		"SharedCustomerGroup": {
+			"type": "string",
+			"defaultValue": ""
+		}
+	},
+	"variables": {
+		"CommonResourceNamePart": "[concat('-', parameters('CustomerId'), '-' , parameters('IntegrationGroup'), '-')]",
+		"ServiceBusName": "[concat('sb', variables('CommonResourceNamePart'), parameters('Tier'))]",
+		"SBNamespaceEnpoint": "[concat('sb://', variables('ServiceBusName'), '.servicebus.windows.net/')]",
+		"APIConnectionName": "[concat('ac-', variables('ServiceBusName'))]",
+		"DisplayName": "[concat('API connection to service bus ', variables('ServiceBusName'))]"
+	},
+	"resources": [
+		{
+			"type": "Microsoft.Web/connections",
+			"apiVersion": "2016-06-01",
+			"name": "[variables('APIConnectionName')]",
+			"location": "westeurope",
+			"properties": {
+				"displayName": "[variables('DisplayName')]",
+				"parameterValueSet": {
+					"name": "managedIdentityAuth",
+					"values": {
+						"namespaceEndpoint": {
+							"value": "[variables('SBNamespaceEnpoint')]"
+						}
+					}
+				},
+				"api": {
+					"id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'westeurope', '/managedApis/', 'servicebus')]",
+					"type": "Microsoft.Web/locations/managedApis"
+				},
+				"testLinks": []
+			}
+		}
+	]
+}

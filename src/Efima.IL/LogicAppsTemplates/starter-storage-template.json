@@ -1,0 +1,247 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"IntegrationGroup": {
+			"type": "string",
+			"minLength": 1
+		},
+		"IntegrationGroupShort": {
+			"type": "string"
+		},
+		"SharedCustomerGroup": {
+			"type": "string"
+		},
+		"IntegrationName": {
+			"type": "string"
+		},
+		"Tier": {
+			"type": "string",
+			"minLength": 1
+		},
+		"CustomerId": {
+			"type": "string"
+		},
+		"ConnectionCustomerGroup": {
+			"type": "string"
+		},
+		"ConnectionWorkflow": {
+			"type": "string",
+			"defaultValue": "storage-listfiles"
+		},
+		"ConnectionPartitionKey": {
+			"type": "string",
+			"defaultValue": ""
+		},
+		"IntegrationPartitionKey": {
+			"type": "string",
+			"defaultValue": "Orchestration"
+		},
+		"LogicAppName": {
+			"type": "string",
+			"defaultValue": "starter"
+		},
+		"LogicAppState": {
+			"type": "string",
+			"defaultValue": "Enabled"
+		},
+		"NextLogicApp": {
+			"defaultValue": "handler",
+			"type": "string"
+		}
+	},
+	"variables": {
+		"LogicAppName": "[concat('la-', parameters('CustomerId'), '-', parameters('IntegrationName'), '-', parameters('LogicAppName'), '-', parameters('Tier'))]",
+		"IdentityName": "[concat('id-', parameters('CustomerId'), '-', parameters('IntegrationGroup'), '-', parameters('Tier'))]",
+		"ConnectionResourceGroupName": "[concat('rg-', parameters('ConnectionCustomerGroup'), '-', parameters('Tier'))]",
+		"ConnectionWorkflowName": "[concat('la-', parameters('ConnectionCustomerGroup'), '-', parameters('ConnectionWorkflow'), '-', parameters('Tier'))]",
+		"KeyvaultName": "[concat('kv-', parameters('CustomerId'), '-', parameters('IntegrationGroupShort'), '-', parameters('Tier'))]",
+		"SharedResourceGroupName": "[concat('rg-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+		"LogAnalyticsWorkspaceName": "[concat('log-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+		"NextLogicAppName": "[concat('la-', parameters('CustomerId'), '-', parameters('IntegrationName'), '-', parameters('NextLogicApp'), '-', parameters('Tier'))]"
+	},
+	"resources": [
+		{
+			"apiVersion": "2017-07-01",
+			"identity": {
+				"type": "UserAssigned",
+				"userAssignedIdentities": {
+					"[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('IdentityName'))]": {}
+				}
+			},
+			"location": "[resourceGroup().location]",
+			"name": "[variables('LogicAppName')]",
+			"properties": {
+				"accessControl": {
+					"triggers": {
+						"allowedCallerIpAddresses": []
+					},
+					"actions": {
+						"allowedCallerIpAddresses": []
+					}
+				},
+				"state": "[parameters('LogicAppState')]",
+				"definition": {
+					"$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+					"actions": {
+						"List_files": {
+							"inputs": {
+								"body": {
+									"Path": "@triggerBody()['Path']"
+								},
+								"host": {
+									"triggerName": "manual",
+									"workflow": {
+										"id": "[resourceId(variables('ConnectionResourceGroupName'), 'Microsoft.Logic/workflows', variables('ConnectionWorkflowName'))]"
+									}
+								}
+							},
+							"runAfter": {},
+							"type": "Workflow"
+						},
+						"Condition_-_files_found": {
+							"actions": {
+								"Select": {
+									"inputs": {
+										"from": "@body('List_files')",
+										"select": {
+											"Input": "@item()",
+											"Parameters": "@triggerBody()['Parameters']"
+										}
+									},
+									"runAfter": {},
+									"type": "Select"
+								},
+								"Handler": {
+									"inputs": {
+										"body": "@body('Select')",
+										"host": {
+											"triggerName": "manual",
+											"workflow": {
+												"id": "[resourceId('Microsoft.Logic/workflows', variables('NextLogicAppName'))]"
+											}
+										}
+									},
+									"runAfter": {
+										"Select": [
+											"Succeeded"
+										]
+									},
+									"type": "Workflow"
+								}
+							},
+							"expression": {
+								"and": [
+									{
+										"greater": [
+											"@length(body('List_files'))",
+											0
+										]
+									}
+								]
+							},
+							"runAfter": {
+								"List_files": [
+									"Succeeded"
+								]
+							},
+							"type": "If"
+						},
+						"Terminate": {
+							"inputs": {
+								"runError": {
+									"code": "@outputs('List_files')?['statusCode']",
+									"message": "@coalesce(body('List_files')?['message'], slice(string(body('List_files')), 0, 500))"
+								},
+								"runStatus": "Failed"
+							},
+							"runAfter": {
+								"List_files": [
+									"Failed"
+								]
+							},
+							"type": "Terminate"
+						}
+					},
+					"contentVersion": "1.0.0.0",
+					"outputs": {},
+					"parameters": {
+						"$connections": {
+							"defaultValue": {},
+							"type": "Object"
+						}
+					},
+					"triggers": {
+						"manual": {
+							"inputs": {
+								"schema": {
+									"items": {
+										"properties": {
+											"Path": {
+												"type": "string"
+											},
+											"Parameters": {
+												"type": "object"
+											}
+										},
+										"required": [
+											"Path",
+											"Parameters"
+										],
+										"type": "object"
+									},
+									"type": "array"
+								}
+							},
+							"kind": "Http",
+							"splitOn": "@triggerBody()",
+							"type": "Request",
+							"operationOptions": "EnableSchemaValidation"
+						}
+					}
+				},
+				"parameters": {}
+			},
+			"resources": [
+				{
+					"type": "providers/diagnosticSettings",
+					"name": "[concat('Microsoft.Insights/', variables('LogAnalyticsWorkspaceName'))]",
+					"dependsOn": [
+						"[variables('LogicAppName')]"
+					],
+					"location": "[resourceGroup().location]",
+					"apiVersion": "2017-05-01-preview",
+					"properties": {
+						"name": "[variables('LogAnalyticsWorkspaceName')]",
+						"workspaceId": "[resourceId(variables('SharedResourceGroupName'), 'Microsoft.OperationalInsights/workspaces/', variables('LogAnalyticsWorkspaceName'))]",
+						"logs": [
+							{
+								"category": "WorkflowRuntime",
+								"enabled": true,
+								"retentionPolicy": {
+									"days": 0,
+									"enabled": false
+								}
+							}
+						],
+						"metrics": [
+							{
+								"category": "AllMetrics",
+								"enabled": false,
+								"retentionPolicy": {
+									"days": 0,
+									"enabled": false
+								}
+							}
+						]
+					}
+				}
+			],
+			"tags": {
+				"displayName": "LogicApp"
+			},
+			"type": "Microsoft.Logic/workflows"
+		}
+	],
+	"outputs": {}
+}

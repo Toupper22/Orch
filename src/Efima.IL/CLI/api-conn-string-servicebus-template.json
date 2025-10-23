@@ -1,0 +1,62 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"Tier": {
+			"type": "string"
+		},
+		"CustomerId": {
+			"type": "string"
+		},
+		"IntegrationGroup": {
+			"type": "string"
+		},
+		"IntegrationGroupShort": {
+			"type": "string",
+			"defaultValue": ""
+		},
+		"SharedCustomerGroup": {
+			"type": "string",
+			"defaultValue": ""
+		},
+		"KeyVaultName": {
+			"type": "string",
+			"metadata": {
+				"description": "Name of the Key Vault containing the Service Bus connection string"
+			}
+		},
+		"ServiceBusConnectionStringSecretName": {
+			"type": "string",
+			"metadata": {
+				"description": "Name of the secret containing Service Bus connection string"
+			}
+		},
+		"ServiceBusConnectionString": {
+			"type": "secureString",
+			"metadata": {
+				"description": "Resolved Service Bus connection string"
+			}
+		}
+	},
+	"variables": {
+		"APIConnectionName": "[concat('ac-sb-', parameters('CustomerId'), '-', parameters('IntegrationGroup'), '-', parameters('Tier'))]",
+		"DisplayName": "[format('Connection to service bus. Connection string taken from keyvault {0}, secret {1}.', parameters('KeyVaultName'), parameters('ServiceBusConnectionStringSecretName'))]"
+	},
+	"resources": [
+		{
+			"type": "Microsoft.Web/connections",
+			"apiVersion": "2016-06-01",
+			"name": "[variables('APIConnectionName')]",
+			"location": "[resourceGroup().location]",
+			"properties": {
+				"displayName": "[variables('DisplayName')]",
+				"parameterValues": {
+					"connectionString": "[parameters('ServiceBusConnectionString')]"
+				},
+				"api": {
+					"id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/servicebus')]"
+				}
+			}
+		}
+	]
+}

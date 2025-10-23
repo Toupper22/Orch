@@ -1,0 +1,293 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+    "parameters": {
+        "IntegrationGroup": {
+            "type": "string",
+            "minLength": 1
+        },
+        "IntegrationGroupShort": {
+            "type": "string"
+        },
+        "SharedCustomerGroup": {
+            "type": "string"
+        },
+        "IntegrationName": {
+            "type": "string",
+            "defaultValue": "integration"
+        },
+        "TableName": {
+            "type": "string",
+            "defaultValue": "Values"
+        },
+        "Tier": {
+            "type": "string",
+            "minLength": 1
+        },
+        "CustomerId": {
+            "type": "string"
+        },
+        "LogicAppName": {
+            "type": "string",
+            "defaultValue": "value-reader"
+        },
+        "LogicAppState": {
+            "type": "string",
+            "defaultValue": "Enabled"
+        }
+    },
+  "variables": {
+    "LogicAppName": "[concat('la-', parameters('CustomerId'), '-', parameters('IntegrationName'), '-', parameters('LogicAppName'), '-', parameters('Tier'))]",
+    "IdentityName": "[concat('id-', parameters('CustomerId'), '-', parameters('IntegrationGroup'), '-', parameters('Tier'))]",
+    "StorageAccountName": "[concat('starch', parameters('CustomerId'), parameters('IntegrationGroupShort'), parameters('Tier'))]",
+    "TableAPIConnectionName": "[concat('ac-ts-', parameters('CustomerId'), '-', parameters('IntegrationGroupShort'), '-', parameters('Tier'))]",
+    "SharedResourceGroupName": "[concat('rg-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+    "LogAnalyticsWorkspaceName": "[concat('log-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]"
+  },
+  "resources": [
+    {
+      "apiVersion": "2017-07-01",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('IdentityName'))]": {}
+        }
+      },
+      "location": "[resourceGroup().location]",
+      "name": "[variables('LogicAppName')]",
+      "properties": {
+        "state": "[parameters('LogicAppState')]",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+            "actions": {
+                "Initialize_table_parameters": {
+                    "runAfter": {},
+                    "type": "InitializeVariable",
+                    "inputs": {
+                        "variables": [
+                            {
+                                "name": "tableParams",
+                                "type": "object",
+                                "value": {}
+                            }
+                        ]
+                    }
+                },
+                "Get_parameters_from_table": {
+                    "actions": {
+                        "Get_entities_(V2)": {
+                            "runAfter": {},
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['tableconn']['connectionId']"
+                                    }
+                                },
+                                "method": "get",
+                                "path": "[format('/v2/storageAccounts/@{{encodeURIComponent(''{0}'')}}/tables/@{{coalesce(triggerBody()[''TableName''], ''{1}'')}}/entities', variables('StorageAccountName'), parameters('TableName'))]",
+                                "queries": {
+                                    "$filter": "PartitionKey ne 'Function'",
+                                    "$select": "PartitionKey, RowKey, Value"
+                                }
+                            }
+                        },
+                        "Parse_JSON": {
+                            "runAfter": {
+                                "Get_entities_(V2)": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ParseJson",
+                            "inputs": {
+                                "content": "@body('Get_entities_(V2)')?['value']",
+                                "schema": {
+                                    "items": {
+                                        "properties": {
+                                            "PartitionKey": {
+                                                "type": "string"
+                                            },
+                                            "RowKey": {
+                                                "type": "string"
+                                            },
+                                            "Value": {}
+                                        },
+                                        "required": [
+                                            "PartitionKey",
+                                            "RowKey",
+                                            "Value"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "Set_each_parameter_to_tableParams": {
+                            "foreach": "@body('Parse_JSON')",
+                            "actions": {
+                                "Add_with_tableParams": {
+                                    "runAfter": {},
+                                    "type": "Compose",
+                                    "inputs": "@setProperty(variables('tableParams'), item()['PartitionKey'], addProperty(coalesce(variables('tableParams')?[item()['PartitionKey']], json('{}')), items('Set_each_parameter_to_tableParams')['RowKey'], item()['Value']))"
+                                },
+                                "Update_tableParams": {
+                                    "runAfter": {
+                                        "Add_with_tableParams": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "SetVariable",
+                                    "inputs": {
+                                        "name": "tableParams",
+                                        "value": "@outputs('Add_with_tableParams')"
+                                    }
+                                }
+                            },
+                            "runAfter": {
+                                "Parse_JSON": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Foreach",
+                            "runtimeConfiguration": {
+                                "concurrency": {
+                                    "repetitions": 1
+                                }
+                            }
+                        }
+                    },
+                    "runAfter": {
+                        "Initialize_table_parameters": [
+                            "Succeeded"
+                        ]
+                    },
+                    "type": "Scope"
+                },
+                "Response_Success": {
+                    "runAfter": {
+                        "Get_parameters_from_table": [
+                            "Succeeded"
+                        ]
+                    },
+                    "type": "Response",
+                    "kind": "Http",
+                    "inputs": {
+                        "statusCode": 200,
+                        "body": "@variables('tableParams')"
+                    }
+                },
+                "Response_Failure": {
+                    "runAfter": {
+                        "Get_parameters_from_table": [
+                            "Failed"
+                        ]
+                    },
+                    "type": "Response",
+                    "kind": "Http",
+                    "inputs": {
+                        "statusCode": 500
+                    }
+                },
+                "Terminate": {
+                    "runAfter": {
+                        "Response_Failure": [
+                            "Succeeded"
+                        ]
+                    },
+                    "type": "Terminate",
+                    "inputs": {
+                        "runStatus": "Failed",
+                        "runError": {
+                            "code": "500"
+                        }
+                    }
+                }
+            },
+          "contentVersion": "1.0.0.0",
+          "outputs": {},
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            }
+          },
+            "triggers": {
+                "manual": {
+                    "inputs": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "TableName": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "operationOptions": "EnableSchemaValidation",
+                    "kind": "Http",
+                    "type": "Request"
+                }
+            }
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "tableconn": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azuretables')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', variables('TableAPIConnectionName'))]",
+                "connectionName": "[variables('TableAPIConnectionName')]",
+                "connectionProperties": {
+                  "authentication": {
+                    "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('IdentityName'))]",
+                    "type": "ManagedServiceIdentity"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "resources": [
+        {
+          "type": "providers/diagnosticSettings",
+          "name": "[concat('Microsoft.Insights/', variables('LogAnalyticsWorkspaceName'))]",
+          "dependsOn": [
+            "[variables('LogicAppName')]"
+          ],
+          "location": "[resourceGroup().location]",
+          "apiVersion": "2017-05-01-preview",
+          "properties": {
+            "name": "[variables('LogAnalyticsWorkspaceName')]",
+            "workspaceId": "[resourceId(variables('SharedResourceGroupName'), 'Microsoft.OperationalInsights/workspaces/', variables('LogAnalyticsWorkspaceName'))]",
+            "logs": [
+              {
+                "category": "WorkflowRuntime",
+                "enabled": true,
+                "retentionPolicy": {
+                  "days": 0,
+                  "enabled": false
+                }
+              }
+            ],
+            "metrics": [
+              {
+                "category": "AllMetrics",
+                "enabled": false,
+                "retentionPolicy": {
+                  "days": 0,
+                  "enabled": false
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "tags": {
+        "displayName": "LogicApp"
+      },
+      "type": "Microsoft.Logic/workflows"
+    }
+  ],
+  "outputs": {}
+}

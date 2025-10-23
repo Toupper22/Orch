@@ -1,0 +1,53 @@
+﻿{
+	"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"CustomerId": {
+			"type": "String"
+		},
+		"Tier": {
+			"type": "String",
+			"minLength": 1
+		},
+		"IntegrationGroupShort": {
+			"type": "string"
+		},
+		"StorageAccount": {
+			"type": "string",
+			"defaultValue": ""
+		},
+		/* not in use */
+		"IntegrationGroup": {
+			"type": "string",
+			"defaultValue": "not in use"
+		}
+	},
+	"variables": {
+		"StorageAccount": "[if(equals(parameters('StorageAccount'), ''), concat('starch', parameters('CustomerId'), parameters('IntegrationGroupShort'), parameters('Tier')), parameters('StorageAccount'))]",
+		"APIConnectionName": "[concat('ac-', variables('StorageAccount'))]"
+	},
+	"resources": [
+		{
+			"type": "Microsoft.Web/connections",
+			"apiVersion": "2018-07-01-preview",
+			"name": "[variables('APIConnectionName')]",
+			"location": "[resourceGroup().location]",
+			"kind": "V1",
+			"properties": {
+				"api": {
+					"id": "[subscriptionResourceId('Microsoft.Web/locations/managedApis', resourceGroup().location, 'azureblob')]"
+				},
+				"authenticatedUser": {},
+				"connectionState": "Enabled",
+				"customParameterValues": {},
+				"displayName": "[variables('APIConnectionName')]",
+				"parameterValueSet": {
+					"name": "managedIdentityAuth",
+					"values": {}
+				},
+				"testLinks": [
+				]
+			}
+		}
+	]
+}

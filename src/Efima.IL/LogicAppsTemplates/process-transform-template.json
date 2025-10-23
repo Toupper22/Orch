@@ -1,0 +1,431 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+    "parameters": {
+        "IntegrationGroup": {
+            "type": "string"
+        },
+        "IntegrationGroupShort": {
+            "type": "string"
+        },
+        "SharedCustomerGroup": {
+            "type": "string"
+        },
+        "ConnectionCustomerGroup": {
+            "type": "string"
+        },
+        "ConnectionType": {
+            "type": "string",
+            "defaultValue": "Workflow"
+        },
+        "ConnectionWorkflow": {
+            "type": "string",
+            "defaultValue": "create-expense-journal"
+        },
+        "ConnectionFunctionApp": {
+            "type": "string",
+            "defaultValue": ""
+        },
+        "ConnectionCustomerFunctionApp": {
+            "type": "string",
+            "defaultValue": ""
+        },
+        "ConnectionFunctionTrigger": {
+            "type": "string",
+            "defaultValue": "UploadFile"
+        },
+        "ConnectionCustomArguments": {
+            "type": "object",
+            "defaultValue": {}
+        },
+        "ConnectionPartitionKey": {
+            "type": "string",
+            "defaultValue": "D365FO"
+        },
+        "IntegrationPartitionKey": {
+            "type": "string",
+            "defaultValue": "Integration"
+        },
+        "IntegrationName": {
+            "type": "string"
+        },
+        "TrFunctionApp": {
+            "type": "string",
+            "defaultValue": ""
+        },
+        "TrFunctionTrigger": {
+            "type": "string",
+            "defaultValue": "Transform"
+        },
+        "LogicAppName": {
+            "type": "string",
+            "defaultValue": "process"
+        },
+        "Tier": {
+            "type": "string"
+        },
+        "CustomerId": {
+            "type": "string"
+        },
+        "NumConcurrentRuns": {
+            "type": "int",
+            "defaultValue": 0
+        },
+        "MaxWaitingRuns": {
+            "type": "int",
+            "defaultValue": 50
+        },
+        "LogicAppState": {
+            "type": "string",
+            "defaultValue": "Enabled"
+        }
+    },
+    "variables": {
+        "LogicAppName": "[concat('la-', parameters('CustomerId'), '-', parameters('IntegrationName'), '-', parameters('LogicAppName'), '-', parameters('Tier'))]",
+        "IdentityName": "[concat('id-', parameters('CustomerId'), '-', parameters('IntegrationGroup'), '-', parameters('Tier'))]",
+        "TrFunctionAppName": "[concat('func-', parameters('CustomerId'), '-', if(empty(parameters('TrFunctionApp')), parameters('IntegrationGroup'), parameters('TrFunctionApp')), '-', parameters('Tier'))]",
+        "ConnectionFunctionAppName": "[concat('func-', if(empty(parameters('ConnectionCustomerFunctionApp')), concat(parameters('ConnectionCustomerGroup'), if(empty(parameters('ConnectionFunctionApp')), '', '-'), parameters('ConnectionFunctionApp')), parameters('ConnectionCustomerFunctionApp')), '-', parameters('Tier'))]",
+        "ConnectionWorkflowName": "[concat('la-', parameters('ConnectionCustomerGroup'), '-', parameters('ConnectionWorkflow'), '-', parameters('Tier'))]",
+        "ConnectionResourceGroupName": "[concat('rg-', parameters('ConnectionCustomerGroup'), '-', parameters('Tier'))]",
+        "SharedResourceGroupName": "[concat('rg-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+        "LogAnalyticsWorkspaceName": "[concat('log-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+        "InputsFunction": {
+            "body": "@variables('connBody')",
+            "function": {
+                "id": "[resourceId(variables('ConnectionResourceGroupName'), 'Microsoft.Web/sites/functions', variables('ConnectionFunctionAppName'), parameters('ConnectionFunctionTrigger'))]"
+            }
+        },
+        "InputsWorkflow": {
+            "body": "@variables('connBody')",
+            "host": {
+                "triggerName": "manual",
+                "workflow": {
+                    "id": "[resourceId(variables('ConnectionResourceGroupName'), 'Microsoft.Logic/workflows', variables('ConnectionWorkflowName'))]"
+                }
+            }
+        },
+        "ConnectionArguments": {
+            "TransferName": "[parameters('IntegrationName')]",
+            "CallerWorkflowName": "[variables('LogicAppName')]",
+            "CallerWorkflowRunId": "@workflow()['run']['name']",
+            "Settings": "[format('@triggerBody()[''Parameters''][''{0}'']', parameters('ConnectionPartitionKey'))]"
+        },
+        "Concurrency": {
+            "runs": "[parameters('NumConcurrentRuns')]",
+            "maximumWaitingRuns": "[parameters('MaxWaitingRuns')]"
+        },
+        "EvaluatedConcurrency": "[if(equals(parameters('NumConcurrentRuns'), 0), null(), variables('Concurrency'))]",
+        "ResponseOperationOptions": "[if(equals(parameters('NumConcurrentRuns'), 0), '', 'Asynchronous')]"
+    },
+  "resources": [
+    {
+      "properties": {
+        "accessControl": {
+          "triggers": {
+            "allowedCallerIpAddresses": []
+          },
+          "actions": {
+            "allowedCallerIpAddresses": []
+          }
+        },
+        "state": "[parameters('LogicAppState')]",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            }
+          },
+          "triggers": {
+            "manual": {
+                "type": "Request",
+                "kind": "Http",
+                "runtimeConfiguration": {
+                    "concurrency": "[variables('EvaluatedConcurrency')]"
+                },
+                "inputs": {
+                    "schema": {
+                        "properties": {
+                            "Input": {
+                                "properties": {
+                                    "ContentBase64": {
+                                        "type": "string"
+                                    },
+                                    "Encoding": {
+                                        "type": "string"
+                                    },
+                                    "Filename": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            },
+                            "Parameters": {
+                                "type": "object"
+                            }
+                        },
+                        "required": [
+                            "Input",
+                            "Parameters"
+                        ],
+                        "type": "object"
+                    }
+                },
+                "operationOptions": "EnableSchemaValidation"
+            }
+          },
+            "actions": {
+                "Transform": {
+                    "runAfter": {},
+                    "type": "Function",
+                    "inputs": {
+                        "body": "@triggerBody()['Input']",
+                        "function": {
+                            "id": "[resourceId('Microsoft.Web/sites/functions', variables('TrFunctionAppName'), parameters('TrFunctionTrigger'))]"
+                        }
+                    }
+                },
+                "Condition": {
+                    "actions": {},
+                    "runAfter": {
+                        "Transform": [
+                            "Succeeded"
+                        ]
+                    },
+                    "else": {
+                        "actions": {
+                            "Response": {
+                                "type": "Response",
+                                "kind": "Http",
+                                "inputs": {
+                                    "statusCode": 204
+                                },
+                                "operationOptions": "[variables('ResponseOperationOptions')]"
+                            },
+                            "Terminate_Cancelled": {
+                                "runAfter": {
+                                    "Response": [
+                                        "Succeeded",
+                                        "Skipped"
+                                    ]
+                                },
+                                "type": "Terminate",
+                                "inputs": {
+                                    "runStatus": "Cancelled"
+                                }
+                            }
+                        }
+                    },
+                    "expression": {
+                        "and": [
+                            {
+                                "greater": [
+                                    "@int(outputs('Transform')['headers']['Content-Length'])",
+                                    2
+                                ]
+                            }
+                        ]
+                    },
+                    "type": "If"
+                },
+                "Additional_parameters": {
+                    "runAfter": {
+                        "Condition": [
+                            "Succeeded"
+                        ]
+                    },
+                    "type": "InitializeVariable",
+                    "description": "Add CallerWorkflowName, CallerWorkflowRunId, TransferName",
+                    "inputs": {
+                        "variables": [
+                            {
+                                "name": "connParams",
+                                "type": "object",
+                                "value": "[union(variables('ConnectionArguments'), parameters('ConnectionCustomArguments'))]"
+                            }
+                        ]
+                    }
+                },
+                "Combine": {
+                    "runAfter": {
+                        "Additional_parameters": [
+                            "Succeeded"
+                        ]
+                    },
+                    "type": "InitializeVariable",
+                    "description": "Combine parameters with function output.",
+                    "inputs": {
+                        "variables": [
+                            {
+                                "name": "connBody",
+                                "type": "object",
+                                "value": "@union(variables('connParams'), body('Transform'))"
+                            }
+                        ]
+                    }
+                },
+                "Compose": {
+                    "runAfter": {
+                        "Transform": [
+                            "Failed"
+                        ]
+                    },
+                    "type": "Compose",
+                    "inputs": "@coalesce(body('Transform')?['message'], body('Transform'), 'Transform returned no body.')"
+                },
+                "ConnectionFailedResponse": {
+                    "runAfter": {
+                        "Connection": [
+                            "FAILED"
+                        ]
+                    },
+                    "type": "Response",
+                    "kind": "Http",
+                    "inputs": {
+                        "body": {
+                            "Content": "@variables('connBody')",
+                            "Message": "@coalesce(body('Connection')?['message'], slice(string(body('Connection')), 0, 500))"
+                        },
+                        "headers": {
+                            "Content-Type": "application/json; charset=utf-8"
+                        },
+                        "statusCode": "@coalesce(outputs('Connection')?['statusCode'], 500)"
+                    },
+                    "operationOptions": "[variables('ResponseOperationOptions')]"
+                },
+                "SuccessResponse": {
+                    "runAfter": {
+                        "Connection": [
+                            "Succeeded"
+                        ]
+                    },
+                    "type": "Response",
+                    "kind": "Http",
+                    "inputs": {
+                        "body": "@body('Connection')",
+                        "headers": {
+                            "Content-Length": "@outputs('Connection')['headers']?['Content-Length']",
+                            "Content-Type": "@outputs('Connection')['headers']?['Content-Type']"
+                        },
+                        "statusCode": "@outputs('Connection')['statusCode']"
+                    },
+                    "operationOptions": "[variables('ResponseOperationOptions')]",
+                    "description": "Success response"
+                },
+                "Terminate_Failed_2": {
+                    "runAfter": {
+                        "ConnectionFailedResponse": [
+                            "Succeeded"
+                        ]
+                    },
+                    "type": "Terminate",
+                    "inputs": {
+                        "runError": {
+                            "code": "400",
+                            "message": "Sending failed"
+                        },
+                        "runStatus": "Failed"
+                    }
+                },
+                "TransformFailedResponse": {
+                    "runAfter": {
+                        "Compose": [
+                            "Succeeded"
+                        ]
+                    },
+                    "type": "Response",
+                    "kind": "http",
+                    "inputs": {
+                        "body": {
+                            "Message": "@slice(string(outputs('Compose')), 0, 500)"
+                        },
+                        "headers": {
+                            "Content-Type": "application/json; charset=utf-8"
+                        },
+                        "statusCode": "@outputs('Transform')['statusCode']"
+                    },
+                    "operationOptions": "[variables('ResponseOperationOptions')]"
+                },
+                "Terminate_Failed": {
+                    "runAfter": {
+                        "TransformFailedResponse": [
+                            "Succeeded"
+                        ]
+                    },
+                    "type": "Terminate",
+                    "inputs": {
+                        "runError": {
+                            "code": "@outputs('Transform')['statusCode']",
+                            "message": "Transformation failed"
+                        },
+                        "runStatus": "Failed"
+                    }
+                },
+                "Connection": {
+                    "runAfter": {
+                        "Combine": [
+                            "Succeeded"
+                        ]
+                    },
+                    "type": "[parameters('ConnectionType')]",
+                    "inputs": "[if(equals(parameters('ConnectionType'), 'Workflow'), variables('InputsWorkflow'), variables('InputsFunction'))]"
+                }
+            },
+          "outputs": {}
+        },
+        "parameters": {}
+      },
+      "name": "[variables('LogicAppName')]",
+      "type": "Microsoft.Logic/workflows",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "displayName": "LogicApp"
+      },
+      "resources": [
+        {
+          "type": "providers/diagnosticSettings",
+          "name": "[concat('Microsoft.Insights/', variables('LogAnalyticsWorkspaceName'))]",
+          "dependsOn": [
+            "[variables('LogicAppName')]"
+          ],
+          "location": "[resourceGroup().location]",
+          "apiVersion": "2017-05-01-preview",
+          "properties": {
+            "name": "[variables('LogAnalyticsWorkspaceName')]",
+            "workspaceId": "[resourceId(variables('SharedResourceGroupName'), 'Microsoft.OperationalInsights/workspaces/', variables('LogAnalyticsWorkspaceName'))]",
+            "logs": [
+              {
+                "category": "WorkflowRuntime",
+                "enabled": true,
+                "retentionPolicy": {
+                  "days": 0,
+                  "enabled": false
+                }
+              }
+            ],
+            "metrics": [
+              {
+                "category": "AllMetrics",
+                "enabled": false,
+                "retentionPolicy": {
+                  "days": 0,
+                  "enabled": false
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('IdentityName'))]": {}
+        }
+      },
+      "apiVersion": "2016-06-01"
+    }
+  ],
+  "outputs": {}
+}

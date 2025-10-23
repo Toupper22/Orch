@@ -1,0 +1,246 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"LogicAppName": {
+			"defaultValue": "storage-putfiles",
+			"type": "string"
+		},
+		"CustomerId": {
+			"type": "string"
+		},
+		"Tier": {
+			"type": "string"
+		},
+		"IntegrationGroup": {
+			"type": "string"
+		},
+		"IntegrationGroupShort": {
+			"type": "string"
+		},
+		"IntegrationName": {
+			"type": "string",
+			"defaultValue": ""
+		},
+		"SharedCustomerGroup": {
+			"type": "string"
+		},
+		"StorageAccount": {
+			"type": "string",
+			"defaultValue": ""
+		},
+		"UseIdentityConnection": {
+			"type": "bool",
+			"defaultValue": false
+		}
+	},
+	"variables": {
+		"ThisCustomerGroup": "[concat(parameters('CustomerId'), '-', parameters('IntegrationGroup'))]",
+		"IdentityName": "[concat('id-', variables('ThisCustomerGroup'), '-', parameters('Tier'))]",
+		"LogicAppName": "[concat('la-', variables('ThisCustomerGroup'), '-', parameters('LogicAppName'), '-', parameters('Tier'))]",
+		"StorageAccountName": "[concat(if(equals(parameters('StorageAccount'), ''), concat('starch', parameters('CustomerId'), parameters('IntegrationGroupShort')), parameters('StorageAccount')), parameters('Tier'))]",
+		"StorageAPIConnectionName": "[concat('ac-', variables('StorageAccountName'))]",
+		"StorageConnection": {
+			"connectionId": "[resourceid('Microsoft.Web/connections', variables('StorageAPIConnectionName'))]",
+			"connectionName": "[variables('StorageAPIConnectionName')]",
+			"id": "[subscriptionResourceId('Microsoft.Web/locations/managedApis', resourceGroup().location, 'azureblob')]"
+		},
+		"ConnectionIdentityAdditions": {
+			"ConnectionProperties": {
+				"authentication": {
+					"identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('IdentityName'))]",
+					"type": "ManagedServiceIdentity"
+				}
+			}
+		}
+	},
+	"resources": [
+		{
+			"type": "Microsoft.Logic/workflows",
+			"apiVersion": "2019-05-01",
+			"name": "[variables('LogicAppName')]",
+			"location": "[resourceGroup().location]",
+			"tags": {
+				"displayName": "LogicApp"
+			},
+			"identity": {
+				"type": "UserAssigned",
+				"userAssignedIdentities": {
+					"[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('IdentityName'))]": {}
+				}
+			},
+			"properties": {
+				"accessControl": {
+					"triggers": {
+						"allowedCallerIpAddresses": []
+					},
+					"actions": {
+						"allowedCallerIpAddresses": []
+					}
+				},
+				"state": "Enabled",
+				"definition": {
+					"$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+					"contentVersion": "1.0.0.0",
+					"parameters": {
+						"$connections": {
+							"type": "Object"
+						}
+					},
+					"triggers": {
+						"manual": {
+							"inputs": {
+								"schema": {
+									"properties": {
+										"FileList": {
+											"items": {
+												"properties": {
+													"ContentBase64": {
+														"type": "string"
+													},
+													"Filename": {
+														"type": "string"
+													}
+												},
+												"required": [
+													"ContentBase64",
+													"Filename"
+												],
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"Path": {
+											"type": "string"
+										},
+										"Settings": {
+											"properties": {
+												"Path": {
+													"type": "string"
+												}
+											},
+											"type": "object"
+										}
+									},
+									"required": [
+										"FileList"
+									],
+									"type": "object"
+								}
+							},
+							"kind": "Http",
+							"operationOptions": "EnableSchemaValidation",
+							"type": "Request"
+						}
+					},
+					"actions": {
+						"For_each": {
+							"foreach": "@triggerBody()['FileList']",
+							"actions": {
+								"Create_blob_(V2)": {
+									"type": "ApiConnection",
+									"inputs": {
+										"body": "@base64ToBinary(items('For_each')['ContentBase64'])",
+										"headers": {
+											"Content-Type": "application/octet-stream",
+											"ReadFileMetadataFromServer": true
+										},
+										"host": {
+											"connection": {
+												"name": "@parameters('$connections')['azureblob']['connectionId']"
+											}
+										},
+										"method": "post",
+										"path": "[format('/v2/datasets/{0}/files', variables('StorageAccountName'))]",
+										"queries": {
+											"folderPath": "@coalesce(triggerBody()?['Path'], triggerBody()?['Settings']?['Path'])",
+											"name": "@items('For_each')['Filename']",
+											"queryParametersSingleEncoded": true
+										}
+									},
+									"runtimeConfiguration": {
+										"contentTransfer": {
+											"transferMode": "Chunked"
+										}
+									}
+								}
+							},
+							"runAfter": {},
+							"type": "Foreach",
+							"runtimeConfiguration": {
+								"concurrency": {
+									"repetitions": 1
+								}
+							}
+						},
+						"Initialize_variable": {
+							"runAfter": {
+								"For_each": [
+									"Failed"
+								]
+							},
+							"type": "InitializeVariable",
+							"inputs": {
+								"variables": [
+									{
+										"name": "output",
+										"type": "object",
+										"value": "@last(last(result('For_each'))?['outputs'])"
+									}
+								]
+							}
+						},
+						"ResponseError": {
+							"inputs": {
+								"body": "@coalesce(variables('output')?['outputs']?['body'], variables('output')?['error'])",
+								"statusCode": "@coalesce(variables('output')?['outputs']?['statusCode'], 500)"
+							},
+							"kind": "Http",
+							"runAfter": {
+								"Initialize_variable": [
+									"Succeeded"
+								]
+							},
+							"type": "Response"
+						},
+						"ResponseSuccess": {
+							"inputs": {
+								"statusCode": 200
+							},
+							"kind": "Http",
+							"runAfter": {
+								"For_each": [
+									"Succeeded"
+								]
+							},
+							"type": "Response"
+						},
+						"TerminateErrorCreateFile": {
+							"inputs": {
+								"runError": {
+									"message": "Error when creating file"
+								},
+								"runStatus": "Failed"
+							},
+							"runAfter": {
+								"ResponseError": [
+									"Succeeded"
+								]
+							},
+							"type": "Terminate"
+						}
+					},
+					"outputs": {}
+				},
+				"parameters": {
+					"$connections": {
+						"value": {
+							"azureblob": "[if(parameters('UseIdentityConnection'), union(variables('StorageConnection'), variables('ConnectionIdentityAdditions')), variables('StorageConnection'))]"
+						}
+					}
+				}
+			}
+		}
+	],
+	"outputs": {}
+}

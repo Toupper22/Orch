@@ -1,0 +1,346 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"Tier": {
+			"type": "string"
+		},
+		"CustomerId": {
+			"type": "string"
+		},
+		"IntegrationGroup": {
+			"type": "string"
+		},
+		"IntegrationGroupShort": {
+			"type": "string"
+		},
+		"IntegrationName": {
+			"type": "string"
+		},
+		"IntegrationPartitionKey": {
+			"type": "string",
+			"defaultValue": "Orchestration"
+		},
+		"ConnectionCustomerGroup": {
+			"type": "string",
+			"defaultValue": ""
+		},
+		"SharedCustomerGroup": {
+			"type": "string"
+		},
+		"BlobContainerPrefix": {
+			"type": "string",
+			"defaultValue": "orchestration"
+		},
+		"LogicAppName": {
+			"type": "string",
+			"defaultValue": "handler"
+		},
+		"LogicAppState": {
+			"type": "string",
+			"defaultValue": "Enabled"
+		},
+		"NextLogicApp": {
+			"defaultValue": "process",
+			"type": "string"
+		}
+	},
+	"variables": {
+		"LogicAppName": "[concat('la-', parameters('CustomerId'), '-', parameters('IntegrationName'), '-', parameters('LogicAppName'), '-', parameters('Tier'))]",
+		"IdentityName": "[concat('id-', parameters('CustomerId'), '-', parameters('IntegrationGroup'), '-', parameters('Tier'))]",
+		"KeyvaultName": "[concat('kv-', parameters('CustomerId'), '-', parameters('IntegrationGroupShort'), '-', parameters('Tier'))]",
+		"SharedResourceGroupName": "[concat('rg-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+		"LogAnalyticsWorkspaceName": "[concat('log-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+		"ArchiverLogicAppName": "[concat('la-', parameters('SharedCustomerGroup'), '-archiver-', parameters('Tier'))]",
+		"NextLogicAppName": "[concat('la-', parameters('CustomerId'), '-', parameters('IntegrationName'), '-', parameters('NextLogicApp'), '-', parameters('Tier'))]"
+	},
+	"resources": [
+		{
+			"properties": {
+				"accessControl": {
+					"triggers": {
+						"allowedCallerIpAddresses": []
+					},
+					"actions": {
+						"allowedCallerIpAddresses": []
+					}
+				},
+				"state": "[parameters('LogicAppState')]",
+				"definition": {
+					"$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+					"actions": {
+						"Initialize_filename": {
+							"inputs": {
+								"variables": [
+									{
+										"name": "filename",
+										"type": "string",
+										"value": "@concat('message_', triggerBody()['Input']?['MessageId'], if(startsWith(triggerBody()['Input']?['ContentType'], 'application/json'), '.json', '.in'))"
+									}
+								]
+							},
+							"runAfter": {},
+							"type": "InitializeVariable"
+						},
+						"Process": {
+							"inputs": {
+								"body": {
+									"Input": {
+										"ContentBase64": "@coalesce(triggerBody()['Input']?['ContentData'], triggerBody()['Input']['body'])",
+										"Filename": "@variables('filename')"
+									},
+									"Parameters": "@triggerBody()?['Parameters']"
+								},
+								"host": {
+									"triggerName": "manual",
+									"workflow": {
+										"id": "[resourceId('Microsoft.Logic/workflows', variables('NextLogicAppName'))]"
+									}
+								}
+							},
+							"runAfter": {
+								"Initialize_filename": [
+									"Succeeded"
+								]
+							},
+							"type": "Workflow"
+						},
+						"Condition_Archive_Success": {
+							"actions": {
+								"Archive_Success": {
+									"inputs": {
+										"body": {
+											"Input": "@actions('Process').inputs.body.Input",
+											"Output": "@body('Process')",
+											"ArchiveInputEnabled": "[format('@triggerBody()[''Parameters''][''{0}''][''ArchiveInputEnabled'']', parameters('IntegrationPartitionKey'))]",
+											"ArchiveOutputEnabled": "[format('@triggerBody()[''Parameters''][''{0}''][''ArchiveOutputEnabled'']', parameters('IntegrationPartitionKey'))]",
+											"Container": "[format('@{{coalesce(triggerBody()[''Parameters''][''{0}'']?[''ContainerPrefix''], ''{1}'')}}-success', parameters('IntegrationPartitionKey'), parameters('BlobContainerPrefix'))]",
+											"KeyvaultName": "[format('@coalesce(triggerBody()[''Parameters''][''{0}'']?[''KeyvaultName''], ''{1}'')', parameters('IntegrationPartitionKey'), variables('KeyvaultName'))]"
+										},
+										"host": {
+											"triggerName": "manual",
+											"workflow": {
+												"id": "[resourceId(variables('SharedResourceGroupName'), 'Microsoft.Logic/workflows', variables('ArchiverLogicAppName'))]"
+											}
+										}
+									},
+									"type": "Workflow"
+								}
+							},
+							"else": {
+								"actions": {}
+							},
+							"expression": {
+								"or": [
+									{
+										"equals": [
+											"[format('@triggerBody()[''Parameters''][''{0}''][''ArchiveInputEnabled'']', parameters('IntegrationPartitionKey'))]",
+											true
+										]
+									},
+									{
+										"equals": [
+											"[format('@triggerBody()[''Parameters''][''{0}''][''ArchiveOutputEnabled'']', parameters('IntegrationPartitionKey'))]",
+											true
+										]
+									}
+								]
+							},
+							"runAfter": {
+								"Process": [
+									"Succeeded",
+									"Skipped"
+								]
+							},
+							"type": "If"
+						},
+						"Condition_Archive_Failure": {
+							"actions": {
+								"Archive_Failure": {
+									"inputs": {
+										"body": {
+											"Input": "@actions('Process').inputs.body.Input",
+											"Output": "@body('Process')",
+											"ArchiveInputEnabled": "[format('@triggerBody()[''Parameters''][''{0}''][''ArchiveInputOnErrorEnabled'']', parameters('IntegrationPartitionKey'))]",
+											"ArchiveOutputEnabled": "[format('@triggerBody()[''Parameters''][''{0}''][''ArchiveOutputOnErrorEnabled'']', parameters('IntegrationPartitionKey'))]",
+											"Container": "[format('@{{coalesce(triggerBody()[''Parameters''][''{0}'']?[''ContainerPrefix''], ''{1}'')}}-failure', parameters('IntegrationPartitionKey'), parameters('BlobContainerPrefix'))]",
+											"KeyvaultName": "[format('@coalesce(triggerBody()[''Parameters''][''{0}'']?[''KeyvaultName''], ''{1}'')', parameters('IntegrationPartitionKey'), variables('KeyvaultName'))]"
+										},
+										"host": {
+											"triggerName": "manual",
+											"workflow": {
+												"id": "[resourceId(variables('SharedResourceGroupName'), 'Microsoft.Logic/workflows', variables('ArchiverLogicAppName'))]"
+											}
+										}
+									},
+									"type": "Workflow"
+								}
+							},
+							"else": {
+								"actions": {}
+							},
+							"expression": {
+								"or": [
+									{
+										"equals": [
+											"[format('@triggerBody()[''Parameters''][''{0}''][''ArchiveInputOnErrorEnabled'']', parameters('IntegrationPartitionKey'))]",
+											true
+										]
+									},
+									{
+										"equals": [
+											"[format('@triggerBody()[''Parameters''][''{0}''][''ArchiveOutputOnErrorEnabled'']', parameters('IntegrationPartitionKey'))]",
+											true
+										]
+									}
+								]
+							},
+							"runAfter": {
+								"Process": [
+									"Failed",
+									"TimedOut"
+								]
+							},
+							"type": "If"
+						},
+						"Terminate": {
+							"inputs": {
+								"runError": {
+									"code": "@outputs('Process')?['statusCode']",
+									"message": "@coalesce(body('Process')?['message'], slice(string(body('Process')), 0, 500))"
+								},
+								"runStatus": "Failed"
+							},
+							"runAfter": {
+								"Condition_Archive_Failure": [
+									"Succeeded"
+								]
+							},
+							"type": "Terminate"
+						}
+					},
+					"contentVersion": "1.0.0.0",
+					"outputs": {},
+					"parameters": {
+						"$connections": {
+							"defaultValue": {},
+							"type": "Object"
+						}
+					},
+					"triggers": {
+						"manual": {
+							"inputs": {
+								"schema": {
+									"items": {
+										"properties": {
+											"Input": {
+												"properties": {
+													"MessageId": {
+														"type": "string"
+													},
+													"ContentType": {
+														"type": "string"
+													},
+													"ContentData": {
+														"type": "string"
+													},
+													"body": {
+														"type": "string"
+													}
+												},
+												"type": "object"
+											},
+											"Parameters": {
+												"properties": {
+													"[parameters('IntegrationPartitionKey')]": {
+														"properties": {
+															"ArchiveInputEnabled": {
+																"type": "boolean"
+															},
+															"ArchiveOutputEnabled": {
+																"type": "boolean"
+															},
+															"ArchiveInputOnErrorEnabled": {
+																"type": "boolean"
+															},
+															"ArchiveOutputOnErrorEnabled": {
+																"type": "boolean"
+															}
+														},
+														"type": "object"
+													}
+												},
+												"type": "object"
+											}
+										},
+										"required": [
+											"Input"
+										],
+										"type": "object"
+									},
+									"type": "array"
+								}
+							},
+							"kind": "Http",
+							"operationOptions": "EnableSchemaValidation",
+							"splitOn": "@triggerBody()",
+							"type": "Request"
+						}
+					}
+				},
+				"parameters": {
+					"$connections": {}
+				}
+			},
+			"name": "[variables('LogicAppName')]",
+			"type": "Microsoft.Logic/workflows",
+			"location": "[resourceGroup().location]",
+			"tags": {
+				"displayName": "LogicApp"
+			},
+			"resources": [
+				{
+					"type": "providers/diagnosticSettings",
+					"name": "[concat('Microsoft.Insights/', variables('LogAnalyticsWorkspaceName'))]",
+					"dependsOn": [
+						"[variables('LogicAppName')]"
+					],
+					"location": "[resourceGroup().location]",
+					"apiVersion": "2017-05-01-preview",
+					"properties": {
+						"name": "[variables('LogAnalyticsWorkspaceName')]",
+						"workspaceId": "[resourceId(variables('SharedResourceGroupName'), 'Microsoft.OperationalInsights/workspaces/', variables('LogAnalyticsWorkspaceName'))]",
+						"logs": [
+							{
+								"category": "WorkflowRuntime",
+								"enabled": true,
+								"retentionPolicy": {
+									"days": 0,
+									"enabled": false
+								}
+							}
+						],
+						"metrics": [
+							{
+								"category": "AllMetrics",
+								"enabled": false,
+								"retentionPolicy": {
+									"days": 0,
+									"enabled": false
+								}
+							}
+						]
+					}
+				}
+			],
+			"identity": {
+				"type": "UserAssigned",
+				"userAssignedIdentities": {
+					"[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('IdentityName'))]": {}
+				}
+			},
+			"apiVersion": "2017-07-01"
+		}
+	],
+	"outputs": {}
+}

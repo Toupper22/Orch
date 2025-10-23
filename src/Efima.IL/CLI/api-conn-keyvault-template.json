@@ -1,0 +1,51 @@
+﻿{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "Tier": {
+      "type": "String"
+    },
+    "CustomerId": {
+      "type": "String"
+    },
+    "Location": {
+      "defaultValue": "[resourceGroup().location]",
+      "type": "string"
+    },
+    "IntegrationGroupShort": {
+      "type": "string"
+    },
+    /* not in use */
+    "IntegrationGroup": {
+      "type": "string",
+      "defaultValue": "not in use"
+    }
+  },
+  "variables": {
+    "CommonResourceNamePart": "[concat('-', parameters('CustomerId'), '-' , parameters('IntegrationGroupShort'), '-')]",
+    "KeyvaultVaultName": "[concat('kv', variables('CommonResourceNamePart'), parameters('Tier'))]",
+    "KeyvaultDisplayName": "[concat('API connection to keyvault ', variables('KeyvaultVaultName'))]",
+    "APIConnectionName": "[concat('ac', '-', variables('KeyvaultVaultName'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Web/connections",
+      "apiVersion": "2016-06-01",
+      "name": "[variables('APIConnectionName')]",
+      "location": "[parameters('Location')]",
+      "kind": "V1",
+      "properties": {
+        "displayName": "[variables('KeyvaultDisplayName')]",
+        "api": {
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'westeurope', '/managedApis/', 'keyvault')]",
+          "type": "Microsoft.Web/locations/managedApis"
+        },
+        "parameterValueType": "Alternative",
+        "alternativeParameterValues": {
+          "vaultName": "[variables('KeyvaultVaultName')]"
+        },
+        "testLinks": []
+      }
+    }
+  ]
+}

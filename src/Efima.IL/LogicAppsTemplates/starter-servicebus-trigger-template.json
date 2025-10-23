@@ -1,0 +1,357 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"Tier": {
+			"type": "string",
+			"minLength": 1
+		},
+		"CustomerId": {
+			"type": "string"
+		},
+		"IntegrationGroup": {
+			"type": "string",
+			"minLength": 1
+		},
+		"IntegrationGroupShort": {
+			"type": "string"
+		},
+		"IntegrationName": {
+			"type": "string"
+		},
+		"IntegrationPartitionKey": {
+			"type": "string",
+			"defaultValue": "Orchestration"
+		},
+		"ConnectionCustomerGroup": {
+			"type": "string"
+		},
+		"ConnectionInPartitionKey": {
+			"type": "string",
+			"defaultValue": "D365FO"
+		},
+		"ConnectionOutPartitionKey": {
+			"type": "string",
+			"defaultValue": "SFTP"
+		},
+		"SBAuthenticationType": {
+			"type": "string",
+			"defaultValue": "ManagedServiceIdentity"
+		},
+		"SBQueueName": {
+			"type": "string",
+			"defaultValue": ""
+		},
+		"SBTopicName": {
+			"type": "string",
+			"defaultValue": ""
+		},
+		"SBSubscriptionName": {
+			"type": "string",
+			"defaultValue": ""
+		},
+		"SharedCustomerGroup": {
+			"type": "string"
+		},
+		"TableName": {
+			"type": "string",
+			"defaultValue": "Values"
+		},
+		"LogicAppName": {
+			"type": "string",
+			"defaultValue": "starter"
+		},
+		"LogicAppState": {
+			"type": "string",
+			"defaultValue": "Disabled"
+		},
+		"NextLogicApp": {
+			"type": "string",
+			"defaultValue": "handler"
+		},
+		"Recurrence": {
+			"type": "object",
+			"defaultValue": {
+				"frequency": "Minute",
+				"interval": 5,
+				"timeZone": "FLE Standard Time"
+			}
+		},
+		"TriggerConditions": {
+			"type": "array",
+			"defaultValue": []
+		}
+	},
+	"variables": {
+		"LogicAppName": "[concat('la-', parameters('CustomerId'), '-', parameters('IntegrationName'), '-', parameters('LogicAppName'), '-', parameters('Tier'))]",
+		"IdentityName": "[concat('id-', parameters('CustomerId'), '-', parameters('IntegrationGroup'), '-', parameters('Tier'))]",
+		"StorageAccountName": "[concat('starch', parameters('CustomerId'), parameters('IntegrationGroupShort'), parameters('Tier'))]",
+		"TableAPIConnectionName": "[concat('ac-ts-', parameters('CustomerId'), '-', parameters('IntegrationGroupShort'), '-', parameters('Tier'))]",
+		"SBResourceGroupName": "[concat('rg-', parameters('ConnectionCustomerGroup'), '-', parameters('Tier'))]",
+		"SBAPIConnectionName": "[concat('ac-sb-', parameters('ConnectionCustomerGroup'), '-', parameters('Tier'))]",
+		"SBQueueName": "[if(empty(parameters('SBQueueName')), concat('sbq-', parameters('CustomerId'), '-', parameters('IntegrationName')), parameters('SBQueueName'))]",
+		"SBQueueOrTopicName": "[if(empty(parameters('SBTopicName')), variables('SBQueueName'), parameters('SBTopicName'))]",
+		"SharedResourceGroupName": "[concat('rg-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+		"LogAnalyticsWorkspaceName": "[concat('log-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+		"NextLogicAppName": "[concat('la-', parameters('CustomerId'), '-', parameters('IntegrationName'), '-', parameters('NextLogicApp'), '-', parameters('Tier'))]",
+		"SBConnectionProperties": {
+			"authentication": {
+				"identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('IdentityName'))]",
+				"type": "[parameters('SBAuthenticationType')]"
+			}
+		}
+
+	},
+	"resources": [
+		{
+			"properties": {
+				"accessControl": {
+					"triggers": {
+						"allowedCallerIpAddresses": []
+					},
+					"actions": {
+						"allowedCallerIpAddresses": []
+					}
+				},
+				"state": "[parameters('LogicAppState')]",
+				"definition": {
+					"$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+					"actions": {
+						"Initialize_table_parameters": {
+							"runAfter": {},
+							"type": "InitializeVariable",
+							"inputs": {
+								"variables": [
+									{
+										"name": "tableParams",
+										"type": "object",
+										"value": {}
+									}
+								]
+							}
+						},
+						"Get_parameters_from_table": {
+							"actions": {
+								"Get_entities_(V2)": {
+									"runAfter": {},
+									"type": "ApiConnection",
+									"inputs": {
+										"host": {
+											"connection": {
+												"name": "@parameters('$connections')['tableconn']['connectionId']"
+											}
+										},
+										"method": "get",
+										"path": "[format('/v2/storageAccounts/@{{encodeURIComponent(''{0}'')}}/tables/@{{encodeURIComponent(''{1}'')}}/entities', variables('StorageAccountName'), parameters('TableName'))]",
+										"queries": {
+											"$filter": "[format('PartitionKey eq ''{0}'' or PartitionKey eq ''{1}'' or PartitionKey eq ''{2}''', parameters('IntegrationPartitionKey'), parameters('ConnectionInPartitionKey'), parameters('ConnectionOutPartitionKey'))]",
+											"$select": "PartitionKey, RowKey, Value"
+										}
+									}
+								},
+								"Parse_JSON": {
+									"runAfter": {
+										"Get_entities_(V2)": [
+											"Succeeded"
+										]
+									},
+									"type": "ParseJson",
+									"inputs": {
+										"content": "@body('Get_entities_(V2)')?['value']",
+										"schema": {
+											"items": {
+												"properties": {
+													"PartitionKey": {
+														"type": "string"
+													},
+													"RowKey": {
+														"type": "string"
+													},
+													"Value": {}
+												},
+												"required": [
+													"PartitionKey",
+													"RowKey",
+													"Value"
+												],
+												"type": "object"
+											},
+											"type": "array"
+										}
+									}
+								},
+								"Set_each_parameter_to_tableParams": {
+									"foreach": "@body('Parse_JSON')",
+									"actions": {
+										"Add_with_tableParams": {
+											"runAfter": {},
+											"type": "Compose",
+											"inputs": "@setProperty(variables('tableParams'), items('Set_each_parameter_to_tableParams')['PartitionKey'], addProperty(coalesce(variables('tableParams')?[items('Set_each_parameter_to_tableParams')['PartitionKey']], json('{}')), items('Set_each_parameter_to_tableParams')['RowKey'], items('Set_each_parameter_to_tableParams')['Value']))"
+										},
+										"Update_tableParams": {
+											"runAfter": {
+												"Add_with_tableParams": [
+													"Succeeded"
+												]
+											},
+											"type": "SetVariable",
+											"inputs": {
+												"name": "tableParams",
+												"value": "@outputs('Add_with_tableParams')"
+											}
+										}
+									},
+									"runAfter": {
+										"Parse_JSON": [
+											"Succeeded"
+										]
+									},
+									"type": "Foreach",
+									"runtimeConfiguration": {
+										"concurrency": {
+											"repetitions": 1
+										}
+									}
+								}
+							},
+							"runAfter": {
+								"Initialize_table_parameters": [
+									"Succeeded"
+								]
+							},
+							"type": "Scope"
+						},
+						"Select": {
+							"runAfter": {
+								"Get_parameters_from_table": [
+									"Succeeded"
+								]
+							},
+							"type": "Select",
+							"inputs": {
+								"from": "@triggerBody()",
+								"select": {
+									"Input": "@item()",
+									"Parameters": "@variables('tableParams')"
+								}
+							}
+						},
+						"Handler": {
+							"inputs": {
+								"body": "@body('Select')",
+								"host": {
+									"triggerName": "manual",
+									"workflow": {
+										"id": "[resourceId('Microsoft.Logic/workflows', variables('NextLogicAppName'))]"
+									}
+								}
+							},
+							"runAfter": {
+								"Select": [
+									"Succeeded"
+								]
+							},
+							"type": "Workflow"
+						}
+					},
+					"contentVersion": "1.0.0.0",
+					"outputs": {},
+					"parameters": {
+						"$connections": {
+							"defaultValue": {},
+							"type": "Object"
+						}
+					},
+					"triggers": {
+						"When_one_or_more_messages_arrive_in_a_topic_(auto-complete)": {
+							"recurrence": "[parameters('Recurrence')]",
+							"type": "ApiConnection",
+							"inputs": {
+								"host": {
+									"connection": {
+										"name": "@parameters('$connections')['servicebus']['connectionId']"
+									}
+								},
+								"method": "get",
+								"path": "[if(empty(parameters('SBSubscriptionName')), format('/@{{encodeURIComponent(encodeURIComponent(''{0}''))}}/messages/batch/head', variables('SBQueueOrTopicName')), format('/@{{encodeURIComponent(encodeURIComponent(''{0}''))}}/subscriptions/@{{encodeURIComponent(''{1}'')}}/messages/batch/head', variables('SBQueueOrTopicName'), parameters('SBSubscriptionName')))]"
+							},
+							"conditions": "[parameters('TriggerConditions')]"
+						}
+					}
+				},
+				"parameters": {
+					"$connections": {
+						"value": {
+							"tableconn": {
+								"id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azuretables')]",
+								"connectionId": "[resourceId('Microsoft.Web/connections', variables('TableAPIConnectionName'))]",
+								"connectionName": "[variables('TableAPIConnectionName')]",
+								"connectionProperties": {
+									"authentication": {
+										"identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('IdentityName'))]",
+										"type": "ManagedServiceIdentity"
+									}
+								}
+							},
+							"servicebus": {
+								"id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/servicebus')]",
+								"connectionId": "[resourceId(variables('SBResourceGroupName'), 'Microsoft.Web/connections', variables('SBAPIConnectionName'))]",
+								"connectionName": "[variables('SBAPIConnectionName')]",
+								"connectionProperties": "[if(empty(parameters('SBAuthenticationType')), null(), variables('SBConnectionProperties'))]"
+							}
+						}
+					}
+				}
+			},
+			"name": "[variables('LogicAppName')]",
+			"type": "Microsoft.Logic/workflows",
+			"location": "[resourceGroup().location]",
+			"tags": {
+				"displayName": "LogicApp"
+			},
+			"resources": [
+				{
+					"type": "providers/diagnosticSettings",
+					"name": "[concat('Microsoft.Insights/', variables('LogAnalyticsWorkspaceName'))]",
+					"dependsOn": [
+						"[variables('LogicAppName')]"
+					],
+					"location": "[resourceGroup().location]",
+					"apiVersion": "2017-05-01-preview",
+					"properties": {
+						"name": "[variables('LogAnalyticsWorkspaceName')]",
+						"workspaceId": "[resourceId(variables('SharedResourceGroupName'), 'Microsoft.OperationalInsights/workspaces/', variables('LogAnalyticsWorkspaceName'))]",
+						"logs": [
+							{
+								"category": "WorkflowRuntime",
+								"enabled": true,
+								"retentionPolicy": {
+									"days": 0,
+									"enabled": false
+								}
+							}
+						],
+						"metrics": [
+							{
+								"category": "AllMetrics",
+								"enabled": false,
+								"retentionPolicy": {
+									"days": 0,
+									"enabled": false
+								}
+							}
+						]
+					}
+				}
+			],
+			"identity": {
+				"type": "UserAssigned",
+				"userAssignedIdentities": {
+					"[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('IdentityName'))]": {}
+				}
+			},
+			"apiVersion": "2017-07-01"
+		}
+	],
+	"outputs": {}
+}

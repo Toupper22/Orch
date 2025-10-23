@@ -19,6 +19,7 @@ __azurite_db*__.json
 
 # IDE
 .vscode/
+.vs/
 .idea/
 *.swp
 *.swo

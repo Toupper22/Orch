@@ -1,0 +1,236 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"IntegrationGroup": {
+			"type": "string",
+			"minLength": 1
+		},
+		"IntegrationGroupShort": {
+			"type": "string",
+			"minLength": 1
+		},
+		"SharedCustomerGroup": {
+			"type": "string"
+		},
+		"IntegrationName": {
+			"type": "string",
+			"minLength": 1
+		},
+		"Tier": {
+			"type": "string",
+			"minLength": 1
+		},
+		"CustomerId": {
+			"type": "string"
+		},
+		"ConnectionCustomerGroup": {
+			"type": "string"
+		},
+		"ConnectionWorkflow": {
+			"type": "string",
+			"defaultValue": "dmf-export-package"
+		},
+		"ConnectionInPartitionKey": {
+			"type": "string",
+			"defaultValue": "D365FO"
+		},
+		"IntegrationPartitionKey": {
+			"type": "string",
+			"defaultValue": "Orchestration"
+		},
+		"LogicAppName": {
+			"type": "string",
+			"defaultValue": "starter"
+		},
+		"LogicAppState": {
+			"type": "string",
+			"defaultValue": "Enabled"
+		}
+	},
+	"variables": {
+		"LogicAppName": "[concat('la-', parameters('CustomerId'), '-', parameters('IntegrationName'), '-', parameters('LogicAppName'), '-', parameters('Tier'))]",
+		"IdentityName": "[concat('id-', parameters('CustomerId'), '-', parameters('IntegrationGroup'), '-', parameters('Tier'))]",
+		"ConnectionResourceGroupName": "[concat('rg-', parameters('ConnectionCustomerGroup'), '-', parameters('Tier'))]",
+		"ConnectionWorkflowName": "[concat('la-', parameters('ConnectionCustomerGroup'), '-', parameters('ConnectionWorkflow'), '-', parameters('Tier'))]",
+		"SharedResourceGroupName": "[concat('rg-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+		"LogAnalyticsWorkspaceName": "[concat('log-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+		"NextLogicAppName": "[concat('la-', parameters('CustomerId'), '-', parameters('IntegrationName'), '-handler-', parameters('Tier'))]"
+	},
+	"resources": [
+		{
+			"properties": {
+				"accessControl": {
+					"triggers": {
+						"allowedCallerIpAddresses": []
+					},
+					"actions": {
+						"allowedCallerIpAddresses": []
+					}
+				},
+				"state": "[parameters('LogicAppState')]",
+				"definition": {
+					"$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+					"actions": {
+						"Get_source_material_-_D365_package": {
+							"type": "Workflow",
+							"inputs": {
+								"host": {
+									"triggerName": "manual",
+									"workflow": {
+										"id": "[resourceId(variables('ConnectionResourceGroupName'), 'Microsoft.Logic/workflows', variables('ConnectionWorkflowName'))]"
+									}
+								},
+								"body": {
+									"DataAreaId": "@triggerBody()['Company']",
+									"Settings": "[format('@triggerBody()?[''Parameters'']?[''{0}'']', parameters('ConnectionInPartitionKey'))]"
+								}
+							},
+							"limit": {
+								"timeout": "PT15M"
+							},
+							"runAfter": {}
+						},
+						"HandlingLogic": {
+							"type": "Workflow",
+							"inputs": {
+								"body": [
+									{
+										"Input": {
+											"ContentBase64": "@body('Get_source_material_-_D365_package')['ContentBase64']",
+											"Filename": "@concat(triggerBody()['Company'], '-', guid(),  '.zip')"
+										},
+										"Parameters": "@triggerBody()['Parameters']"
+									}
+								],
+								"host": {
+									"triggerName": "manual",
+									"workflow": {
+										"id": "[resourceId('Microsoft.Logic/workflows', variables('NextLogicAppName'))]"
+									}
+								},
+								"retryPolicy": {
+									"type": "none"
+								}
+							},
+							"limit": {
+								"timeout": "PT15M"
+							},
+							"runAfter": {
+								"Get_source_material_-_D365_package": [
+									"Succeeded"
+								]
+							}
+						},
+						"Terminate": {
+							"inputs": {
+								"runError": {
+									"code": "@outputs('Get_source_material_-_D365_package')?['statusCode']",
+									"message": "@coalesce(body('Get_source_material_-_D365_package')?['message'], slice(string(body('Get_source_material_-_D365_package')), 0, 500))"
+								},
+								"runStatus": "Failed"
+							},
+							"runAfter": {
+								"Get_source_material_-_D365_package": [
+									"Failed"
+								]
+							},
+							"type": "Terminate"
+						}
+					},
+					"contentVersion": "1.0.0.0",
+					"outputs": {},
+					"parameters": {
+						"$connections": {
+							"defaultValue": {},
+							"type": "Object"
+						}
+					},
+					"triggers": {
+						"manual": {
+							"inputs": {
+								"schema": {
+									"items": {
+										"properties": {
+											"Company": {
+												"type": "string"
+											},
+											"Parameters": {
+												"properties": {
+													"[parameters('ConnectionInPartitionKey')]": {
+														"type": "object"
+													}
+												},
+												"type": "object"
+											}
+										},
+										"required": [
+											"Company",
+											"Parameters"
+										],
+										"type": "object"
+									},
+									"type": "array"
+								}
+							},
+							"kind": "Http",
+							"splitOn": "@triggerBody()",
+							"type": "Request",
+							"operationOptions": "EnableSchemaValidation"
+						}
+					}
+				},
+				"parameters": {}
+			},
+			"name": "[variables('LogicAppName')]",
+			"type": "Microsoft.Logic/workflows",
+			"location": "[resourceGroup().location]",
+			"tags": {
+				"displayName": "LogicApp"
+			},
+			"resources": [
+				{
+					"type": "providers/diagnosticSettings",
+					"name": "[concat('Microsoft.Insights/', variables('LogAnalyticsWorkspaceName'))]",
+					"dependsOn": [
+						"[variables('LogicAppName')]"
+					],
+					"location": "[resourceGroup().location]",
+					"apiVersion": "2017-05-01-preview",
+					"properties": {
+						"name": "[variables('LogAnalyticsWorkspaceName')]",
+						"workspaceId": "[resourceId(variables('SharedResourceGroupName'), 'Microsoft.OperationalInsights/workspaces/', variables('LogAnalyticsWorkspaceName'))]",
+						"logs": [
+							{
+								"category": "WorkflowRuntime",
+								"enabled": true,
+								"retentionPolicy": {
+									"days": 0,
+									"enabled": false
+								}
+							}
+						],
+						"metrics": [
+							{
+								"category": "AllMetrics",
+								"enabled": false,
+								"retentionPolicy": {
+									"days": 0,
+									"enabled": false
+								}
+							}
+						]
+					}
+				}
+			],
+			"apiVersion": "2017-07-01",
+			"identity": {
+				"type": "UserAssigned",
+				"userAssignedIdentities": {
+					"[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('IdentityName'))]": {}
+				}
+			}
+		}
+	],
+	"outputs": {}
+}

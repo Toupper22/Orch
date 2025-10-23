@@ -1,0 +1,313 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "IntegrationGroup": {
+            "type": "string"
+        },
+        "IntegrationGroupShort": {
+            "type": "string"
+        },
+        "SharedCustomerGroup": {
+            "type": "string"
+        },
+        "ConnectionCustomerGroup": {
+            "type": "string"
+        },
+        "ConnectionWorkflow": {
+            "defaultValue": "sftpuploadfile",
+            "type": "string"
+        },
+        "ConnectionPartitionKey": {
+            "type": "string",
+            "defaultValue": "SFTP"
+        },
+        "IntegrationName": {
+            "type": "string"
+        },
+        "IntegrationPartitionKey": {
+            "type": "string",
+            "defaultValue": "Integration"
+        },
+        "LogicAppName": {
+            "defaultValue": "process",
+            "type": "string"
+        },
+        "Tier": {
+            "type": "string"
+        },
+        "CustomerId": {
+            "type": "string"
+        },
+        "NumConcurrentRuns": {
+            "type": "int",
+            "defaultValue": 0
+        },
+        "MaxWaitingRuns": {
+            "type": "int",
+            "defaultValue": 50
+        },
+        "LogicAppState": {
+            "defaultValue": "Enabled",
+            "type": "string"
+        }
+    },
+    "variables": {
+        "LogicAppName": "[concat('la-', parameters('CustomerId'), '-', parameters('IntegrationName'), '-', parameters('LogicAppName'), '-', parameters('Tier'))]",
+        "IdentityName": "[concat('id-', parameters('CustomerId'), '-', parameters('IntegrationGroup'), '-', parameters('Tier'))]",
+        "StorageAccountName": "[concat('starch', parameters('CustomerId'), parameters('IntegrationGroupShort'), parameters('Tier'))]",
+        "TableAPIConnectionName": "[concat('ac-ts-', parameters('CustomerId'), '-', parameters('IntegrationGroupShort'), '-', parameters('Tier'))]",
+        "TableName": "Values",
+        "ConnectionResourceGroupName": "[concat('rg-', parameters('ConnectionCustomerGroup'), '-', parameters('Tier'))]",
+        "ConnectionWorkflowName": "[concat('la-', parameters('ConnectionCustomerGroup'), '-', parameters('ConnectionWorkflow'), '-', parameters('Tier'))]",
+        "SharedResourceGroupName": "[concat('rg-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+        "LogAnalyticsWorkspaceName": "[concat('log-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Logic/workflows",
+            "apiVersion": "2017-07-01",
+            "name": "[variables('LogicAppName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "LogicApp"
+            },
+            "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                    "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('IdentityName'))]": {}
+                }
+            },
+            "properties": {
+                "accessControl": {
+                    "triggers": {
+                        "allowedCallerIpAddresses": []
+                    },
+                    "actions": {
+                        "allowedCallerIpAddresses": []
+                    }
+                },
+                "state": "[parameters('LogicAppState')]",
+                "definition": {
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {
+                        "$connections": {
+                            "defaultValue": {},
+                            "type": "Object"
+                        }
+
+                    },
+                    "triggers": {
+                        "manual": {
+                            "type": "Request",
+                            "kind": "Http",
+                            "inputs": {
+                                "schema": {
+                                    "properties": {
+                                        "Input": {
+                                            "properties": {
+                                                "ContentBase64": {
+                                                    "type": "string"
+                                                },
+                                                "Filename": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "ContentBase64",
+                                                "Filename"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "Parameters": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": [
+                                        "Input",
+                                        "Parameters"
+                                    ],
+                                    "type": "object"
+                                }
+                            },
+                            "operationOptions": "EnableSchemaValidation"
+                        }
+                    },
+                    "actions": {
+                        "Input_sanity_check": {
+                            "actions": {
+                                "Condition": {
+                                    "actions": {},
+                                    "runAfter": {},
+                                    "else": {
+                                        "actions": {
+                                            "Bad_Request": {
+                                                "runAfter": {},
+                                                "type": "Response",
+                                                "kind": "Http",
+                                                "inputs": {
+                                                    "body": {
+                                                        "Message": "A required property is empty."
+                                                    },
+                                                    "statusCode": 400
+                                                }
+                                            },
+                                            "Terminate": {
+                                                "runAfter": {
+                                                    "Bad_Request": [
+                                                        "Succeeded"
+                                                    ]
+                                                },
+                                                "type": "Terminate",
+                                                "inputs": {
+                                                    "runError": {
+                                                        "code": "400",
+                                                        "message": "A required property is empty."
+                                                    },
+                                                    "runStatus": "Failed"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "expression": {
+                                        "and": [
+                                            {
+                                                "not": {
+                                                    "equals": [
+                                                        "@coalesce(triggerBody()['Input']?['ContentBase64'], '')",
+                                                        "@trim('')"
+                                                    ]
+                                                }
+                                            },
+                                            {
+                                                "not": {
+                                                    "equals": [
+                                                        "@coalesce(triggerBody()['Input']?['Filename'], '')",
+                                                        "@trim('')"
+                                                    ]
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    "type": "If"
+                                }
+                            },
+                            "runAfter": {},
+                            "type": "Scope"
+                        },
+                        "Response": {
+                            "runAfter": {
+                                "Upload_to_SFTP": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Response",
+                            "kind": "Http",
+                            "inputs": {
+                                "body": "@body('Upload_to_SFTP')",
+                                "headers": {
+                                    "Content-Length": "@outputs('Upload_to_SFTP')['headers']?['Content-Length']",
+                                    "Content-Type": "@outputs('Upload_to_SFTP')['headers']?['Content-Type']"
+                                },
+                                "statusCode": "@outputs('Upload_to_SFTP')['statusCode']"
+                            }
+                        },
+                        "Response_2": {
+                            "runAfter": {
+                                "Upload_to_SFTP": [
+                                    "Failed"
+                                ]
+                            },
+                            "type": "Response",
+                            "kind": "Http",
+                            "inputs": {
+                                "body": "@body('Upload_to_SFTP')",
+                                "headers": {
+                                    "Content-Length": "@outputs('Upload_to_SFTP')['headers']?['Content-Length']",
+                                    "Content-Type": "@outputs('Upload_to_SFTP')['headers']?['Content-Type']"
+                                },
+                                "statusCode": "@outputs('Upload_to_SFTP')['statusCode']"
+                            }
+                        },
+                        "Terminate_as_Failed": {
+                            "runAfter": {
+                                "Response_2": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Terminate",
+                            "inputs": {
+                                "runError": {
+                                    "code": "@outputs('Upload_to_SFTP')['statusCode']"
+                                },
+                                "runStatus": "Failed"
+                            }
+                        },
+                        "Upload_to_SFTP": {
+                            "runAfter": {
+                                "Input_sanity_check": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Workflow",
+                            "inputs": {
+                                "body": {
+                                    "ContentBase64": "@triggerBody()['Input']['ContentBase64']",
+                                    "Filename": "@triggerBody()['Input']['Filename']",
+                                    "Folder": "[format('@triggerBody()[''Parameters''][''{0}''][''SftpFolder'']', parameters('IntegrationPartitionKey'))]",
+                                    "Settings": "[format('@triggerBody()[''Parameters''][''{0}'']', parameters('ConnectionPartitionKey'))]",
+                                    "TransferName": "[parameters('IntegrationName')]"
+                                },
+                                "host": {
+                                    "triggerName": "manual",
+                                    "workflow": {
+                                        "id": "[resourceId(variables('ConnectionResourceGroupName'), 'Microsoft.Logic/workflows', variables('ConnectionWorkflowName'))]"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "outputs": {}
+                },
+                "parameters": {}
+            },
+            "resources": [
+                {
+                    "type": "providers/diagnosticSettings",
+                    "name": "[concat('Microsoft.Insights/', variables('LogAnalyticsWorkspaceName'))]",
+                    "dependsOn": [
+                        "[variables('LogicAppName')]"
+                    ],
+                    "location": "[resourceGroup().location]",
+                    "apiVersion": "2017-05-01-preview",
+                    "properties": {
+                        "name": "[variables('LogAnalyticsWorkspaceName')]",
+                        "workspaceId": "[resourceId(variables('SharedResourceGroupName'), 'Microsoft.OperationalInsights/workspaces/', variables('LogAnalyticsWorkspaceName'))]",
+                        "logs": [
+                            {
+                                "category": "WorkflowRuntime",
+                                "enabled": true,
+                                "retentionPolicy": {
+                                    "days": 0,
+                                    "enabled": false
+                                }
+                            }
+                        ],
+                        "metrics": [
+                            {
+                                "category": "AllMetrics",
+                                "enabled": false,
+                                "retentionPolicy": {
+                                    "days": 0,
+                                    "enabled": false
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    ],
+    "outputs": {}
+}

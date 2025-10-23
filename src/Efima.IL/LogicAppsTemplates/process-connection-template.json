@@ -1,0 +1,309 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"IntegrationGroup": {
+			"type": "string"
+		},
+		"IntegrationGroupShort": {
+			"type": "string"
+		},
+		"SharedCustomerGroup": {
+			"type": "string"
+		},
+		"ConnectionCustomerGroup": {
+			"type": "string"
+		},
+		"ConnectionType": {
+			"type": "string",
+			"defaultValue": "Workflow"
+		},
+		"ConnectionWorkflow": {
+			"type": "string",
+			"defaultValue": "create-expense-journal"
+		},
+		"ConnectionFunctionApp": {
+			"type": "string",
+			"defaultValue": ""
+		},
+		"ConnectionCustomerFunctionApp": {
+			"type": "string",
+			"defaultValue": ""
+		},
+		"ConnectionFunctionTrigger": {
+			"type": "string",
+			"defaultValue": "UploadFile"
+		},
+		"ConnectionCustomArguments": {
+			"type": "object",
+			"defaultValue": {
+				"CallerWorkflowName": "@workflow()['name']",
+				"CallerWorkflowRunId": "@workflow()['run']['name']"
+			}
+		},
+		"ConnectionPartitionKey": {
+			"type": "string",
+			"defaultValue": "D365FO"
+		},
+		"IntegrationPartitionKey": {
+			"type": "string",
+			"defaultValue": "Integration"
+		},
+		"IntegrationName": {
+			"type": "string"
+		},
+		"LogicAppName": {
+			"type": "string",
+			"defaultValue": "process"
+		},
+		"Tier": {
+			"type": "string"
+		},
+		"CustomerId": {
+			"type": "string"
+		},
+		"NumConcurrentRuns": {
+			"type": "int",
+			"defaultValue": 0
+		},
+		"MaxWaitingRuns": {
+			"type": "int",
+			"defaultValue": 50
+		},
+		"LogicAppState": {
+			"type": "string",
+			"defaultValue": "Enabled"
+		}
+	},
+	"variables": {
+		"LogicAppName": "[concat('la-', parameters('CustomerId'), '-', parameters('IntegrationName'), '-', parameters('LogicAppName'), '-', parameters('Tier'))]",
+		"IdentityName": "[concat('id-', parameters('CustomerId'), '-', parameters('IntegrationGroup'), '-', parameters('Tier'))]",
+		"ThisFunctionAppName": "[concat('func-', parameters('CustomerId'), '-', parameters('IntegrationGroup'), '-', parameters('Tier'))]",
+		"ConnectionFunctionAppName": "[concat('func-', if(empty(parameters('ConnectionCustomerFunctionApp')), concat(parameters('ConnectionCustomerGroup'), if(empty(parameters('ConnectionFunctionApp')), '', '-'), parameters('ConnectionFunctionApp')), parameters('ConnectionCustomerFunctionApp')), '-', parameters('Tier'))]",
+		"ConnectionWorkflowName": "[concat('la-', parameters('ConnectionCustomerGroup'), '-', parameters('ConnectionWorkflow'), '-', parameters('Tier'))]",
+		"ConnectionResourceGroupName": "[concat('rg-', parameters('ConnectionCustomerGroup'), '-', parameters('Tier'))]",
+		"SharedResourceGroupName": "[concat('rg-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+		"LogAnalyticsWorkspaceName": "[concat('log-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+		"InputsFunction": {
+			"body": "@outputs('Compose_body')",
+			"queries": "@triggerBody()?['Queries']",
+			"function": {
+				"id": "[resourceId(variables('ConnectionResourceGroupName'), 'Microsoft.Web/sites/functions', variables('ConnectionFunctionAppName'), parameters('ConnectionFunctionTrigger'))]"
+			},
+			"retryPolicy": {
+				"type": "none"
+			}
+		},
+		"InputsWorkflow": {
+			"body": "@outputs('Compose_body')",
+			"host": {
+				"triggerName": "manual",
+				"workflow": {
+					"id": "[resourceId(variables('ConnectionResourceGroupName'), 'Microsoft.Logic/workflows', variables('ConnectionWorkflowName'))]"
+				}
+			}
+		},
+		"Concurrency": {
+			"runs": "[parameters('NumConcurrentRuns')]",
+			"maximumWaitingRuns": "[parameters('MaxWaitingRuns')]"
+		},
+		"EvaluatedConcurrency": "[if(equals(parameters('NumConcurrentRuns'), 0), null(), variables('Concurrency'))]",
+		"ResponseOperationOptions": "[if(equals(parameters('NumConcurrentRuns'), 0), '', 'Asynchronous')]"
+	},
+	"resources": [
+		{
+			"properties": {
+				"accessControl": {
+					"triggers": {
+						"allowedCallerIpAddresses": []
+					},
+					"actions": {
+						"allowedCallerIpAddresses": []
+					}
+				},
+				"state": "[parameters('LogicAppState')]",
+				"definition": {
+					"$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+					"contentVersion": "1.0.0.0",
+					"parameters": {
+						"$connections": {
+							"defaultValue": {},
+							"type": "Object"
+						}
+					},
+					"triggers": {
+						"manual": {
+							"type": "Request",
+							"kind": "Http",
+							"runtimeConfiguration": {
+								"concurrency": "[variables('EvaluatedConcurrency')]"
+							},
+							"inputs": {
+								"schema": {
+									"properties": {
+										"Input": {
+											"type": "object"
+										},
+										"Parameters": {
+											"type": "object"
+										},
+										"Queries": {
+											"type": "object"
+										}
+									},
+									"required": [
+										"Input"
+									],
+									"type": "object"
+								}
+							},
+							"operationOptions": "EnableSchemaValidation"
+						}
+					},
+					"actions": {
+						"Additional_parameters": {
+							"runAfter": {},
+							"type": "InitializeVariable",
+							"description": "Add CallerWorkflowName, CallerWorkflowRunId, TransferName, and possible custom arguments.",
+							"inputs": {
+								"variables": [
+									{
+										"name": "connParams",
+										"type": "object",
+										"value": "[parameters('ConnectionCustomArguments')]"
+									}
+								]
+							}
+						},
+						"Compose_body": {
+							"runAfter": {
+								"Additional_parameters": [
+									"Succeeded"
+								]
+							},
+							"type": "Compose",
+							"inputs": "[format('@union(triggerBody()[''Input''], variables(''connParams''), coalesce(triggerBody()?[''Parameters'']?[''{0}''], json(''{{}}'')))', parameters('ConnectionPartitionKey'))]"
+						},
+						"Connection": {
+							"runAfter": {
+								"Compose_body": [
+									"Succeeded"
+								]
+							},
+							"type": "[parameters('ConnectionType')]",
+							"inputs": "[if(equals(parameters('ConnectionType'), 'Workflow'), variables('InputsWorkflow'), variables('InputsFunction'))]"
+						},
+						"Compose_message": {
+							"runAfter": {
+								"Connection": [
+									"Failed"
+								]
+							},
+							"type": "Compose",
+							"inputs": "@coalesce(body('Connection')?['message'], body('Connection'), 'Connection returned no body.')"
+						},
+						"SuccessResponse": {
+							"runAfter": {
+								"Connection": [
+									"Succeeded"
+								]
+							},
+							"type": "Response",
+							"kind": "Http",
+							"inputs": {
+								"body": "@body('Connection')",
+								"statusCode": "@outputs('Connection')['statusCode']"
+							},
+							"operationOptions": "[variables('ResponseOperationOptions')]",
+							"description": "Success response"
+						},
+						"FailedResponse": {
+							"runAfter": {
+								"Compose_message": [
+									"Succeeded"
+								]
+							},
+							"type": "Response",
+							"kind": "Http",
+							"inputs": {
+								"body": {
+									"Message": "@slice(string(outputs('Compose_message')), 0, 500)"
+								},
+								"headers": {
+									"Content-Type": "application/json; charset=utf-8"
+								},
+								"statusCode": "@outputs('Connection')?['statusCode']"
+							},
+							"operationOptions": "[variables('ResponseOperationOptions')]"
+						},
+						"Terminate_Failed": {
+							"runAfter": {
+								"FailedResponse": [
+									"Succeeded"
+								]
+							},
+							"type": "Terminate",
+							"inputs": {
+								"runError": {
+									"code": "@coalesce(outputs('Connection')?['statusCode'], 500)"
+								},
+								"runStatus": "Failed"
+							}
+						}
+					},
+					"outputs": {}
+				},
+				"parameters": {}
+			},
+			"name": "[variables('LogicAppName')]",
+			"type": "Microsoft.Logic/workflows",
+			"location": "[resourceGroup().location]",
+			"tags": {
+				"displayName": "LogicApp"
+			},
+			"resources": [
+				{
+					"type": "providers/diagnosticSettings",
+					"name": "[concat('Microsoft.Insights/', variables('LogAnalyticsWorkspaceName'))]",
+					"dependsOn": [
+						"[variables('LogicAppName')]"
+					],
+					"location": "[resourceGroup().location]",
+					"apiVersion": "2017-05-01-preview",
+					"properties": {
+						"name": "[variables('LogAnalyticsWorkspaceName')]",
+						"workspaceId": "[resourceId(variables('SharedResourceGroupName'), 'Microsoft.OperationalInsights/workspaces/', variables('LogAnalyticsWorkspaceName'))]",
+						"logs": [
+							{
+								"category": "WorkflowRuntime",
+								"enabled": true,
+								"retentionPolicy": {
+									"days": 0,
+									"enabled": false
+								}
+							}
+						],
+						"metrics": [
+							{
+								"category": "AllMetrics",
+								"enabled": false,
+								"retentionPolicy": {
+									"days": 0,
+									"enabled": false
+								}
+							}
+						]
+					}
+				}
+			],
+			"identity": {
+				"type": "UserAssigned",
+				"userAssignedIdentities": {
+					"[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('IdentityName'))]": {}
+				}
+			},
+			"apiVersion": "2016-06-01"
+		}
+	],
+	"outputs": {}
+}

@@ -1,0 +1,297 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+    "parameters": {
+        "IntegrationGroup": {
+            "type": "string"
+        },
+        "IntegrationGroupShort": {
+            "type": "string"
+        },
+        "SharedCustomerGroup": {
+            "type": "string"
+        },
+        "IntegrationName": {
+            "type": "string"
+        },
+        "Tier": {
+            "type": "string"
+        },
+        "CustomerId": {
+            "type": "string"
+        },
+        "IntegrationPartitionKey": {
+            "type": "string",
+            "defaultValue": "Orchestration"
+        },
+        "ThisLogicApp": {
+            "defaultValue": "starter",
+            "type": "String"
+        },
+        "NextLogicApp": {
+            "defaultValue": "handler",
+            "type": "string"
+        },
+        "LogicAppState": {
+            "defaultValue": "Enabled",
+            "type": "string"
+        }
+    },
+    "variables": {
+        "ThisResourceNameEnd": "[concat(parameters('CustomerId'), '-', parameters('IntegrationGroup'), '-', parameters('Tier'))]",
+        "IdentityName": "[concat('id-', variables('ThisResourceNameEnd'))]",
+        "TableAPIConnectionName": "[concat('ac-ts-', parameters('CustomerId'), '-', parameters('IntegrationGroupShort'), '-', parameters('Tier'))]",
+        "StorageAccountName": "[concat('starch', parameters('CustomerId'), parameters('IntegrationGroupShort'), parameters('Tier'))]",
+        "SharedResourceNameEnd": "[concat(parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+        "SharedResourceGroupName": "[concat('rg-', variables('SharedResourceNameEnd'))]",
+        "LogAnalyticsWorkspaceName": "[concat('log-', variables('SharedResourceNameEnd'))]",
+        "ThisLogicAppName": "[concat('la-', parameters('CustomerId'), '-', parameters('IntegrationName'), '-', parameters('ThisLogicApp'), '-', parameters('Tier'))]",
+        "NextLogicAppName": "[concat('la-', parameters('CustomerId'), '-', parameters('IntegrationName'), '-', parameters('NextLogicApp'), '-', parameters('Tier'))]"
+    },
+    "resources": [
+        {
+            "properties": {
+                "accessControl": {
+                    "triggers": {
+                        "allowedCallerIpAddresses": []
+                    },
+                    "actions": {
+                        "allowedCallerIpAddresses": []
+                    }
+                },
+                "state": "[parameters('LogicAppState')]",
+                "definition": {
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "actions": {
+                        "Initialize_timeEnd": {
+                            "runAfter": {},
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "timeEnd",
+                                        "type": "string",
+                                        "value": "@{getPastTime(5, 'Minute', 'yyyy-MM-ddTHH:mm:ssZ')}"
+                                    }
+                                ]
+                            }
+                        },
+                        "Initialize_timeBegin": {
+                            "runAfter": {
+                                "Initialize_timeEnd": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "timeBegin",
+                                        "type": "string",
+                                        "value": "[format('@triggerBody()[''Parameters''][''{0}'']?[''timeEnd'']', parameters('IntegrationPartitionKey'))]"
+                                    }
+                                ]
+                            }
+                        },
+                        "Check_empty_string": {
+                            "actions": {},
+                            "runAfter": {
+                                "Initialize_timeBegin": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "else": {
+                                "actions": {
+                                    "Set_timeBegin": {
+                                        "runAfter": {},
+                                        "type": "SetVariable",
+                                        "inputs": {
+                                            "name": "timeBegin",
+                                            "value": "@{subtractFromTime(variables('timeEnd'), 5, 'Minute', 'yyyy-MM-ddTHH:mm:ssZ')}"
+                                        }
+                                    }
+                                }
+                            },
+                            "expression": {
+                                "and": [
+                                    {
+                                        "not": {
+                                            "equals": [
+                                                "@coalesce(variables('timeBegin'), '')",
+                                                ""
+                                            ]
+                                        }
+                                    }
+                                ]
+                            },
+                            "type": "If"
+                        },
+                        "Handler": {
+                            "description": "[format('Call {0} logic app.', parameters('NextLogicApp'))]",
+                            "inputs": {
+                                "body": [
+                                    {
+                                        "Input": "@addProperty(addProperty(coalesce(triggerBody()?['Input'], json('{}')), 'TimeBegin', variables('timeBegin')), 'TimeEnd', variables('timeEnd'))",
+                                        "Parameters": "@triggerBody()?['Parameters']"
+                                    }
+                                ],
+                                "host": {
+                                    "triggerName": "manual",
+                                    "workflow": {
+                                        "id": "[resourceId('Microsoft.Logic/workflows', variables('NextLogicAppName'))]"
+                                    }
+                                }
+                            },
+                            "runAfter": {
+                                "Check_empty_string": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Workflow"
+                        },
+                        "Update_timeEnd_to_Table": {
+                            "runAfter": {
+                                "Handler": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "body": {
+                                    "Value": "@variables('timeEnd')"
+                                },
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['tableconn']['connectionId']"
+                                    }
+                                },
+                                "method": "put",
+                                "path": "[format(concat('/v2/storageAccounts/', variables('StorageAccountName'), '/tables/Values/entities(PartitionKey=''{0}'',RowKey=''timeEnd'')'), parameters('IntegrationPartitionKey'))]"
+                            }
+                        },
+                        "Terminate": {
+                            "inputs": {
+                                "runError": {
+                                    "code": "@outputs('Handler')?['statusCode']",
+                                    "message": "@coalesce(body('Handler')?['message'], slice(string(body('Handler')), 0, 500))"
+                                },
+                                "runStatus": "Failed"
+                            },
+                            "runAfter": {
+                                "Handler": [
+                                    "Failed"
+                                ]
+                            },
+                            "type": "Terminate"
+                        }
+                    },
+                    "contentVersion": "1.0.0.0",
+                    "outputs": {},
+                    "parameters": {
+                        "$connections": {
+                            "defaultValue": {},
+                            "type": "Object"
+                        }
+                    },
+                    "triggers": {
+                        "manual": {
+                            "inputs": {
+                                "schema": {
+                                    "items": {
+                                        "properties": {
+                                            "Parameters": {
+                                                "properties": {
+                                                    "[parameters('IntegrationPartitionKey')]": {
+                                                        "properties": {
+                                                            "timeEnd": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        },
+                                        "type": "object"
+                                    },
+                                    "type": "array"
+                                }
+                            },
+                            "kind": "Http",
+                            "operationOptions": "EnableSchemaValidation",
+                            "splitOn": "@triggerBody()",
+                            "type": "Request"
+                        }
+                    }
+                },
+                "parameters": {
+                    "$connections": {
+                        "value": {
+                            "tableconn": {
+                                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azuretables')]",
+                                "connectionId": "[resourceId('Microsoft.Web/connections', variables('TableAPIConnectionName'))]",
+                                "connectionName": "[variables('TableAPIConnectionName')]",
+                                "connectionProperties": {
+                                    "authentication": {
+                                        "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('IdentityName'))]",
+                                        "type": "ManagedServiceIdentity"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "name": "[variables('ThisLogicAppName')]",
+            "type": "Microsoft.Logic/workflows",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "LogicApp"
+            },
+            "resources": [
+                {
+                    "type": "providers/diagnosticSettings",
+                    "name": "[concat('Microsoft.Insights/', variables('LogAnalyticsWorkspaceName'))]",
+                    "dependsOn": [
+                        "[variables('ThisLogicAppName')]"
+                    ],
+                    "location": "[resourceGroup().location]",
+                    "apiVersion": "2017-05-01-preview",
+                    "properties": {
+                        "name": "[variables('LogAnalyticsWorkspaceName')]",
+                        "workspaceId": "[resourceId(variables('SharedResourceGroupName'), 'Microsoft.OperationalInsights/workspaces/', variables('LogAnalyticsWorkspaceName'))]",
+                        "logs": [
+                            {
+                                "category": "WorkflowRuntime",
+                                "enabled": true,
+                                "retentionPolicy": {
+                                    "days": 0,
+                                    "enabled": false
+                                }
+                            }
+                        ],
+                        "metrics": [
+                            {
+                                "category": "AllMetrics",
+                                "enabled": false,
+                                "retentionPolicy": {
+                                    "days": 0,
+                                    "enabled": false
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                    "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('IdentityName'))]": {}
+                }
+            },
+            "apiVersion": "2017-07-01"
+        }
+  ],
+  "outputs": {}
+}

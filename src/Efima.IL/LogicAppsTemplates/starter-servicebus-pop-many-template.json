@@ -1,0 +1,270 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"Tier": {
+			"type": "string",
+			"minLength": 1
+		},
+		"CustomerId": {
+			"type": "string"
+		},
+		"LogicAppName": {
+			"type": "string",
+			"defaultValue": "starter"
+		},
+		"NextLogicApp": {
+			"type": "string",
+			"defaultValue": "handler"
+		},
+		"IntegrationGroup": {
+			"type": "string",
+			"minLength": 1
+		},
+		"IntegrationName": {
+			"type": "string"
+		},
+		"IntegrationGroupShort": {
+			"type": "string"
+		},
+		"IntegrationPartitionKey": {
+			"type": "string",
+			"defaultValue": "Orchestration"
+		},
+		"SharedCustomerGroup": {
+			"type": "string"
+		},
+		"ConnectionCustomerGroup": {
+			"type": "string",
+			"defaultValue": ""
+		},
+		"ConnectionPartitionKey": {
+			"type": "string",
+			"defaultValue": "SB"
+		},
+		"ConnectionStringSecret": {
+			"type": "string",
+			"defaultValue": "ServiceBusConnectionString"
+		},
+		"LogicAppState": {
+			"type": "string",
+			"defaultValue": "Enabled"
+		}
+	},
+	"variables": {
+		"LogicAppName": "[concat('la-', parameters('CustomerId'), '-', parameters('IntegrationName'), '-', parameters('LogicAppName'), '-', parameters('Tier'))]",
+		"IdentityName": "[concat('id-', parameters('CustomerId'), '-', parameters('IntegrationGroup'), '-', parameters('Tier'))]",
+		"KeyvaultVaultName": "[concat('kv-', parameters('CustomerId'), '-', parameters('IntegrationGroupShort'), '-', parameters('Tier'))]",
+		"SharedResourceGroupName": "[concat('rg-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+		"SBFunctionAppName": "[concat('func-', parameters('SharedCustomerGroup'), '-servicebus-', parameters('Tier'))]",
+		"LogAnalyticsWorkspaceName": "[concat('log-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+		"SBQueueNamePre": "[concat('sbq-', parameters('CustomerId'))]",
+		"NextLogicAppName": "[concat('la-', parameters('CustomerId'), '-', parameters('IntegrationName'), '-', parameters('NextLogicApp'), '-', parameters('Tier'))]"
+	},
+	"resources": [
+		{
+			"properties": {
+				"accessControl": {
+					"triggers": {
+						"allowedCallerIpAddresses": []
+					},
+					"actions": {
+						"allowedCallerIpAddresses": []
+					}
+				},
+				"state": "[parameters('LogicAppState')]",
+				"definition": {
+					"$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+					"actions": {
+						"HandlingLogic": {
+							"inputs": {
+								"body": [
+									{
+										"Input": "@body('Pop_messages_from_service_bus')",
+										"Parameters": "@triggerBody()?['Parameters']"
+									}
+								],
+								"host": {
+									"triggerName": "manual",
+									"workflow": {
+										"id": "[resourceId('Microsoft.Logic/workflows', variables('NextLogicAppName'))]"
+									}
+								}
+							},
+							"runAfter": {
+								"Condition_-_messages_found": [
+									"Succeeded"
+								]
+							},
+							"type": "Workflow"
+						},
+						"Terminate_Failure": {
+							"inputs": {
+								"runStatus": "Failed",
+								"runError": {
+									"code": "@outputs('HandlingLogic')?['statusCode']",
+									"message": "@coalesce(body('HandlingLogic')?['message'], slice(string(body('HandlingLogic')), 0, 500))"
+								}
+							},
+							"runAfter": {
+								"HandlingLogic": [
+									"Failed"
+								]
+							},
+							"type": "Terminate"
+						},
+						"Condition_-_messages_found": {
+							"actions": {},
+							"else": {
+								"actions": {
+									"Terminate_Success": {
+										"inputs": {
+											"runStatus": "Succeeded"
+										},
+										"type": "Terminate"
+									}
+								}
+							},
+							"expression": {
+								"and": [
+									{
+										"greaterOrEquals": [
+											"@length(body('Pop_messages_from_service_bus'))",
+											1
+										]
+									}
+								]
+							},
+							"runAfter": {
+								"Pop_messages_from_service_bus": [
+									"Succeeded"
+								]
+							},
+							"type": "If"
+						},
+						"Pop_messages_from_service_bus": {
+							"runAfter": {},
+							"type": "Function",
+							"inputs": {
+								"body": {
+									"ConnectionStringSecretName": "[format('@coalesce(triggerBody()?[''Parameters'']?[''{0}'']?[''ConnectionStringSecretName''], ''{1}'')', parameters('ConnectionPartitionKey'), parameters('ConnectionStringSecret'))]",
+									"QueueName": "[format('@if(empty(string(triggerBody()?[''SBTopic''])), coalesce(triggerBody()?[''SBQueue''], ''{0}-{1}''), '''')', variables('SBQueueNamePre'), parameters('IntegrationName'))]",
+									"TopicName": "@coalesce(triggerBody()?['SBTopic'], '')",
+									"TopicSubName": "[format('@coalesce(triggerBody()?[''Parameters'']?[''{0}'']?[''SBSubscription''], '''')', parameters('ConnectionPartitionKey'))]"
+								},
+								"function": {
+									"id": "[resourceId(variables('SharedResourceGroupName'), 'Microsoft.Web/sites/functions', variables('SBFunctionAppName'), 'ServiceBusPopMessages')]"
+								},
+								"retryPolicy": {
+									"type": "none"
+								}
+							}
+						},
+						"Terminate_SB_Failure": {
+							"runAfter": {
+								"Pop_messages_from_service_bus": [
+									"Failed"
+								]
+							},
+							"type": "Terminate",
+							"inputs": {
+								"runStatus": "Failed",
+								"runError": {
+									"code": "@outputs('Pop_messages_from_service_bus')?['statusCode']",
+									"message": "@body('Pop_messages_from_service_bus')?['message']"
+								}
+							}
+						}
+					},
+					"contentVersion": "1.0.0.0",
+					"outputs": {},
+					"parameters": {
+						"$connections": {
+							"defaultValue": {},
+							"type": "Object"
+						}
+					},
+					"triggers": {
+						"manual": {
+							"inputs": {
+								"schema": {
+									"items": {
+										"properties": {
+											"SBQueue": {
+												"type": "string"
+											},
+											"SBTopic": {
+												"type": "string"
+											},
+											"Parameters": {
+												"type": "object"
+											}
+										},
+										"type": "object"
+									},
+									"type": "array"
+								}
+							},
+							"kind": "Http",
+							"operationOptions": "EnableSchemaValidation",
+							"splitOn": "@triggerBody()",
+							"type": "Request"
+						}
+					}
+				},
+				"parameters": {
+					"$connections": {}
+				}
+			},
+			"name": "[variables('LogicAppName')]",
+			"type": "Microsoft.Logic/workflows",
+			"location": "[resourceGroup().location]",
+			"tags": {
+				"displayName": "LogicApp"
+			},
+			"resources": [
+				{
+					"type": "providers/diagnosticSettings",
+					"name": "[concat('Microsoft.Insights/', variables('LogAnalyticsWorkspaceName'))]",
+					"dependsOn": [
+						"[variables('LogicAppName')]"
+					],
+					"location": "[resourceGroup().location]",
+					"apiVersion": "2017-05-01-preview",
+					"properties": {
+						"name": "[variables('LogAnalyticsWorkspaceName')]",
+						"workspaceId": "[resourceId(variables('SharedResourceGroupName'), 'Microsoft.OperationalInsights/workspaces/', variables('LogAnalyticsWorkspaceName'))]",
+						"logs": [
+							{
+								"category": "WorkflowRuntime",
+								"enabled": true,
+								"retentionPolicy": {
+									"days": 0,
+									"enabled": false
+								}
+							}
+						],
+						"metrics": [
+							{
+								"category": "AllMetrics",
+								"enabled": false,
+								"retentionPolicy": {
+									"days": 0,
+									"enabled": false
+								}
+							}
+						]
+					}
+				}
+			],
+			"identity": {
+				"type": "UserAssigned",
+				"userAssignedIdentities": {
+					"[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('IdentityName'))]": {}
+				}
+			},
+			"apiVersion": "2017-07-01"
+		}
+	],
+	"outputs": {}
+}

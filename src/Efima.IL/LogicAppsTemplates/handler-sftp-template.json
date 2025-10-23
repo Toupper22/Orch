@@ -1,0 +1,382 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+	"parameters": {
+		"IntegrationGroup": {
+			"type": "string",
+			"minLength": 1
+		},
+		"IntegrationGroupShort": {
+			"type": "string"
+		},
+		"SharedCustomerGroup": {
+			"type": "string"
+		},
+		"IntegrationName": {
+			"type": "string"
+		},
+		"Tier": {
+			"type": "string",
+			"minLength": 1
+		},
+		"CustomerId": {
+			"type": "string"
+		},
+		"ConnectionCustomerGroup": {
+			"type": "string"
+		},
+		"ConnectionFunction": {
+			"type": "string",
+			"defaultValue": "SftpDownloadAndDeleteFile"
+		},
+		"ConnectionPartitionKey": {
+			"type": "string",
+			"defaultValue": "SFTP"
+		},
+		"IntegrationPartitionKey": {
+			"type": "string",
+			"defaultValue": "Orchestration"
+		},
+		"PasswordSecret": {
+			"type": "string",
+			"defaultValue": "SftpPassword"
+		},
+		"BlobContainerPrefix": {
+			"defaultValue": "orchestration",
+			"type": "string"
+		},
+		"LogicAppName": {
+			"type": "string",
+			"defaultValue": "handler"
+		},
+		"LogicAppState": {
+			"type": "string",
+			"defaultValue": "Enabled"
+		},
+		"NextLogicApp": {
+			"defaultValue": "process",
+			"type": "string"
+		}
+	},
+	"variables": {
+		"LogicAppName": "[concat('la-', parameters('CustomerId'), '-', parameters('IntegrationName'), '-', parameters('LogicAppName'), '-', parameters('Tier'))]",
+		"IdentityName": "[concat('id-', parameters('CustomerId'), '-', parameters('IntegrationGroup'), '-', parameters('Tier'))]",
+		"ConnectionResourceGroupName": "[concat('rg-', parameters('ConnectionCustomerGroup'), '-', parameters('Tier'))]",
+		"ConnectionFunctionAppName": "[concat('func-', parameters('ConnectionCustomerGroup'), '-sftp-', parameters('Tier'))]",
+		"KeyvaultName": "[concat('kv-', parameters('CustomerId'), '-', parameters('IntegrationGroupShort'), '-', parameters('Tier'))]",
+		"SharedResourceGroupName": "[concat('rg-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+		"PasswordSecret": "[if(empty(parameters('PasswordSecret')), format('triggerBody()[''Parameters''][''{0}''][''Username'']', parameters('ConnectionPartitionKey')), format('''{0}''', parameters('PasswordSecret')))]",
+		"LogAnalyticsWorkspaceName": "[concat('log-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+		"ArchiverLogicAppName": "[concat('la-', parameters('SharedCustomerGroup'), '-archiver-', parameters('Tier'))]",
+		"NextLogicAppName": "[concat('la-', parameters('CustomerId'), '-', parameters('IntegrationName'), '-', parameters('NextLogicApp'), '-', parameters('Tier'))]"
+	},
+  "resources": [
+	{
+		"properties": {
+			"accessControl": {
+				"triggers": {
+					"allowedCallerIpAddresses": []
+				},
+				"actions": {
+					"allowedCallerIpAddresses": []
+				}
+			},
+			"state": "[parameters('LogicAppState')]",
+			"definition": {
+				"$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+				"actions": {
+					"SftpDownloadFile": {
+						"description": "[format('Call {0} function.', parameters('ConnectionFunction'))]",
+						"inputs": {
+							"body": {
+								"FileEncoding": "",
+								"Filename": "@triggerBody()['Filename']",
+								"Folder": "[format('@coalesce(triggerBody()?[''Folder''], triggerBody()[''Parameters''][''{0}'']?[''Folder''])', parameters('ConnectionPartitionKey'))]",
+								"KeyvaultName": "[format('@coalesce(triggerBody()[''Parameters''][''{0}'']?[''KeyvaultName''], ''{1}'')', parameters('ConnectionPartitionKey'), variables('KeyvaultName'))]",
+								"Port": "[format('@coalesce(triggerBody()[''Parameters''][''{0}'']?[''Port''], 22)', parameters('ConnectionPartitionKey'))]",
+								"PrivateKeyFormat": null,
+								"PrivateKeyPassphraseSecret": "",
+								"PrivateKeySecret": "",
+								"TransferName": "[format('@coalesce(triggerBody()?[''TransferName''], triggerBody()[''Parameters''][''{0}'']?[''TransferName''], ''{1}'')', parameters('ConnectionPartitionKey'), parameters('IntegrationName'))]",
+								"Host": "[format('@triggerBody()[''Parameters''][''{0}''][''Host'']', parameters('ConnectionPartitionKey'))]",
+								"Username": "[format('@coalesce(triggerBody()?[''Username''], triggerBody()[''Parameters''][''{0}'']?[''Username''])', parameters('ConnectionPartitionKey'))]",
+								"PasswordSecret": "[format('@coalesce(triggerBody()[''Parameters''][''{0}'']?[''PasswordSecret''], {1})', parameters('ConnectionPartitionKey'), variables('PasswordSecret'))]",
+								"DeleteAfterDownload": "[format('@triggerBody()[''Parameters''][''{0}''][''DeleteAfterDownload'']', parameters('ConnectionPartitionKey'))]"
+							},
+							"function": {
+								"id": "[resourceId(variables('ConnectionResourceGroupName'), 'Microsoft.Web/sites/functions', variables('ConnectionFunctionAppName'), parameters('ConnectionFunction'))]"
+							}
+						},
+						"runAfter": {},
+						"type": "Function"
+					},
+					"Terminate": {
+						"inputs": {
+							"runError": {
+								"code": "@outputs('SftpDownloadFile')?['statusCode']",
+								"message": "@coalesce(body('SftpDownloadFile')?['message'], slice(string(body('SftpDownloadFile')), 0, 500))"
+							},
+							"runStatus": "Failed"
+						},
+						"runAfter": {
+							"SftpDownloadFile": [
+								"Failed"
+							]
+						},
+						"type": "Terminate"
+					},
+					"Process": {
+						"inputs": {
+							"body": {
+								"Input": {
+									"ContentBase64": "@body('SftpDownloadFile')",
+									"Filename": "@triggerBody()['Filename']"
+								},
+								"Parameters": "@triggerBody()?['Parameters']"
+							},
+							"host": {
+								"triggerName": "manual",
+								"workflow": {
+									"id": "[resourceId('Microsoft.Logic/workflows', variables('NextLogicAppName'))]"
+								}
+							},
+							"retryPolicy": {
+								"type": "none"
+							}
+						},
+						"runAfter": {
+							"SftpDownloadFile": [
+								"Succeeded"
+							]
+						},
+						"type": "Workflow"
+					},
+					"Condition_Archive_Success": {
+						"actions": {
+							"Archive_Success": {
+								"inputs": {
+									"body": {
+										"Input": "@actions('Process').inputs.body.Input",
+										"Output": "@body('Process')",
+										"ArchiveInputEnabled": "[format('@triggerBody()[''Parameters''][''{0}''][''ArchiveInputEnabled'']', parameters('IntegrationPartitionKey'))]",
+										"ArchiveOutputEnabled": "[format('@triggerBody()[''Parameters''][''{0}''][''ArchiveOutputEnabled'']', parameters('IntegrationPartitionKey'))]",
+										"Container": "[format('@{{coalesce(triggerBody()[''Parameters''][''{0}'']?[''ContainerPrefix''], ''{1}'')}}-success', parameters('IntegrationPartitionKey'), parameters('BlobContainerPrefix'))]",
+										"KeyvaultName": "[format('@coalesce(triggerBody()[''Parameters''][''{0}'']?[''KeyvaultName''], ''{1}'')', parameters('IntegrationPartitionKey'), variables('KeyvaultName'))]"
+									},
+									"host": {
+										"triggerName": "manual",
+										"workflow": {
+											"id": "[resourceId(variables('SharedResourceGroupName'), 'Microsoft.Logic/workflows', variables('ArchiverLogicAppName'))]"
+										}
+									}
+								},
+								"type": "Workflow"
+							}
+						},
+						"else": {
+							"actions": {}
+						},
+						"expression": {
+							"or": [
+								{
+									"equals": [
+										"[format('@triggerBody()[''Parameters''][''{0}''][''ArchiveInputEnabled'']', parameters('IntegrationPartitionKey'))]",
+										true
+									]
+								},
+								{
+									"equals": [
+										"[format('@triggerBody()[''Parameters''][''{0}''][''ArchiveOutputEnabled'']', parameters('IntegrationPartitionKey'))]",
+										true
+									]
+								}
+							]
+						},
+						"runAfter": {
+							"Process": [
+								"Succeeded",
+								"Skipped"
+							]
+						},
+						"type": "If"
+					},
+					"Condition_Archive_Failure": {
+						"actions": {
+							"Archive_Failure": {
+								"inputs": {
+									"body": {
+										"Input": "@actions('Process').inputs.body.Input",
+										"Output": "@body('Process')",
+										"ArchiveInputEnabled": "[format('@triggerBody()[''Parameters''][''{0}''][''ArchiveInputOnErrorEnabled'']', parameters('IntegrationPartitionKey'))]",
+										"ArchiveOutputEnabled": "[format('@triggerBody()[''Parameters''][''{0}''][''ArchiveOutputOnErrorEnabled'']', parameters('IntegrationPartitionKey'))]",
+										"Container": "[format('@{{coalesce(triggerBody()[''Parameters''][''{0}'']?[''ContainerPrefix''], ''{1}'')}}-failure', parameters('IntegrationPartitionKey'), parameters('BlobContainerPrefix'))]",
+										"KeyvaultName": "[format('@coalesce(triggerBody()[''Parameters''][''{0}'']?[''KeyvaultName''], ''{1}'')', parameters('IntegrationPartitionKey'), variables('KeyvaultName'))]"
+									},
+									"host": {
+										"triggerName": "manual",
+										"workflow": {
+											"id": "[resourceId(variables('SharedResourceGroupName'), 'Microsoft.Logic/workflows', variables('ArchiverLogicAppName'))]"
+										}
+									}
+								},
+								"type": "Workflow"
+							}
+						},
+						"else": {
+							"actions": {}
+						},
+						"expression": {
+							"or": [
+								{
+									"equals": [
+										"[format('@triggerBody()[''Parameters''][''{0}''][''ArchiveInputOnErrorEnabled'']', parameters('IntegrationPartitionKey'))]",
+										true
+									]
+								},
+								{
+									"equals": [
+										"[format('@triggerBody()[''Parameters''][''{0}''][''ArchiveOutputOnErrorEnabled'']', parameters('IntegrationPartitionKey'))]",
+										true
+									]
+								}
+							]
+						},
+						"runAfter": {
+							"Process": [
+								"Failed",
+								"TimedOut"
+							]
+						},
+						"type": "If"
+					},
+					"Terminate2": {
+						"inputs": {
+							"runError": {
+								"code": "@outputs('Process')?['statusCode']",
+								"message": "@coalesce(body('Process')?['message'], slice(string(body('Process')), 0, 500))"
+							},
+							"runStatus": "Failed"
+						},
+						"runAfter": {
+							"Condition_Archive_Failure": [
+								"Succeeded"
+							]
+						},
+						"type": "Terminate"
+					}
+				},
+				"contentVersion": "1.0.0.0",
+				"outputs": {},
+				"parameters": {
+					"$connections": {
+						"defaultValue": {},
+						"type": "Object"
+					}
+				},
+				"triggers": {
+					"manual": {
+						"inputs": {
+							"schema": {
+								"items": {
+									"properties": {
+										"Filename": {
+											"type": "string"
+										},
+										"Folder": {
+										},
+										"TransferName": {
+											"type": "string"
+										},
+										"Parameters": {
+											"properties": {
+												"[parameters('IntegrationPartitionKey')]": {
+													"properties": {
+														"ArchiveInputEnabled": {
+															"type": "boolean"
+														},
+														"ArchiveOutputEnabled": {
+															"type": "boolean"
+														},
+														"ArchiveInputOnErrorEnabled": {
+															"type": "boolean"
+														},
+														"ArchiveOutputOnErrorEnabled": {
+															"type": "boolean"
+														}
+													},
+													"type": "object"
+												}
+											},
+											"type": "object"
+										}
+									},
+									"required": [
+										"Filename",
+										"Parameters"
+									],
+									"type": "object"
+								},
+								"type": "array"
+							}
+						},
+						"kind": "Http",
+						"splitOn": "@triggerBody()",
+						"type": "Request",
+						"operationOptions": "EnableSchemaValidation"
+					}
+				}
+			},
+			"parameters": {}
+		},
+		"name": "[variables('LogicAppName')]",
+		"type": "Microsoft.Logic/workflows",
+		"location": "[resourceGroup().location]",
+		"tags": {
+			"displayName": "LogicApp"
+		},
+		"resources": [
+			{
+				"type": "providers/diagnosticSettings",
+				"name": "[concat('Microsoft.Insights/', variables('LogAnalyticsWorkspaceName'))]",
+				"dependsOn": [
+					"[variables('LogicAppName')]"
+				],
+				"location": "[resourceGroup().location]",
+				"apiVersion": "2017-05-01-preview",
+				"properties": {
+					"name": "[variables('LogAnalyticsWorkspaceName')]",
+					"workspaceId": "[resourceId(variables('SharedResourceGroupName'), 'Microsoft.OperationalInsights/workspaces/', variables('LogAnalyticsWorkspaceName'))]",
+					"logs": [
+						{
+							"category": "WorkflowRuntime",
+							"enabled": true,
+							"retentionPolicy": {
+								"days": 0,
+								"enabled": false
+							}
+						}
+					],
+					"metrics": [
+						{
+							"category": "AllMetrics",
+							"enabled": false,
+							"retentionPolicy": {
+								"days": 0,
+								"enabled": false
+							}
+						}
+					]
+				}
+			}
+		],
+		"identity": {
+			"type": "UserAssigned",
+			"userAssignedIdentities": {
+				"[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('IdentityName'))]": {}
+			}
+		},
+		"apiVersion": "2017-07-01"
+	}
+  ],
+  "outputs": {}
+}

@@ -1,0 +1,245 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"IntegrationGroup": {
+			"type": "string",
+			"minLength": 1
+		},
+		"IntegrationGroupShort": {
+			"type": "string"
+		},
+		"SharedCustomerGroup": {
+			"type": "string"
+		},
+		"ConnectionCustomerGroup": {
+			"type": "string"
+		},
+		"ConnectionWorkflow": {
+			"type": "string",
+			"defaultValue": "storage-putfile"
+		},
+		"ConnectionPartitionKey": {
+			"type": "string",
+			"defaultValue": "D365FO"
+		},
+		"IntegrationPartitionKey": {
+			"type": "string",
+			"defaultValue": "Integration"
+		},
+		"IntegrationName": {
+			"type": "string"
+		},
+		"Tier": {
+			"type": "string",
+			"minLength": 1
+		},
+		"CustomerId": {
+			"type": "string"
+		},
+		"NumConcurrentRuns": {
+			"type": "int",
+			"defaultValue": 0
+		},
+		"MaxWaitingRuns": {
+			"type": "int",
+			"defaultValue": 50
+		},
+		"LogicAppName": {
+			"defaultValue": "process",
+			"type": "string"
+		},
+		"LogicAppState": {
+			"type": "string",
+			"defaultValue": "Enabled"
+		}
+	},
+	"variables": {
+		"LogicAppName": "[concat('la-', parameters('CustomerId'), '-', parameters('IntegrationName'), '-', parameters('LogicAppName'), '-', parameters('Tier'))]",
+		"IdentityName": "[concat('id-', parameters('CustomerId'), '-', parameters('IntegrationGroup'), '-', parameters('Tier'))]",
+		"ConnectionResourceGroupName": "[concat('rg-', parameters('ConnectionCustomerGroup'), '-', parameters('Tier'))]",
+		"ConnectionWorkflowName": "[concat('la-', parameters('ConnectionCustomerGroup'), '-', parameters('ConnectionWorkflow'), '-', parameters('Tier'))]",
+		"SharedResourceGroupName": "[concat('rg-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]",
+		"LogAnalyticsWorkspaceName": "[concat('log-', parameters('SharedCustomerGroup'), '-', parameters('Tier'))]"
+	},
+	"resources": [
+		{
+			"properties": {
+				"accessControl": {
+					"triggers": {
+						"allowedCallerIpAddresses": []
+					},
+					"actions": {
+						"allowedCallerIpAddresses": []
+					}
+				},
+				"state": "[parameters('LogicAppState')]",
+				"definition": {
+					"$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+					"actions": {
+						"D365FO_storage_upload_file": {
+							"inputs": {
+								"body": {
+									"ContentBase64": "@triggerBody()['Input']['ContentBase64']",
+									"Filename": "@triggerBody()['Input']['Filename']",
+									"Path": "[format('@triggerBody()[''Parameters''][''{0}''][''Container'']', parameters('IntegrationPartitionKey'))]"
+								},
+								"host": {
+									"triggerName": "manual",
+									"workflow": {
+										"id": "[resourceId(variables('ConnectionResourceGroupName'), 'Microsoft.Logic/workflows', variables('ConnectionWorkflowName'))]"
+									}
+								}
+							},
+							"runAfter": {},
+							"type": "Workflow"
+						},
+						"ErrorResponse": {
+							"inputs": {
+								"body": "@body('D365FO_storage_upload_file')",
+								"statusCode": "@coalesce(outputs('D365FO_storage_upload_file')?['statusCode'], 500)"
+							},
+							"kind": "Http",
+							"runAfter": {
+								"D365FO_storage_upload_file": [
+									"FAILED"
+								]
+							},
+							"type": "Response"
+						},
+						"SuccessResponse": {
+							"description": "Success response",
+							"inputs": {
+								"headers": {
+									"Content-Type": "application/json"
+								},
+								"statusCode": 200
+							},
+							"kind": "Http",
+							"runAfter": {
+								"D365FO_storage_upload_file": [
+									"Succeeded"
+								]
+							},
+							"type": "Response"
+						},
+						"Terminate": {
+							"inputs": {
+								"runError": {
+									"code": "400"
+								},
+								"runStatus": "Failed"
+							},
+							"runAfter": {
+								"ErrorResponse": [
+									"Succeeded"
+								]
+							},
+							"type": "Terminate"
+						}
+					},
+					"contentVersion": "1.0.0.0",
+					"outputs": {},
+					"parameters": {
+						"$connections": {
+							"defaultValue": {},
+							"type": "Object"
+						}
+					},
+					"triggers": {
+						"manual": {
+							"correlation": {
+								"clientTrackingId": "@triggerBody()['Input']['Filename']"
+							},
+							"inputs": {
+								"schema": {
+									"properties": {
+										"Input": {
+											"properties": {
+												"ContentBase64": {
+													"type": "string"
+												},
+												"Encoding": {
+													"type": "string"
+												},
+												"Filename": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"ContentBase64",
+												"Filename"
+											],
+											"type": "object"
+										},
+										"Parameters": {
+											"type": "object"
+										}
+									},
+									"required": [
+										"Input",
+										"Parameters"
+									],
+									"type": "object"
+								}
+							},
+							"operationOptions": "EnableSchemaValidation",
+							"kind": "Http",
+							"type": "Request"
+						}
+					}
+				},
+				"parameters": {}
+			},
+			"name": "[variables('LogicAppName')]",
+			"type": "Microsoft.Logic/workflows",
+			"location": "[resourceGroup().location]",
+			"tags": {
+				"displayName": "LogicApp"
+			},
+			"resources": [
+				{
+					"type": "providers/diagnosticSettings",
+					"name": "[concat('Microsoft.Insights/', variables('LogAnalyticsWorkspaceName'))]",
+					"dependsOn": [
+						"[variables('LogicAppName')]"
+					],
+					"location": "[resourceGroup().location]",
+					"apiVersion": "2017-05-01-preview",
+					"properties": {
+						"name": "[variables('LogAnalyticsWorkspaceName')]",
+						"workspaceId": "[resourceId(variables('SharedResourceGroupName'), 'Microsoft.OperationalInsights/workspaces/', variables('LogAnalyticsWorkspaceName'))]",
+						"logs": [
+							{
+								"category": "WorkflowRuntime",
+								"enabled": true,
+								"retentionPolicy": {
+									"days": 0,
+									"enabled": false
+								}
+							}
+						],
+						"metrics": [
+							{
+								"category": "AllMetrics",
+								"enabled": false,
+								"retentionPolicy": {
+									"days": 0,
+									"enabled": false
+								}
+							}
+						]
+					}
+				}
+			],
+			"identity": {
+				"type": "UserAssigned",
+				"userAssignedIdentities": {
+					"[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('IdentityName'))]": {}
+				}
+			},
+			"apiVersion": "2016-06-01"
+		}
+	],
+	"outputs": {}
+}
