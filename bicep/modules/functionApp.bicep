@@ -124,9 +124,6 @@ resource vnetConnection 'Microsoft.Web/sites/networkConfig@2023-01-01' = if (ena
     subnetResourceId: vnetIntegrationSubnetId
     swiftSupported: true
   }
-  dependsOn: [
-    functionApp
-  ]
 }
 
 // Outputs

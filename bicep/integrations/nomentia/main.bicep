@@ -55,7 +55,6 @@ var resourceGroupName = '${prefix}-${environment}-${integrationName}-rg'
 
 // Calculate common infrastructure resource names based on naming convention
 var commonResourceGroupName = '${prefix}-${environment}-common-rg'
-var commonStorageAccountName = toLower(replace('${prefix}-${environment}-${locationShort}-st', '-', ''))
 var commonVNetName = '${prefix}-${environment}-${locationShort}-vnet'
 
 var commonTags = union(tags, {
@@ -544,40 +543,15 @@ module functionAppContributorRole '../../modules/rbacAssignment.bicep' = {
 // Post-Deployment: Restart Function App
 // ============================================================================
 
-resource restartFunctionApp 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
-  name: 'restart-${functionApp.outputs.name}'
-  location: location
-  kind: 'AzureCLI'
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: {
-      '${commonManagedIdentityId}': {}
-    }
-  }
-  properties: {
-    azCliVersion: '2.50.0'
-    retentionInterval: 'PT1H'
-    timeout: 'PT10M'
-    cleanupPreference: 'OnSuccess'
-    scriptContent: '''
-      az functionapp restart --name ${functionAppName} --resource-group ${resourceGroupName}
-      echo "Function App restarted successfully"
-    '''
-    environmentVariables: [
-      {
-        name: 'functionAppName'
-        value: functionApp.outputs.name
-      }
-      {
-        name: 'resourceGroupName'
-        value: integrationResourceGroup.name
-      }
-    ]
+module restartFunctionApp '../../modules/restartFunctionApp.bicep' = {
+  name: 'restartFunctionApp'
+  scope: integrationResourceGroup
+  params: {
+    functionAppName: functionAppNaming.outputs.name
+    location: location
+    managedIdentityId: commonManagedIdentityId
   }
   dependsOn: [
-    functionApp
-    functionStorage
-    integrationStorage
     functionStorageBlobRole
     functionStorageQueueRole
     functionStorageTableRole
