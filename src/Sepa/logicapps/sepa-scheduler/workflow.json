@@ -1,5 +1,10 @@
 {
   "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "parameters": {
+    "handlerLogicAppId": {
+      "type": "String"
+    }
+  },
   "actions": {
     "List_blobs_in_sepa_container": {
       "type": "ApiConnection",

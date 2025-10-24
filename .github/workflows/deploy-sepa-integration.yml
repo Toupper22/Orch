@@ -458,73 +458,17 @@ jobs:
           PARAMS=$(jq -c '{prefix: .parameters.prefix.value, locationShort: .parameters.locationShort.value}' bicep/integrations/sepa/parameters.${{ inputs.environment }}.json)
           echo "params=$PARAMS" >> $GITHUB_OUTPUT
 
-      - name: Deploy SEPA Scheduler Logic App
+      - name: Get Function App URL
+        id: get_function_url
         run: |
-          if [ ! -f "src/Sepa/logicapps/sepa-scheduler/workflow.json" ]; then
-            echo "⚠️ Workflow definition not found, skipping"
-            exit 0
-          fi
-
           PREFIX=$(jq -r '.prefix' <<< '${{ steps.load_params.outputs.params }}')
           LOCATION_SHORT=$(jq -r '.locationShort' <<< '${{ steps.load_params.outputs.params }}')
-
-          # Create parameters file with workflow definition
-          cat > /tmp/scheduler-params.json <<EOF
-          {
-            "\$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
-            "contentVersion": "1.0.0.0",
-            "parameters": {
-              "prefix": { "value": "$PREFIX" },
-              "environment": { "value": "${{ inputs.environment }}" },
-              "location": { "value": "swedencentral" },
-              "locationShort": { "value": "$LOCATION_SHORT" },
-              "integrationName": { "value": "sepa" },
-              "workflowName": { "value": "sepa-scheduler" },
-              "workflowDefinition": { "value": $(cat src/Sepa/logicapps/sepa-scheduler/workflow.json) }
-            }
-          }
-          EOF
-
-          az deployment sub create \
-            --location swedencentral \
-            --template-file bicep/integrations/sepa/single-workflow.bicep \
-            --parameters /tmp/scheduler-params.json \
-            --name sepa-scheduler-${{ inputs.environment }}-${{ github.run_number }}
-
-      - name: Deploy SEPA Handler Logic App
-        run: |
-          if [ ! -f "src/Sepa/logicapps/sepa-handler/workflow.json" ]; then
-            echo "⚠️ Workflow definition not found, skipping"
-            exit 0
-          fi
-
-          PREFIX=$(jq -r '.prefix' <<< '${{ steps.load_params.outputs.params }}')
-          LOCATION_SHORT=$(jq -r '.locationShort' <<< '${{ steps.load_params.outputs.params }}')
-
-          # Create parameters file with workflow definition
-          cat > /tmp/handler-params.json <<EOF
-          {
-            "\$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
-            "contentVersion": "1.0.0.0",
-            "parameters": {
-              "prefix": { "value": "$PREFIX" },
-              "environment": { "value": "${{ inputs.environment }}" },
-              "location": { "value": "swedencentral" },
-              "locationShort": { "value": "$LOCATION_SHORT" },
-              "integrationName": { "value": "sepa" },
-              "workflowName": { "value": "sepa-handler" },
-              "workflowDefinition": { "value": $(cat src/Sepa/logicapps/sepa-handler/workflow.json) }
-            }
-          }
-          EOF
-
-          az deployment sub create \
-            --location swedencentral \
-            --template-file bicep/integrations/sepa/single-workflow.bicep \
-            --parameters /tmp/handler-params.json \
-            --name sepa-handler-${{ inputs.environment }}-${{ github.run_number }}
+          FUNCTION_APP_NAME="${PREFIX}${{ inputs.environment }}${LOCATION_SHORT}sepafunction"
+          FUNCTION_URL=$(az functionapp show --name "$FUNCTION_APP_NAME" --resource-group "${PREFIX}-${{ inputs.environment }}-sepa-rg" --query "defaultHostName" -o tsv)
+          echo "functionUrl=https://${FUNCTION_URL}" >> $GITHUB_OUTPUT
 
       - name: Deploy SEPA Process Logic App
+        id: deploy_process
         run: |
           if [ ! -f "src/Sepa/logicapps/sepa-process/workflow.json" ]; then
             echo "⚠️ Workflow definition not found, skipping"
@@ -534,7 +478,7 @@ jobs:
           PREFIX=$(jq -r '.prefix' <<< '${{ steps.load_params.outputs.params }}')
           LOCATION_SHORT=$(jq -r '.locationShort' <<< '${{ steps.load_params.outputs.params }}')
 
-          # Create parameters file with workflow definition
+          # Create parameters file with workflow definition and function URL
           cat > /tmp/process-params.json <<EOF
           {
             "\$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
@@ -546,7 +490,101 @@ jobs:
               "locationShort": { "value": "$LOCATION_SHORT" },
               "integrationName": { "value": "sepa" },
               "workflowName": { "value": "sepa-process" },
-              "workflowDefinition": { "value": $(cat src/Sepa/logicapps/sepa-process/workflow.json) }
+              "workflowDefinition": { "value": $(cat src/Sepa/logicapps/sepa-process/workflow.json) },
+              "workflowParameters": {
+                "value": {
+                  "functionAppUrl": {
+                    "value": "${{ steps.get_function_url.outputs.functionUrl }}"
+                  }
+                }
+              }
+            }
+          }
+          EOF
+
+          DEPLOYMENT_OUTPUT=$(az deployment sub create \
+            --location swedencentral \
+            --template-file bicep/integrations/sepa/single-workflow.bicep \
+            --parameters /tmp/process-params.json \
+            --name sepa-process-${{ inputs.environment }}-${{ github.run_number }} \
+            --query "properties.outputs.logicAppId.value" -o tsv)
+
+          echo "logicAppId=$DEPLOYMENT_OUTPUT" >> $GITHUB_OUTPUT
+
+      - name: Deploy SEPA Handler Logic App
+        id: deploy_handler
+        run: |
+          if [ ! -f "src/Sepa/logicapps/sepa-handler/workflow.json" ]; then
+            echo "⚠️ Workflow definition not found, skipping"
+            exit 0
+          fi
+
+          PREFIX=$(jq -r '.prefix' <<< '${{ steps.load_params.outputs.params }}')
+          LOCATION_SHORT=$(jq -r '.locationShort' <<< '${{ steps.load_params.outputs.params }}')
+
+          # Create parameters file with workflow definition and process Logic App ID
+          cat > /tmp/handler-params.json <<EOF
+          {
+            "\$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+            "contentVersion": "1.0.0.0",
+            "parameters": {
+              "prefix": { "value": "$PREFIX" },
+              "environment": { "value": "${{ inputs.environment }}" },
+              "location": { "value": "swedencentral" },
+              "locationShort": { "value": "$LOCATION_SHORT" },
+              "integrationName": { "value": "sepa" },
+              "workflowName": { "value": "sepa-handler" },
+              "workflowDefinition": { "value": $(cat src/Sepa/logicapps/sepa-handler/workflow.json) },
+              "workflowParameters": {
+                "value": {
+                  "processLogicAppId": {
+                    "value": "${{ steps.deploy_process.outputs.logicAppId }}"
+                  }
+                }
+              }
+            }
+          }
+          EOF
+
+          DEPLOYMENT_OUTPUT=$(az deployment sub create \
+            --location swedencentral \
+            --template-file bicep/integrations/sepa/single-workflow.bicep \
+            --parameters /tmp/handler-params.json \
+            --name sepa-handler-${{ inputs.environment }}-${{ github.run_number }} \
+            --query "properties.outputs.logicAppId.value" -o tsv)
+
+          echo "logicAppId=$DEPLOYMENT_OUTPUT" >> $GITHUB_OUTPUT
+
+      - name: Deploy SEPA Scheduler Logic App
+        run: |
+          if [ ! -f "src/Sepa/logicapps/sepa-scheduler/workflow.json" ]; then
+            echo "⚠️ Workflow definition not found, skipping"
+            exit 0
+          fi
+
+          PREFIX=$(jq -r '.prefix' <<< '${{ steps.load_params.outputs.params }}')
+          LOCATION_SHORT=$(jq -r '.locationShort' <<< '${{ steps.load_params.outputs.params }}')
+
+          # Create parameters file with workflow definition and handler Logic App ID
+          cat > /tmp/scheduler-params.json <<EOF
+          {
+            "\$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+            "contentVersion": "1.0.0.0",
+            "parameters": {
+              "prefix": { "value": "$PREFIX" },
+              "environment": { "value": "${{ inputs.environment }}" },
+              "location": { "value": "swedencentral" },
+              "locationShort": { "value": "$LOCATION_SHORT" },
+              "integrationName": { "value": "sepa" },
+              "workflowName": { "value": "sepa-scheduler" },
+              "workflowDefinition": { "value": $(cat src/Sepa/logicapps/sepa-scheduler/workflow.json) },
+              "workflowParameters": {
+                "value": {
+                  "handlerLogicAppId": {
+                    "value": "${{ steps.deploy_handler.outputs.logicAppId }}"
+                  }
+                }
+              }
             }
           }
           EOF
@@ -554,8 +592,8 @@ jobs:
           az deployment sub create \
             --location swedencentral \
             --template-file bicep/integrations/sepa/single-workflow.bicep \
-            --parameters /tmp/process-params.json \
-            --name sepa-process-${{ inputs.environment }}-${{ github.run_number }}
+            --parameters /tmp/scheduler-params.json \
+            --name sepa-scheduler-${{ inputs.environment }}-${{ github.run_number }}
 
       - name: Output Logic Apps Deployment Summary
         run: |

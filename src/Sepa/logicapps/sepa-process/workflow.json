@@ -1,7 +1,11 @@
 {
-  "definition": {
-    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
-    "actions": {
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "parameters": {
+    "functionAppUrl": {
+      "type": "String"
+    }
+  },
+  "actions": {
       "Initialize_request_data": {
         "type": "InitializeVariable",
         "inputs": {
@@ -153,6 +157,4 @@
     },
     "contentVersion": "1.0.0.0",
     "outputs": {}
-  },
-  "kind": "Stateful"
 }
