@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "963198876287049882"
+      "templateHash": "11766687524140384469"
     }
   },
   "parameters": {
@@ -65,12 +65,22 @@
       "metadata": {
         "description": "Service Bus SKU"
       }
+    },
+    "storageFirewallDefault": {
+      "type": "string",
+      "defaultValue": "Allow",
+      "allowedValues": [
+        "Allow",
+        "Deny"
+      ],
+      "metadata": {
+        "description": "Storage firewall default action (use Allow for initial deployment, then Deny)"
+      }
     }
   },
   "variables": {
     "resourceGroupName": "[format('{0}-{1}-{2}-rg', parameters('prefix'), parameters('environment'), parameters('integrationName'))]",
     "commonResourceGroupName": "[format('{0}-{1}-common-rg', parameters('prefix'), parameters('environment'))]",
-    "commonStorageAccountName": "[toLower(replace(format('{0}-{1}-{2}-st', parameters('prefix'), parameters('environment'), parameters('locationShort')), '-', ''))]",
     "commonVNetName": "[format('{0}-{1}-{2}-vnet', parameters('prefix'), parameters('environment'), parameters('locationShort'))]",
     "commonTags": "[union(parameters('tags'), createObject('Environment', parameters('environment'), 'Integration', parameters('integrationName'), 'ManagedBy', 'Bicep'))]",
     "commonAppServicePlanId": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.Web/serverfarms', format('{0}-{1}-{2}-plan', parameters('prefix'), parameters('environment'), parameters('locationShort')))]",
@@ -80,7 +90,8 @@
     "serviceBusDataSenderRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '69a216fc-b8fb-44d8-bc22-1f3c2cd27a39')]",
     "storageBlobDataContributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
     "storageQueueDataContributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')]",
-    "storageTableDataContributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')]"
+    "storageTableDataContributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')]",
+    "websiteContributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'de139f84-1756-47ae-9be6-808fbbe84772')]"
   },
   "resources": [
     {
@@ -1188,14 +1199,18 @@
               }
             ]
           },
-          "networkAclDefaultAction": {
-            "value": "Deny"
-          },
-          "ipRules": {
+          "fileShares": {
             "value": [
-              "217.149.56.100"
+              {
+                "name": "[toLower(reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionAppNaming'), '2025-04-01').outputs.name.value)]",
+                "shareQuota": 5120
+              }
             ]
           },
+          "networkAclDefaultAction": {
+            "value": "[parameters('storageFirewallDefault')]"
+          },
+          "ipRules": "[if(equals(parameters('storageFirewallDefault'), 'Deny'), createObject('value', createArray('217.149.56.100')), createObject('value', createArray()))]",
           "virtualNetworkRules": {
             "value": [
               "[variables('integrationSubnetId')]"
@@ -1209,7 +1224,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "11261190574014668103"
+              "templateHash": "17963333239143000624"
             }
           },
           "parameters": {
@@ -1317,6 +1332,13 @@
               "defaultValue": [],
               "metadata": {
                 "description": "Table storage tables to create"
+              }
+            },
+            "fileShares": {
+              "type": "array",
+              "defaultValue": [],
+              "metadata": {
+                "description": "File shares to create"
               }
             },
             "enableDiagnostics": {
@@ -1469,6 +1491,38 @@
               "properties": {},
               "dependsOn": [
                 "[resourceId('Microsoft.Storage/storageAccounts/tableServices', parameters('storageAccountName'), 'default')]"
+              ]
+            },
+            {
+              "condition": "[greater(length(parameters('fileShares')), 0)]",
+              "type": "Microsoft.Storage/storageAccounts/fileServices",
+              "apiVersion": "2023-01-01",
+              "name": "[format('{0}/{1}', parameters('storageAccountName'), 'default')]",
+              "properties": {
+                "shareDeleteRetentionPolicy": {
+                  "enabled": true,
+                  "days": 7
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "storageFileShares",
+                "count": "[length(parameters('fileShares'))]"
+              },
+              "condition": "[greater(length(parameters('fileShares')), 0)]",
+              "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
+              "apiVersion": "2023-01-01",
+              "name": "[format('{0}/{1}/{2}', parameters('storageAccountName'), 'default', parameters('fileShares')[copyIndex()].name)]",
+              "properties": {
+                "shareQuota": "[coalesce(tryGet(parameters('fileShares')[copyIndex()], 'shareQuota'), 5120)]",
+                "enabledProtocols": "[coalesce(tryGet(parameters('fileShares')[copyIndex()], 'enabledProtocols'), 'SMB')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/fileServices', parameters('storageAccountName'), 'default')]"
               ]
             },
             {
@@ -1545,6 +1599,7 @@
         }
       },
       "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionAppNaming')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionStorageNaming')]",
         "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
       ]
@@ -1609,13 +1664,9 @@
             ]
           },
           "networkAclDefaultAction": {
-            "value": "Deny"
+            "value": "[parameters('storageFirewallDefault')]"
           },
-          "ipRules": {
-            "value": [
-              "217.149.56.100"
-            ]
-          },
+          "ipRules": "[if(equals(parameters('storageFirewallDefault'), 'Deny'), createObject('value', createArray('217.149.56.100')), createObject('value', createArray()))]",
           "virtualNetworkRules": {
             "value": [
               "[variables('integrationSubnetId')]"
@@ -1629,7 +1680,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "11261190574014668103"
+              "templateHash": "17963333239143000624"
             }
           },
           "parameters": {
@@ -1737,6 +1788,13 @@
               "defaultValue": [],
               "metadata": {
                 "description": "Table storage tables to create"
+              }
+            },
+            "fileShares": {
+              "type": "array",
+              "defaultValue": [],
+              "metadata": {
+                "description": "File shares to create"
               }
             },
             "enableDiagnostics": {
@@ -1889,6 +1947,38 @@
               "properties": {},
               "dependsOn": [
                 "[resourceId('Microsoft.Storage/storageAccounts/tableServices', parameters('storageAccountName'), 'default')]"
+              ]
+            },
+            {
+              "condition": "[greater(length(parameters('fileShares')), 0)]",
+              "type": "Microsoft.Storage/storageAccounts/fileServices",
+              "apiVersion": "2023-01-01",
+              "name": "[format('{0}/{1}', parameters('storageAccountName'), 'default')]",
+              "properties": {
+                "shareDeleteRetentionPolicy": {
+                  "enabled": true,
+                  "days": 7
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "storageFileShares",
+                "count": "[length(parameters('fileShares'))]"
+              },
+              "condition": "[greater(length(parameters('fileShares')), 0)]",
+              "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
+              "apiVersion": "2023-01-01",
+              "name": "[format('{0}/{1}/{2}', parameters('storageAccountName'), 'default', parameters('fileShares')[copyIndex()].name)]",
+              "properties": {
+                "shareQuota": "[coalesce(tryGet(parameters('fileShares')[copyIndex()], 'shareQuota'), 5120)]",
+                "enabledProtocols": "[coalesce(tryGet(parameters('fileShares')[copyIndex()], 'enabledProtocols'), 'SMB')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/fileServices', parameters('storageAccountName'), 'default')]"
               ]
             },
             {
@@ -2781,7 +2871,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "10107938035720378948"
+              "templateHash": "5921351968161127102"
             }
           },
           "parameters": {
@@ -2875,7 +2965,7 @@
                 "serverFarmId": "[parameters('appServicePlanId')]",
                 "httpsOnly": true,
                 "clientAffinityEnabled": false,
-                "virtualNetworkSubnetId": "[if(and(parameters('enableVNetIntegration'), not(empty(parameters('vnetIntegrationSubnetId')))), parameters('vnetIntegrationSubnetId'), null())]",
+                "vnetRouteAllEnabled": "[parameters('enableVNetIntegration')]",
                 "siteConfig": {
                   "ftpsState": "Disabled",
                   "minTlsVersion": "1.2",
@@ -3546,6 +3636,206 @@
         }
       },
       "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "functionAppContributorRole",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "principalId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', replace(format('{0}-{1}-{2}-id', parameters('prefix'), parameters('environment'), parameters('locationShort')), '-', '')), '2023-01-31').principalId]"
+          },
+          "roleDefinitionId": {
+            "value": "[variables('websiteContributorRoleId')]"
+          },
+          "principalType": {
+            "value": "ServicePrincipal"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "10391257520998757089"
+            }
+          },
+          "parameters": {
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "The principal ID (object ID) to assign the role to"
+              }
+            },
+            "roleDefinitionId": {
+              "type": "string",
+              "metadata": {
+                "description": "The role definition ID to assign"
+              }
+            },
+            "principalType": {
+              "type": "string",
+              "defaultValue": "ServicePrincipal",
+              "allowedValues": [
+                "User",
+                "Group",
+                "ServicePrincipal",
+                "ForeignGroup"
+              ],
+              "metadata": {
+                "description": "The type of principal"
+              }
+            },
+            "roleDescription": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Description of the role assignment"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(parameters('principalId'), parameters('roleDefinitionId'), resourceGroup().id)]",
+              "properties": {
+                "roleDefinitionId": "[parameters('roleDefinitionId')]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "[parameters('principalType')]",
+                "description": "[if(not(empty(parameters('roleDescription'))), parameters('roleDescription'), null())]"
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Role assignment ID"
+              },
+              "value": "[resourceId('Microsoft.Authorization/roleAssignments', guid(parameters('principalId'), parameters('roleDefinitionId'), resourceGroup().id))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Role assignment name"
+              },
+              "value": "[guid(parameters('principalId'), parameters('roleDefinitionId'), resourceGroup().id)]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "restartFunctionApp",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "functionAppName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionAppNaming'), '2025-04-01').outputs.name.value]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "managedIdentityId": {
+            "value": "[variables('commonManagedIdentityId')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "11738213553884705152"
+            }
+          },
+          "parameters": {
+            "functionAppName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Function App to restart"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for the deployment script"
+              }
+            },
+            "managedIdentityId": {
+              "type": "string",
+              "metadata": {
+                "description": "Managed Identity resource ID with permissions to restart the Function App"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Resources/deploymentScripts",
+              "apiVersion": "2023-08-01",
+              "name": "[format('restart-{0}', parameters('functionAppName'))]",
+              "location": "[parameters('location')]",
+              "kind": "AzureCLI",
+              "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                  "[format('{0}', parameters('managedIdentityId'))]": {}
+                }
+              },
+              "properties": {
+                "azCliVersion": "2.50.0",
+                "retentionInterval": "PT1H",
+                "timeout": "PT10M",
+                "cleanupPreference": "OnSuccess",
+                "scriptContent": "[format('az functionapp restart --name {0} --resource-group {1} && echo \"Function App {2} restarted successfully\"', parameters('functionAppName'), resourceGroup().name, parameters('functionAppName'))]"
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Deployment script resource ID"
+              },
+              "value": "[resourceId('Microsoft.Resources/deploymentScripts', format('restart-{0}', parameters('functionAppName')))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Deployment script name"
+              },
+              "value": "[format('restart-{0}', parameters('functionAppName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionAppContributorRole')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionAppNaming')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionStorageBlobRole')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionStorageQueueRole')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionStorageTableRole')]",
         "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
       ]
     }

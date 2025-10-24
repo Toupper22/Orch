@@ -269,9 +269,9 @@ module functionStorage '../../modules/storageAccount.bicep' = {
     ipRules: storageFirewallDefault == 'Deny' ? [
       '217.149.56.100'
     ] : []
-    virtualNetworkRules: storageFirewallDefault == 'Deny' ? [
+    virtualNetworkRules: [
       integrationSubnetId
-    ] : []
+    ]
   }
 }
 
@@ -316,9 +316,9 @@ module integrationStorage '../../modules/storageAccount.bicep' = {
     ipRules: storageFirewallDefault == 'Deny' ? [
       '217.149.56.100'
     ] : []
-    virtualNetworkRules: storageFirewallDefault == 'Deny' ? [
+    virtualNetworkRules: [
       integrationSubnetId
-    ] : []
+    ]
   }
 }
 

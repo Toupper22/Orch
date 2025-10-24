@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "14557472134529842642"
+      "templateHash": "13329073436731431247"
     }
   },
   "parameters": {
@@ -1190,7 +1190,11 @@
             "value": "[parameters('storageFirewallDefault')]"
           },
           "ipRules": "[if(equals(parameters('storageFirewallDefault'), 'Deny'), createObject('value', createArray('217.149.56.100')), createObject('value', createArray()))]",
-          "virtualNetworkRules": "[if(equals(parameters('storageFirewallDefault'), 'Deny'), createObject('value', createArray(variables('integrationSubnetId'))), createObject('value', createArray()))]"
+          "virtualNetworkRules": {
+            "value": [
+              "[variables('integrationSubnetId')]"
+            ]
+          }
         },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
@@ -1642,7 +1646,11 @@
             "value": "[parameters('storageFirewallDefault')]"
           },
           "ipRules": "[if(equals(parameters('storageFirewallDefault'), 'Deny'), createObject('value', createArray('217.149.56.100')), createObject('value', createArray()))]",
-          "virtualNetworkRules": "[if(equals(parameters('storageFirewallDefault'), 'Deny'), createObject('value', createArray(variables('integrationSubnetId'))), createObject('value', createArray()))]"
+          "virtualNetworkRules": {
+            "value": [
+              "[variables('integrationSubnetId')]"
+            ]
+          }
         },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
@@ -2598,7 +2606,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3748692185625685791"
+              "templateHash": "5921351968161127102"
             }
           },
           "parameters": {
@@ -2692,6 +2700,7 @@
                 "serverFarmId": "[parameters('appServicePlanId')]",
                 "httpsOnly": true,
                 "clientAffinityEnabled": false,
+                "vnetRouteAllEnabled": "[parameters('enableVNetIntegration')]",
                 "siteConfig": {
                   "ftpsState": "Disabled",
                   "minTlsVersion": "1.2",
