@@ -56,6 +56,13 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Setup NuGet Authentication
+        run: |
+          dotnet nuget update source EfimaLayerFeed \
+            --username ${{ github.actor }} \
+            --password ${{ secrets.EFIMA_FEED_PAT }} \
+            --store-password-in-clear-text
+
       - name: Build Function App
         run: |
           cd src/Sepa/functionApp
