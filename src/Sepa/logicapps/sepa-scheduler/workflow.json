@@ -1,163 +1,160 @@
 {
-  "definition": {
-    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
-    "actions": {
-      "List_blobs_in_sepa_container": {
-        "type": "ApiConnection",
-        "inputs": {
-          "host": {
-            "connection": {
-              "referenceName": "azureblob"
-            }
-          },
-          "method": "get",
-          "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/foldersV2/@{encodeURIComponent(encodeURIComponent('L3NlcGE='))}",
-          "queries": {
-            "useFlatListing": false
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "actions": {
+    "List_blobs_in_sepa_container": {
+      "type": "ApiConnection",
+      "inputs": {
+        "host": {
+          "connection": {
+            "referenceName": "azureblob"
           }
         },
-        "runAfter": {}
-      },
-      "Filter_new_files": {
-        "type": "Query",
-        "inputs": {
-          "from": "@body('List_blobs_in_sepa_container')?['value']",
-          "where": "@not(contains(item()?['Path'], 'processed/'))"
-        },
-        "runAfter": {
-          "List_blobs_in_sepa_container": [
-            "Succeeded"
-          ]
+        "method": "get",
+        "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/foldersV2/@{encodeURIComponent(encodeURIComponent('L3NlcGE='))}",
+        "queries": {
+          "useFlatListing": false
         }
       },
-      "For_each_new_file": {
-        "type": "Foreach",
-        "foreach": "@body('Filter_new_files')",
-        "actions": {
-          "Get_file_content": {
-            "type": "ApiConnection",
-            "inputs": {
-              "host": {
-                "connection": {
-                  "referenceName": "azureblob"
-                }
-              },
-              "method": "get",
-              "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/files/@{encodeURIComponent(encodeURIComponent(items('For_each_new_file')?['Path']))}/content"
-            },
-            "runAfter": {}
-          },
-          "Call_Handler_Logic_App": {
-            "type": "Workflow",
-            "inputs": {
-              "host": {
-                "workflow": {
-                  "id": "@parameters('handlerLogicAppId')"
-                }
-              },
-              "body": {
-                "fileName": "@items('For_each_new_file')?['Name']",
-                "filePath": "@items('For_each_new_file')?['Path']",
-                "fileContent": "@body('Get_file_content')",
-                "fileSize": "@items('For_each_new_file')?['Size']"
+      "runAfter": {}
+    },
+    "Filter_new_files": {
+      "type": "Query",
+      "inputs": {
+        "from": "@body('List_blobs_in_sepa_container')?['value']",
+        "where": "@not(contains(item()?['Path'], 'processed/'))"
+      },
+      "runAfter": {
+        "List_blobs_in_sepa_container": [
+          "Succeeded"
+        ]
+      }
+    },
+    "For_each_new_file": {
+      "type": "Foreach",
+      "foreach": "@body('Filter_new_files')",
+      "actions": {
+        "Get_file_content": {
+          "type": "ApiConnection",
+          "inputs": {
+            "host": {
+              "connection": {
+                "referenceName": "azureblob"
               }
             },
-            "runAfter": {
-              "Get_file_content": [
-                "Succeeded"
-              ]
+            "method": "get",
+            "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/files/@{encodeURIComponent(encodeURIComponent(items('For_each_new_file')?['Path']))}/content"
+          },
+          "runAfter": {}
+        },
+        "Call_Handler_Logic_App": {
+          "type": "Workflow",
+          "inputs": {
+            "host": {
+              "workflow": {
+                "id": "@parameters('handlerLogicAppId')"
+              }
+            },
+            "body": {
+              "fileName": "@items('For_each_new_file')?['Name']",
+              "filePath": "@items('For_each_new_file')?['Path']",
+              "fileContent": "@body('Get_file_content')",
+              "fileSize": "@items('For_each_new_file')?['Size']"
             }
           },
-          "Check_Handler_Response": {
-            "type": "If",
-            "expression": {
-              "and": [
-                {
-                  "equals": [
-                    "@body('Call_Handler_Logic_App')?['success']",
-                    true
-                  ]
-                }
-              ]
-            },
-            "actions": {
-              "Move_to_processed": {
-                "type": "ApiConnection",
-                "inputs": {
-                  "host": {
-                    "connection": {
-                      "referenceName": "azureblob"
-                    }
-                  },
-                  "method": "post",
-                  "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/files/@{encodeURIComponent(encodeURIComponent(items('For_each_new_file')?['Path']))}/move",
-                  "queries": {
-                    "destination": "/sepa/processed/@{items('For_each_new_file')?['Name']}",
-                    "overwrite": true,
-                    "queryParametersSingleEncoded": true
+          "runAfter": {
+            "Get_file_content": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Check_Handler_Response": {
+          "type": "If",
+          "expression": {
+            "and": [
+              {
+                "equals": [
+                  "@body('Call_Handler_Logic_App')?['success']",
+                  true
+                ]
+              }
+            ]
+          },
+          "actions": {
+            "Move_to_processed": {
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "referenceName": "azureblob"
                   }
+                },
+                "method": "post",
+                "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/files/@{encodeURIComponent(encodeURIComponent(items('For_each_new_file')?['Path']))}/move",
+                "queries": {
+                  "destination": "/sepa/processed/@{items('For_each_new_file')?['Name']}",
+                  "overwrite": true,
+                  "queryParametersSingleEncoded": true
+                }
+              },
+              "runAfter": {}
+            }
+          },
+          "else": {
+            "actions": {
+              "Log_Error": {
+                "type": "Compose",
+                "inputs": {
+                  "fileName": "@items('For_each_new_file')?['Name']",
+                  "error": "@body('Call_Handler_Logic_App')?['error']",
+                  "timestamp": "@utcNow()"
                 },
                 "runAfter": {}
-              }
-            },
-            "else": {
-              "actions": {
-                "Log_Error": {
-                  "type": "Compose",
-                  "inputs": {
-                    "fileName": "@items('For_each_new_file')?['Name']",
-                    "error": "@body('Call_Handler_Logic_App')?['error']",
-                    "timestamp": "@utcNow()"
-                  },
-                  "runAfter": {}
-                },
-                "Terminate_with_failure": {
-                  "type": "Terminate",
-                  "inputs": {
-                    "runStatus": "Failed",
-                    "runError": {
-                      "code": "FileProcessingFailed",
-                      "message": "@{body('Call_Handler_Logic_App')?['error']}"
-                    }
-                  },
-                  "runAfter": {
-                    "Log_Error": [
-                      "Succeeded"
-                    ]
+              },
+              "Terminate_with_failure": {
+                "type": "Terminate",
+                "inputs": {
+                  "runStatus": "Failed",
+                  "runError": {
+                    "code": "FileProcessingFailed",
+                    "message": "@{body('Call_Handler_Logic_App')?['error']}"
                   }
+                },
+                "runAfter": {
+                  "Log_Error": [
+                    "Succeeded"
+                  ]
                 }
               }
-            },
-            "runAfter": {
-              "Call_Handler_Logic_App": [
-                "Succeeded"
-              ]
             }
-          }
-        },
-        "runAfter": {
-          "Filter_new_files": [
-            "Succeeded"
-          ]
-        },
-        "runtimeConfiguration": {
-          "concurrency": {
-            "repetitions": 1
+          },
+          "runAfter": {
+            "Call_Handler_Logic_App": [
+              "Succeeded"
+            ]
           }
         }
-      }
-    },
-    "triggers": {
-      "Recurrence": {
-        "type": "Recurrence",
-        "recurrence": {
-          "frequency": "Minute",
-          "interval": 15
+      },
+      "runAfter": {
+        "Filter_new_files": [
+          "Succeeded"
+        ]
+      },
+      "runtimeConfiguration": {
+        "concurrency": {
+          "repetitions": 1
         }
       }
-    },
-    "contentVersion": "1.0.0.0",
-    "outputs": {}
+    }
   },
-  "kind": "Stateful"
+  "triggers": {
+    "Recurrence": {
+      "type": "Recurrence",
+      "recurrence": {
+        "frequency": "Minute",
+        "interval": 15
+      }
+    }
+  },
+  "contentVersion": "1.0.0.0",
+  "outputs": {}
 }

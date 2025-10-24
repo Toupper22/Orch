@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "15885533140428213812"
+      "templateHash": "14927422444535525589"
     }
   },
   "parameters": {
@@ -93,26 +93,12 @@
       },
       "value": "[parameters('logicAppName')]"
     },
-    "callbackUrl": {
-      "type": "string",
-      "metadata": {
-        "description": "Logic App callback URL (if has manual trigger)"
-      },
-      "value": "[listCallbackUrl(format('{0}/triggers/manual', resourceId('Microsoft.Logic/workflows', parameters('logicAppName'))), '2019-05-01').value]"
-    },
     "principalId": {
       "type": "string",
       "metadata": {
         "description": "Logic App principal ID"
       },
       "value": "[if(not(empty(parameters('managedIdentityId'))), '', reference(resourceId('Microsoft.Logic/workflows', parameters('logicAppName')), '2019-05-01', 'full').identity.principalId)]"
-    },
-    "logicApp": {
-      "type": "object",
-      "metadata": {
-        "description": "Logic App object"
-      },
-      "value": "[reference(resourceId('Microsoft.Logic/workflows', parameters('logicAppName')), '2019-05-01', 'full')]"
     }
   }
 }

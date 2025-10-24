@@ -56,12 +56,5 @@ output id string = logicApp.id
 @description('Logic App name')
 output name string = logicApp.name
 
-@description('Logic App callback URL (if has manual trigger)')
-#disable-next-line outputs-should-not-contain-secrets
-output callbackUrl string = listCallbackUrl('${logicApp.id}/triggers/manual', '2019-05-01').value
-
 @description('Logic App principal ID')
 output principalId string = !empty(managedIdentityId) ? '' : logicApp.identity.principalId
-
-@description('Logic App object')
-output logicApp object = logicApp

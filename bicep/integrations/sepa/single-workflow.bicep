@@ -116,6 +116,3 @@ output logicAppName string = logicApp.outputs.name
 
 @description('Logic App ID')
 output logicAppId string = logicApp.outputs.id
-
-@description('Logic App callback URL (if has manual trigger)')
-output callbackUrl string = logicApp.outputs.callbackUrl
