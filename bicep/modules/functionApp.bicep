@@ -50,6 +50,7 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
     serverFarmId: appServicePlanId
     httpsOnly: true
     clientAffinityEnabled: false
+    vnetRouteAllEnabled: enableVNetIntegration
     siteConfig: {
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
