@@ -1,0 +1,158 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "actions": {
+      "Initialize_request_data": {
+        "type": "InitializeVariable",
+        "inputs": {
+          "variables": [
+            {
+              "name": "requestData",
+              "type": "object",
+              "value": "@triggerBody()"
+            }
+          ]
+        },
+        "runAfter": {}
+      },
+      "Call_Function_App": {
+        "type": "Http",
+        "inputs": {
+          "method": "POST",
+          "uri": "@parameters('functionAppUrl')/api/TransformSepaFile",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "@variables('requestData')?['fileContent']",
+          "authentication": {
+            "type": "ManagedServiceIdentity"
+          }
+        },
+        "runAfter": {
+          "Initialize_request_data": [
+            "Succeeded"
+          ]
+        }
+      },
+      "Parse_Function_Response": {
+        "type": "ParseJson",
+        "inputs": {
+          "content": "@body('Call_Function_App')",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "Success": {
+                "type": "boolean"
+              },
+              "OriginalPayload": {
+                "type": "string"
+              },
+              "TransformedPayload": {
+                "type": "string"
+              },
+              "TransformationTimestamp": {
+                "type": "string"
+              },
+              "ErrorMessage": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "runAfter": {
+          "Call_Function_App": [
+            "Succeeded",
+            "Failed"
+          ]
+        }
+      },
+      "Check_Function_Result": {
+        "type": "If",
+        "expression": {
+          "and": [
+            {
+              "equals": [
+                "@body('Parse_Function_Response')?['Success']",
+                true
+              ]
+            }
+          ]
+        },
+        "actions": {
+          "Response_Success": {
+            "type": "Response",
+            "inputs": {
+              "statusCode": 200,
+              "body": {
+                "success": true,
+                "fileName": "@variables('requestData')?['fileName']",
+                "transformedContent": "@body('Parse_Function_Response')?['TransformedPayload']",
+                "transformationTimestamp": "@body('Parse_Function_Response')?['TransformationTimestamp']"
+              }
+            },
+            "runAfter": {}
+          }
+        },
+        "else": {
+          "actions": {
+            "Compose_Error": {
+              "type": "Compose",
+              "inputs": {
+                "message": "@coalesce(body('Parse_Function_Response')?['ErrorMessage'], 'Function call failed')",
+                "code": "@outputs('Call_Function_App')['statusCode']",
+                "fileName": "@variables('requestData')?['fileName']"
+              },
+              "runAfter": {}
+            },
+            "Response_Error": {
+              "type": "Response",
+              "inputs": {
+                "statusCode": 500,
+                "body": {
+                  "success": false,
+                  "fileName": "@variables('requestData')?['fileName']",
+                  "error": "@body('Compose_Error')"
+                }
+              },
+              "runAfter": {
+                "Compose_Error": [
+                  "Succeeded"
+                ]
+              }
+            }
+          }
+        },
+        "runAfter": {
+          "Parse_Function_Response": [
+            "Succeeded"
+          ]
+        }
+      }
+    },
+    "triggers": {
+      "manual": {
+        "type": "Request",
+        "kind": "Http",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "fileName": {
+                "type": "string"
+              },
+              "filePath": {
+                "type": "string"
+              },
+              "fileContent": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "contentVersion": "1.0.0.0",
+    "outputs": {}
+  },
+  "kind": "Stateful"
+}

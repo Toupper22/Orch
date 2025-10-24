@@ -1,0 +1,12 @@
+Let's think about this integration deployments again. 
+
+- Start with folders, maybe one integraton will be in folder src/<integration name>
+- Subfolder atleast function app and logicapps
+- In functionApp folder there is one function app with multiple functions. net8 isolated running on linux app service plan
+- More problematic is logicapps folder. There will be 1-N amount of logic apps that needs to be deployed in order. Somekind of config under intgegration? Only consumption logic apps
+- Deployment will work with reusable bicep modules
+- In actions file when starting deployment you should be able to select what do deploy. (Already done)
+
+Can you create an example integration and it's deployments. Let's forget those old ones for a while.
+It should have 1 function app and then three logic apps. First is scheduler that will start every 15 minutes and check for new files in container /sepa on archivce storage account
+If new files are found the starter will send them to handler that calls process logic app where is call to function app to make a simple transformation. For the sake of demo it can only write like transformed in the end of the payload. Process logic app will send result of the transformation (successful/fail) back to handler and in handler the errors are parsed and if error is found the return error to starter and fail the run

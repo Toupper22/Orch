@@ -1,0 +1,212 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "actions": {
+      "Initialize_file_info": {
+        "type": "InitializeVariable",
+        "inputs": {
+          "variables": [
+            {
+              "name": "fileInfo",
+              "type": "object",
+              "value": "@triggerBody()"
+            }
+          ]
+        },
+        "runAfter": {}
+      },
+      "Call_Process_Logic_App": {
+        "type": "Workflow",
+        "inputs": {
+          "host": {
+            "workflow": {
+              "id": "@parameters('processLogicAppId')"
+            }
+          },
+          "body": {
+            "fileName": "@variables('fileInfo')?['fileName']",
+            "fileContent": "@variables('fileInfo')?['fileContent']",
+            "filePath": "@variables('fileInfo')?['filePath']"
+          }
+        },
+        "runAfter": {
+          "Initialize_file_info": [
+            "Succeeded"
+          ]
+        }
+      },
+      "Parse_Process_Response": {
+        "type": "ParseJson",
+        "inputs": {
+          "content": "@body('Call_Process_Logic_App')",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "transformedContent": {
+                "type": "string"
+              },
+              "error": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "runAfter": {
+          "Call_Process_Logic_App": [
+            "Succeeded",
+            "Failed"
+          ]
+        }
+      },
+      "Check_transformation_result": {
+        "type": "If",
+        "expression": {
+          "and": [
+            {
+              "equals": [
+                "@body('Parse_Process_Response')?['success']",
+                true
+              ]
+            }
+          ]
+        },
+        "actions": {
+          "Store_transformed_file": {
+            "type": "ApiConnection",
+            "inputs": {
+              "host": {
+                "connection": {
+                  "referenceName": "azureblob"
+                }
+              },
+              "method": "post",
+              "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/files",
+              "queries": {
+                "folderPath": "/sepa/transformed",
+                "name": "@{variables('fileInfo')?['fileName']}",
+                "queryParametersSingleEncoded": true
+              },
+              "body": "@body('Parse_Process_Response')?['transformedContent']"
+            },
+            "runAfter": {}
+          },
+          "Response_Success": {
+            "type": "Response",
+            "inputs": {
+              "statusCode": 200,
+              "body": {
+                "success": true,
+                "fileName": "@variables('fileInfo')?['fileName']",
+                "message": "File processed and transformed successfully"
+              }
+            },
+            "runAfter": {
+              "Store_transformed_file": [
+                "Succeeded"
+              ]
+            }
+          }
+        },
+        "else": {
+          "actions": {
+            "Parse_error_details": {
+              "type": "Compose",
+              "inputs": {
+                "fileName": "@variables('fileInfo')?['fileName']",
+                "errorMessage": "@body('Parse_Process_Response')?['error']?['message']",
+                "errorCode": "@body('Parse_Process_Response')?['error']?['code']",
+                "timestamp": "@utcNow()"
+              },
+              "runAfter": {}
+            },
+            "Log_error_to_storage": {
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "referenceName": "azuretables"
+                  }
+                },
+                "method": "post",
+                "path": "/v2/tables/@{encodeURIComponent('ErrorLog')}/entities",
+                "body": {
+                  "PartitionKey": "SEPA",
+                  "RowKey": "@{guid()}",
+                  "FileName": "@variables('fileInfo')?['fileName']",
+                  "ErrorMessage": "@{body('Parse_Process_Response')?['error']?['message']}",
+                  "ErrorCode": "@{body('Parse_Process_Response')?['error']?['code']}",
+                  "Timestamp": "@utcNow()"
+                }
+              },
+              "runAfter": {
+                "Parse_error_details": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Response_Error": {
+              "type": "Response",
+              "inputs": {
+                "statusCode": 500,
+                "body": {
+                  "success": false,
+                  "fileName": "@variables('fileInfo')?['fileName']",
+                  "error": "@body('Parse_error_details')"
+                }
+              },
+              "runAfter": {
+                "Log_error_to_storage": [
+                  "Succeeded"
+                ]
+              }
+            }
+          }
+        },
+        "runAfter": {
+          "Parse_Process_Response": [
+            "Succeeded"
+          ]
+        }
+      }
+    },
+    "triggers": {
+      "manual": {
+        "type": "Request",
+        "kind": "Http",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "fileName": {
+                "type": "string"
+              },
+              "filePath": {
+                "type": "string"
+              },
+              "fileContent": {
+                "type": "string"
+              },
+              "fileSize": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "contentVersion": "1.0.0.0",
+    "outputs": {}
+  },
+  "kind": "Stateful"
+}
