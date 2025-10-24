@@ -1,0 +1,118 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.38.33.27573",
+      "templateHash": "15885533140428213812"
+    }
+  },
+  "parameters": {
+    "logicAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Logic App"
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for the Logic App"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Tags to apply to the Logic App"
+      }
+    },
+    "workflowDefinition": {
+      "type": "object",
+      "metadata": {
+        "description": "Workflow definition JSON"
+      }
+    },
+    "workflowParameters": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Workflow parameters"
+      }
+    },
+    "connections": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "API connections for the workflow"
+      }
+    },
+    "managedIdentityId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Managed Identity resource ID (optional)"
+      }
+    },
+    "state": {
+      "type": "string",
+      "defaultValue": "Enabled",
+      "metadata": {
+        "description": "Enable or disable the Logic App"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[parameters('logicAppName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": "[if(not(empty(parameters('managedIdentityId'))), createObject('type', 'UserAssigned', 'userAssignedIdentities', createObject(format('{0}', parameters('managedIdentityId')), createObject())), createObject('type', 'SystemAssigned'))]",
+      "properties": {
+        "state": "[parameters('state')]",
+        "definition": "[parameters('workflowDefinition')]",
+        "parameters": "[union(parameters('workflowParameters'), createObject('$connections', createObject('value', parameters('connections'))))]"
+      }
+    }
+  ],
+  "outputs": {
+    "id": {
+      "type": "string",
+      "metadata": {
+        "description": "Logic App resource ID"
+      },
+      "value": "[resourceId('Microsoft.Logic/workflows', parameters('logicAppName'))]"
+    },
+    "name": {
+      "type": "string",
+      "metadata": {
+        "description": "Logic App name"
+      },
+      "value": "[parameters('logicAppName')]"
+    },
+    "callbackUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "Logic App callback URL (if has manual trigger)"
+      },
+      "value": "[listCallbackUrl(format('{0}/triggers/manual', resourceId('Microsoft.Logic/workflows', parameters('logicAppName'))), '2019-05-01').value]"
+    },
+    "principalId": {
+      "type": "string",
+      "metadata": {
+        "description": "Logic App principal ID"
+      },
+      "value": "[if(not(empty(parameters('managedIdentityId'))), '', reference(resourceId('Microsoft.Logic/workflows', parameters('logicAppName')), '2019-05-01', 'full').identity.principalId)]"
+    },
+    "logicApp": {
+      "type": "object",
+      "metadata": {
+        "description": "Logic App object"
+      },
+      "value": "[reference(resourceId('Microsoft.Logic/workflows', parameters('logicAppName')), '2019-05-01', 'full')]"
+    }
+  }
+}

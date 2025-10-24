@@ -330,8 +330,7 @@ jobs:
               --resource-group $RESOURCE_GROUP \
               --name $FUNCTION_APP_NAME \
               --src function-app.zip \
-              --timeout 600 \
-              --verbose; then
+              --timeout 600; then
               SUCCESS=true
               echo "✅ Zip deployment successful!"
               break

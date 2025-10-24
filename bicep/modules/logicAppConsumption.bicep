@@ -57,6 +57,7 @@ output id string = logicApp.id
 output name string = logicApp.name
 
 @description('Logic App callback URL (if has manual trigger)')
+#disable-next-line outputs-should-not-contain-secrets
 output callbackUrl string = listCallbackUrl('${logicApp.id}/triggers/manual', '2019-05-01').value
 
 @description('Logic App principal ID')
