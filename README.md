@@ -32,12 +32,12 @@ This repository serves as a starting template for Azure integration projects, sp
 ### Target Integrations
 
 This template supports building integrations using:
-- Azure Logic Apps (Standard)
-- Azure Function Apps
-- Azure Service Bus
-- Azure Storage Accounts
-- Azure Key Vault
-- Managed Identities for secure authentication
+- **Azure Logic Apps (Consumption)**: Workflow orchestration with pay-per-execution pricing
+- **Azure Function Apps**: Custom processing logic (.NET isolated runtime)
+- **Azure Service Bus**: Messaging with queues and topics
+- **Azure Storage Accounts**: Blob containers, tables for data storage
+- **Azure Key Vault**: Secrets management
+- **Managed Identities**: Passwordless authentication
 
 ## Architecture
 
@@ -60,13 +60,16 @@ Shared resources deployed to a common resource group, used across all integratio
 ### 2. Integration Layer
 
 Each integration has its own resource group containing:
-- **Logic Apps Standard**: Workflow orchestration
-- **Function Apps**: Custom processing logic
+- **Logic Apps (Consumption)**: Workflow orchestration
+- **Function Apps**: Custom processing logic (.NET isolated)
 - **Integration Key Vault**: Integration-specific secrets (isolated from common)
 - **Function Storage Account**: Function App runtime storage
-- **Archive Storage Account**: Long-term data archival
+- **Integration Storage Account**: Integration data storage (containers, tables, queues)
 - **Service Bus Namespace**: Integration-specific queues/topics
+- **API Connections**: For Logic Apps to access storage (blob, tables)
 - **References**: Uses shared common infrastructure (VNet, App Plan, Managed Identity)
+
+**New!** All integrations now use a **unified template** (`bicep/modules/standardIntegration.bicep`) configured through parameters, eliminating code duplication.
 
 ```mermaid
 graph TB
@@ -331,28 +334,51 @@ az deployment sub create \
 
 ### 9. Add Your First Integration
 
-Once common infrastructure is deployed, you can create your first integration:
+Once common infrastructure is deployed, you can create your first integration using the **standardized template approach**:
 
-📘 **[See Detailed Quickstart Guide for Adding New Integrations →](docs/QUICKSTART-NEW-INTEGRATION.md)**
+📘 **[See Standard Integration Guide →](bicep/modules/README-standardIntegration.md)**
 
-This guide covers:
-- Copying and customizing the sample integration template
-- Creating Function Apps and Logic App workflows
-- Configuring Service Bus queues/topics and storage
-- Deploying and testing your integration
-- Monitoring and troubleshooting
-
-**Quick overview:**
+**Quick Start:**
 ```bash
-# Copy sample integration as template
-cp -r bicep/integrations/sample-integration bicep/integrations/my-new-integration
+# 1. Create parameters file for your integration
+mkdir -p bicep/integrations/my-integration
+cat > bicep/integrations/my-integration/parameters.dev.json <<EOF
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "prefix": { "value": "yourprefix" },
+    "environment": { "value": "dev" },
+    "location": { "value": "swedencentral" },
+    "locationShort": { "value": "sdc" },
+    "integrationName": { "value": "my-integration" },
+    "serviceBusQueues": {
+      "value": [
+        { "name": "my-queue", "maxDeliveryCount": 10 }
+      ]
+    },
+    "integrationStorageContainers": {
+      "value": [
+        { "name": "input-files", "publicAccess": "None" }
+      ]
+    },
+    "enableBlobApiConnection": { "value": true }
+  }
+}
+EOF
 
-# Update integration name and configuration
-# See docs/QUICKSTART-NEW-INTEGRATION.md for detailed steps
+# 2. Reference standardIntegration.bicep in your workflow
+# Template: bicep/modules/standardIntegration.bicep
+# Parameters: bicep/integrations/my-integration/parameters.dev.json
 
-# Deploy your integration
-# Via GitHub Actions: Actions → Deploy MyNew Integration
+# 3. Deploy!
 ```
+
+**Benefits of Standard Template:**
+- ✅ No custom Bicep code needed
+- ✅ Consistent infrastructure across all integrations
+- ✅ Just define parameters for your specific needs
+- ✅ Automatic updates when base template improves
 
 ## Testing & Validation
 
@@ -406,10 +432,14 @@ Orch/
 │   │   ├── parameters.uat.json             # UAT environment parameters
 │   │   └── parameters.prod.json            # Prod environment parameters
 │   ├── integrations/
+│   │   ├── sepa/                           # SEPA integration
+│   │   │   └── parameters.*.json           # SEPA parameters
+│   │   ├── nomentia/                       # Nomentia integration
+│   │   │   └── parameters.*.json           # Nomentia parameters
 │   │   └── sample-integration/             # Sample integration template
-│   │       ├── main.bicep                  # Integration infrastructure
-│   │       └── parameters.*.json           # Integration parameters
+│   │       └── parameters.*.json           # Sample parameters
 │   └── modules/
+│       ├── standardIntegration.bicep       # 🆕 Unified template for all integrations
 │       ├── naming.bicep                    # Naming convention module
 │       ├── keyVault.bicep                  # Key Vault deployment
 │       ├── keyVaultSecret.bicep            # Key Vault secret creation
@@ -419,7 +449,7 @@ Orch/
 │       ├── managedIdentity.bicep           # Managed Identity deployment
 │       ├── appServicePlan.bicep            # App Service Plan deployment
 │       ├── functionApp.bicep               # Function App deployment
-│       ├── logicApp.bicep                  # Logic App deployment
+│       ├── logicAppConsumption.bicep       # Logic App (Consumption) deployment
 │       ├── apiConnection.bicep             # API Connection for Logic Apps
 │       ├── serviceBus.bicep                # Service Bus namespace/queues/topics
 │       ├── virtualNetwork.bicep            # Virtual Network with subnets
@@ -429,7 +459,8 @@ Orch/
 │       ├── logAnalyticsWorkspace.bicep     # Log Analytics Workspace
 │       ├── actionGroup.bicep               # Action Group for alerts
 │       ├── metricAlert.bicep               # Metric alert rules
-│       └── rbacAssignment.bicep            # RBAC role assignment
+│       ├── rbacAssignment.bicep            # RBAC role assignment
+│       └── README-standardIntegration.md   # Standard integration guide
 ├── config/
 │   ├── settings.json                       # Project configuration
 │   └── subscriptions.json                  # Subscription mappings
@@ -570,9 +601,9 @@ Integration-specific deployments will use a similar pattern with their own param
 **Purpose**: Hosting platform for Function Apps and Logic Apps
 
 **SKU Options**:
-- **Y1 (Consumption)**: Pay-per-execution, ideal for dev/test
-- **EP1-EP3 (Elastic Premium)**: Pre-warmed instances, better for production
-- **WS1-WS3 (Workflow Standard)**: Optimized for Logic Apps Standard
+- **Y1 (Consumption)**: Pay-per-execution, ideal for dev/test with Function Apps
+- **EP1-EP3 (Elastic Premium)**: Pre-warmed instances, VNet integration, better for production Function Apps
+- **P1v2-P3v2 (Premium v2)**: Dedicated instances for production workloads
 
 ### Managed Identity
 
@@ -778,5 +809,14 @@ This template is provided as-is for use within your organization.
 
 ---
 
-**Version**: 1.1.0
-**Last Updated**: 2025-10-22
+**Version**: 2.0.0
+**Last Updated**: 2025-10-25
+
+## Changelog
+
+### Version 2.0.0 (2025-10-25)
+- ✨ **NEW**: Unified `standardIntegration.bicep` template for all integrations
+- 🔄 **BREAKING**: Replaced integration-specific main.bicep files with parameterized approach
+- 📝 Updated all documentation to reflect Logic Apps Consumption tier (not Standard)
+- 🧹 Removed WS1-WS3 App Service Plan SKU references
+- 📚 Added comprehensive Standard Integration Guide

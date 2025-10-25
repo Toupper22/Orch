@@ -1,5 +1,5 @@
 // API Connection Module
-// Creates API connections for Logic Apps Standard to connect to Azure services
+// Creates API connections for Logic Apps (Consumption) to connect to Azure services
 
 @description('Name of the API connection')
 param connectionName string

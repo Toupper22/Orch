@@ -16,9 +16,10 @@ The Azure Well-Architected Framework consists of five pillars:
 ### ✅ Implemented Best Practices
 
 - **Right-sized App Service Plans**
-  - Dev/Test/UAT: B1 tier (cost-effective for non-production)
-  - Production: S2 tier (balanced performance and cost)
-  - Logic Apps Standard shares the same App Service Plan with Function Apps
+  - Dev/Test/UAT: Y1/B1 tier (cost-effective for non-production)
+  - Production: EP1/S2 tier (balanced performance and cost)
+  - Function Apps use shared App Service Plan from common infrastructure
+  - Logic Apps (Consumption) billed per execution, not tied to App Service Plan
 
 - **Storage Account Tiers**
   - Function storage: Hot tier for active data

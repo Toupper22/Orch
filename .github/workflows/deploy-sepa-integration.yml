@@ -458,6 +458,37 @@ jobs:
           PARAMS=$(jq -c '{prefix: .parameters.prefix.value, locationShort: .parameters.locationShort.value}' bicep/integrations/sepa/parameters.${{ inputs.environment }}.json)
           echo "params=$PARAMS" >> $GITHUB_OUTPUT
 
+      - name: Get API Connection IDs
+        id: get_connections
+        run: |
+          PREFIX=$(jq -r '.prefix' <<< '${{ steps.load_params.outputs.params }}')
+          RESOURCE_GROUP="${PREFIX}-${{ inputs.environment }}-sepa-rg"
+
+          # Get Blob API Connection ID
+          BLOB_CONN_NAME="${PREFIX}-${{ inputs.environment }}-sepa-blob-conn"
+          BLOB_CONN_ID=$(az resource show \
+            --resource-group "$RESOURCE_GROUP" \
+            --resource-type "Microsoft.Web/connections" \
+            --name "$BLOB_CONN_NAME" \
+            --query "id" -o tsv 2>/dev/null || echo "")
+
+          # Get Table API Connection ID
+          TABLE_CONN_NAME="${PREFIX}-${{ inputs.environment }}-sepa-table-conn"
+          TABLE_CONN_ID=$(az resource show \
+            --resource-group "$RESOURCE_GROUP" \
+            --resource-type "Microsoft.Web/connections" \
+            --name "$TABLE_CONN_NAME" \
+            --query "id" -o tsv 2>/dev/null || echo "")
+
+          echo "blobApiConnectionId=$BLOB_CONN_ID" >> $GITHUB_OUTPUT
+          echo "blobApiConnectionName=$BLOB_CONN_NAME" >> $GITHUB_OUTPUT
+          echo "tableApiConnectionId=$TABLE_CONN_ID" >> $GITHUB_OUTPUT
+          echo "tableApiConnectionName=$TABLE_CONN_NAME" >> $GITHUB_OUTPUT
+
+          echo "📋 API Connection IDs retrieved:"
+          echo "   Blob: $BLOB_CONN_ID"
+          echo "   Table: $TABLE_CONN_ID"
+
       - name: Get Function App URL
         id: get_function_url
         run: |
@@ -523,12 +554,18 @@ jobs:
           LOCATION_SHORT=$(jq -r '.locationShort' <<< '${{ steps.load_params.outputs.params }}')
           PROCESS_LOGIC_APP_ID="${{ steps.deploy_process.outputs.logicAppId }}"
 
-          # Get API Connection IDs from infrastructure deployment
-          BLOB_CONN_ID="${{ steps.deploy.outputs.blobApiConnectionId }}"
-          TABLE_CONN_ID="${{ steps.deploy.outputs.tableApiConnectionId }}"
+          # Get API Connection IDs (from either infrastructure deployment or existing resources)
+          BLOB_CONN_ID="${{ steps.deploy.outputs.blobApiConnectionId || steps.get_connections.outputs.blobApiConnectionId }}"
+          TABLE_CONN_ID="${{ steps.deploy.outputs.tableApiConnectionId || steps.get_connections.outputs.tableApiConnectionId }}"
+          BLOB_CONN_NAME="${{ steps.deploy.outputs.blobApiConnectionName || steps.get_connections.outputs.blobApiConnectionName }}"
+          TABLE_CONN_NAME="${{ steps.deploy.outputs.tableApiConnectionName || steps.get_connections.outputs.tableApiConnectionName }}"
 
           # Get current subscription ID
           SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+          echo "Using API Connections:"
+          echo "  Blob ID: $BLOB_CONN_ID"
+          echo "  Table ID: $TABLE_CONN_ID"
 
           # Inject the actual resource ID into the workflow definition
           # Replace @parameters('processLogicAppId') with the actual resource ID
@@ -557,12 +594,12 @@ jobs:
                 "value": {
                   "azureblob": {
                     "connectionId": "$BLOB_CONN_ID",
-                    "connectionName": "${{ steps.deploy.outputs.blobApiConnectionName }}",
+                    "connectionName": "$BLOB_CONN_NAME",
                     "id": "/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Web/locations/swedencentral/managedApis/azureblob"
                   },
                   "azuretables": {
                     "connectionId": "$TABLE_CONN_ID",
-                    "connectionName": "${{ steps.deploy.outputs.tableApiConnectionName }}",
+                    "connectionName": "$TABLE_CONN_NAME",
                     "id": "/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Web/locations/swedencentral/managedApis/azuretables"
                   }
                 }
@@ -591,11 +628,14 @@ jobs:
           LOCATION_SHORT=$(jq -r '.locationShort' <<< '${{ steps.load_params.outputs.params }}')
           HANDLER_LOGIC_APP_ID="${{ steps.deploy_handler.outputs.logicAppId }}"
 
-          # Get API Connection IDs from infrastructure deployment
-          BLOB_CONN_ID="${{ steps.deploy.outputs.blobApiConnectionId }}"
+          # Get API Connection IDs (from either infrastructure deployment or existing resources)
+          BLOB_CONN_ID="${{ steps.deploy.outputs.blobApiConnectionId || steps.get_connections.outputs.blobApiConnectionId }}"
+          BLOB_CONN_NAME="${{ steps.deploy.outputs.blobApiConnectionName || steps.get_connections.outputs.blobApiConnectionName }}"
 
           # Get current subscription ID
           SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+          echo "Using Blob API Connection: $BLOB_CONN_ID"
 
           # Inject the actual resource ID into the workflow definition
           # Replace @parameters('handlerLogicAppId') with the actual resource ID
@@ -624,7 +664,7 @@ jobs:
                 "value": {
                   "azureblob": {
                     "connectionId": "$BLOB_CONN_ID",
-                    "connectionName": "${{ steps.deploy.outputs.blobApiConnectionName }}",
+                    "connectionName": "$BLOB_CONN_NAME",
                     "id": "/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Web/locations/swedencentral/managedApis/azureblob"
                   }
                 }
