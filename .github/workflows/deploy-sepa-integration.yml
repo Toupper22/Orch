@@ -96,7 +96,7 @@ jobs:
           fi
 
       - name: 📤 Upload Function App Package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: function-app-package
           path: src/Sepa/functionApp/publish
