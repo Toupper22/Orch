@@ -463,7 +463,7 @@ jobs:
         run: |
           PREFIX=$(jq -r '.prefix' <<< '${{ steps.load_params.outputs.params }}')
           LOCATION_SHORT=$(jq -r '.locationShort' <<< '${{ steps.load_params.outputs.params }}')
-          FUNCTION_APP_NAME="${PREFIX}${{ inputs.environment }}${LOCATION_SHORT}sepafunction"
+          FUNCTION_APP_NAME="${PREFIX}-${{ inputs.environment }}-${LOCATION_SHORT}-sepa-func"
           FUNCTION_URL=$(az functionapp show --name "$FUNCTION_APP_NAME" --resource-group "${PREFIX}-${{ inputs.environment }}-sepa-rg" --query "defaultHostName" -o tsv)
           echo "functionUrl=https://${FUNCTION_URL}" >> $GITHUB_OUTPUT
 
