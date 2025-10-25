@@ -46,6 +46,9 @@ param serviceBusSku string = 'Standard'
 @description('Service Bus queues configuration')
 param serviceBusQueues array = []
 
+@description('Custom Service Bus namespace name (optional, overrides naming convention)')
+param customServiceBusName string = ''
+
 // ============================================================================
 // Parameters - Storage
 // ============================================================================
@@ -360,7 +363,7 @@ module serviceBus '../modules/serviceBus.bicep' = {
   name: 'serviceBus'
   scope: integrationResourceGroup
   params: {
-    serviceBusName: replace(serviceBusNaming.outputs.name, '-', '')
+    serviceBusName: !empty(customServiceBusName) ? customServiceBusName : replace(serviceBusNaming.outputs.name, '-', '')
     location: location
     tags: commonTags
     skuName: serviceBusSku

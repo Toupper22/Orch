@@ -45,6 +45,8 @@ The `standardIntegration.bicep` template is a **unified, parameterized template*
     },
     "enableBlobApiConnection": { "value": true },
     "enableTableApiConnection": { "value": false }
+    // Optional: Override Service Bus namespace name
+    // "customServiceBusName": { "value": "my-custom-servicebus" }
   }
 }
 ```
@@ -67,6 +69,7 @@ The `standardIntegration.bicep` template is a **unified, parameterized template*
 |-----------|------|---------|-------------|
 | `serviceBusSku` | string | Standard | SKU (Basic/Standard/Premium) |
 | `serviceBusQueues` | array | [] | Array of queue configurations |
+| `customServiceBusName` | string | '' | Override auto-generated namespace name (optional) |
 
 **Queue Configuration Schema:**
 ```json
@@ -77,6 +80,43 @@ The `standardIntegration.bicep` template is a **unified, parameterized template*
   "defaultMessageTimeToLive": "P7D"
 }
 ```
+
+**Service Bus Naming:**
+
+By default, the Service Bus namespace name is **auto-generated** using the naming convention:
+```
+{prefix}{environment}{locationShort}{integrationName}sb
+Example: edmodevsdcsepasb
+```
+
+To override with a custom name:
+```json
+{
+  "parameters": {
+    "customServiceBusName": {
+      "value": "my-custom-servicebus-name"
+    }
+  }
+}
+```
+
+**Common Use Cases for Custom Names:**
+
+1. **Share Service Bus across integrations:**
+   ```json
+   // Both SEPA and Nomentia parameters
+   "customServiceBusName": { "value": "edmodevsharedservicebus" }
+   ```
+
+2. **Match existing/legacy Service Bus:**
+   ```json
+   "customServiceBusName": { "value": "existing-servicebus-from-migration" }
+   ```
+
+3. **Shorter, more readable names:**
+   ```json
+   "customServiceBusName": { "value": "edmo-dev-integration-sb" }
+   ```
 
 ### Storage Configuration
 

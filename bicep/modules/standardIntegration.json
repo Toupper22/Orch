@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "1203987625272817864"
+      "templateHash": "12297909840504989922"
     }
   },
   "parameters": {
@@ -70,6 +70,13 @@
       "defaultValue": [],
       "metadata": {
         "description": "Service Bus queues configuration"
+      }
+    },
+    "customServiceBusName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Custom Service Bus namespace name (optional, overrides naming convention)"
       }
     },
     "storageFirewallDefault": {
@@ -2305,9 +2312,7 @@
         },
         "mode": "Incremental",
         "parameters": {
-          "serviceBusName": {
-            "value": "[replace(reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBusNaming'), '2025-04-01').outputs.name.value, '-', '')]"
-          },
+          "serviceBusName": "[if(not(empty(parameters('customServiceBusName'))), createObject('value', parameters('customServiceBusName')), createObject('value', replace(reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBusNaming'), '2025-04-01').outputs.name.value, '-', '')))]",
           "location": {
             "value": "[parameters('location')]"
           },
