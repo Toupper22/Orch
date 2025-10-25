@@ -32,7 +32,7 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: 🔍 Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: csharp
           queries: security-extended,security-and-quality
@@ -49,7 +49,7 @@ jobs:
           dotnet build src/Efima.IL/Efima.IL.csproj --configuration Release
 
       - name: 🔍 Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:csharp"
 
@@ -70,7 +70,7 @@ jobs:
           tools: 'templateanalyzer'
 
       - name: 📤 Upload results to Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ steps.msdo.outputs.sarifFile }}
 
@@ -123,7 +123,7 @@ jobs:
           severity: 'CRITICAL,HIGH,MEDIUM'
 
       - name: 📤 Upload Trivy results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
