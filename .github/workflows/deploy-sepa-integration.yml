@@ -538,7 +538,7 @@ jobs:
 
           DEPLOYMENT_OUTPUT=$(az deployment sub create \
             --location swedencentral \
-            --template-file bicep/integrations/sepa/single-workflow.bicep \
+            --template-file bicep/modules/singleWorkflow.bicep \
             --parameters /tmp/process-params.json \
             --name sepa-process-${{ inputs.environment }}-${{ github.run_number }} \
             --query "properties.outputs.logicAppId.value" -o tsv)
@@ -628,7 +628,7 @@ jobs:
 
           DEPLOYMENT_OUTPUT=$(az deployment sub create \
             --location swedencentral \
-            --template-file bicep/integrations/sepa/single-workflow.bicep \
+            --template-file bicep/modules/singleWorkflow.bicep \
             --parameters /tmp/handler-params.json \
             --name sepa-handler-${{ inputs.environment }}-${{ github.run_number }} \
             --query "properties.outputs.logicAppId.value" -o tsv)
@@ -705,7 +705,7 @@ jobs:
 
           az deployment sub create \
             --location swedencentral \
-            --template-file bicep/integrations/sepa/single-workflow.bicep \
+            --template-file bicep/modules/singleWorkflow.bicep \
             --parameters /tmp/starter-params.json \
             --name sepa-starter-${{ inputs.environment }}-${{ github.run_number }}
 

@@ -72,7 +72,7 @@ az account set --subscription "$SUBSCRIPTION_ID"
 # Deploy infrastructure
 az deployment sub create \
   --location swedencentral \
-  --template-file ./bicep/integrations/nomentia/main.bicep \
+  --template-file ./bicep/modules/standardIntegration.bicep \
   --parameters ./bicep/integrations/nomentia/parameters.${ENVIRONMENT}.json \
   --name "nomentia-integration-${ENVIRONMENT}-$(date +%s)"
 

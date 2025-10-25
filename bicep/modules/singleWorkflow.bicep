@@ -26,9 +26,9 @@ param location string = deployment().location
 param locationShort string
 
 @description('Integration name')
-param integrationName string = 'nomentia'
+param integrationName string
 
-@description('Workflow name (e.g., d365fo-nomentia-artransactions)')
+@description('Workflow name (e.g., sepa-handler, d365fo-nomentia-artransactions)')
 param workflowName string
 
 @description('Common tags')
@@ -92,7 +92,7 @@ var logicAppName = '${prefix}-${environment}-${integrationName}-${workflowName}-
 // Logic App
 // ============================================================================
 
-module logicApp '../../modules/logicAppConsumption.bicep' = {
+module logicApp '../modules/logicAppConsumption.bicep' = {
   name: 'logicApp-${workflowName}'
   scope: integrationResourceGroup
   params: {

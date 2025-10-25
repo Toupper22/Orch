@@ -478,7 +478,7 @@ jobs:
         with:
           scope: subscription
           region: swedencentral
-          template: ./bicep/integrations/nomentia/single-workflow.bicep
+          template: ./bicep/modules/singleWorkflow.bicep
           parameters: >
             prefix=${{ fromJson(steps.load_params.outputs.params).prefix }}
             environment=${{ inputs.environment }}
@@ -509,7 +509,7 @@ jobs:
         with:
           scope: subscription
           region: swedencentral
-          template: ./bicep/integrations/nomentia/single-workflow.bicep
+          template: ./bicep/modules/singleWorkflow.bicep
           parameters: >
             prefix=${{ fromJson(steps.load_params.outputs.params).prefix }}
             environment=${{ inputs.environment }}
@@ -540,7 +540,7 @@ jobs:
         with:
           scope: subscription
           region: swedencentral
-          template: ./bicep/integrations/nomentia/single-workflow.bicep
+          template: ./bicep/modules/singleWorkflow.bicep
           parameters: >
             prefix=${{ fromJson(steps.load_params.outputs.params).prefix }}
             environment=${{ inputs.environment }}
@@ -571,7 +571,7 @@ jobs:
         with:
           scope: subscription
           region: swedencentral
-          template: ./bicep/integrations/nomentia/single-workflow.bicep
+          template: ./bicep/modules/singleWorkflow.bicep
           parameters: >
             prefix=${{ fromJson(steps.load_params.outputs.params).prefix }}
             environment=${{ inputs.environment }}

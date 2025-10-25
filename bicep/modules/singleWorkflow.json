@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "17844719152740803267"
+      "templateHash": "67259191264687461"
     }
   },
   "parameters": {
@@ -42,7 +42,6 @@
     },
     "integrationName": {
       "type": "string",
-      "defaultValue": "nomentia",
       "metadata": {
         "description": "Integration name"
       }
@@ -50,7 +49,7 @@
     "workflowName": {
       "type": "string",
       "metadata": {
-        "description": "Workflow name (e.g., d365fo-nomentia-artransactions)"
+        "description": "Workflow name (e.g., sepa-handler, d365fo-nomentia-artransactions)"
       }
     },
     "tags": {
