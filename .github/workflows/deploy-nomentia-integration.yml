@@ -43,12 +43,12 @@ permissions:
 
 jobs:
   build-function-app:
-    name: Build Function App
+    name: 📦 Build Function App
     runs-on: ubuntu-latest
     if: ${{ inputs.deployFunctionApp == true && inputs.whatIf == false }}
 
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
 
       - name: Setup .NET
@@ -89,21 +89,21 @@ jobs:
           include-hidden-files: true
 
   validate:
-    name: Validate Bicep Templates
+    name: ✅ Validate Bicep Templates
     runs-on: ubuntu-latest
     if: ${{ inputs.deployInfrastructure == true }}
     environment: ${{ inputs.environment }}
 
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: Azure Login
+      - name: 🔐 Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Set Azure Subscription
+      - name: 🌐 Set Azure Subscription
         run: |
           SUBSCRIPTION_ID=$(jq -r '.subscriptions.${{ inputs.environment }}.subscriptionId' config/subscriptions.json)
           az account set --subscription "$SUBSCRIPTION_ID"
@@ -118,22 +118,22 @@ jobs:
           deploymentMode: Validate
 
   preview:
-    name: Preview Changes (What-If)
+    name: 🔍 Preview Changes (What-If)
     runs-on: ubuntu-latest
     needs: validate
     if: ${{ inputs.whatIf == true }}
     environment: ${{ inputs.environment }}
 
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: Azure Login
+      - name: 🔐 Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Set Azure Subscription
+      - name: 🌐 Set Azure Subscription
         run: |
           SUBSCRIPTION_ID=$(jq -r '.subscriptions.${{ inputs.environment }}.subscriptionId' config/subscriptions.json)
           az account set --subscription "$SUBSCRIPTION_ID"
@@ -148,7 +148,7 @@ jobs:
           additionalArguments: --what-if
 
   deploy:
-    name: Deploy to ${{ inputs.environment }}
+    name: 🚀 Deploy to ${{ inputs.environment }}
     runs-on: ubuntu-latest
     needs: [validate, build-function-app]
     if: |
@@ -163,7 +163,7 @@ jobs:
       functionAppName: ${{ steps.deploy.outputs.functionAppName }}
 
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
 
       - name: Download Function App Package
@@ -173,17 +173,17 @@ jobs:
           name: function-app-package
           path: function-app-package
 
-      - name: Azure Login
+      - name: 🔐 Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Set Azure Subscription
+      - name: 🌐 Set Azure Subscription
         run: |
           SUBSCRIPTION_ID=$(jq -r '.subscriptions.${{ inputs.environment }}.subscriptionId' config/subscriptions.json)
           az account set --subscription "$SUBSCRIPTION_ID"
 
-      - name: Deploy Infrastructure
+      - name: 🏗️ Deploy Infrastructure
         id: deploy
         if: ${{ inputs.deployInfrastructure == true }}
         uses: azure/arm-deploy@v2
@@ -423,12 +423,12 @@ jobs:
           echo "**Integration Storage:** ${{ steps.deploy.outputs.integrationStorageName }}" >> $GITHUB_STEP_SUMMARY
           echo "**Key Vault:** ${{ steps.deploy.outputs.integrationKeyVaultName }}" >> $GITHUB_STEP_SUMMARY
 
-      - name: Azure Logout
+      - name: 🚪 Azure Logout
         if: always()
         run: az logout
 
   deploy-logic-apps:
-    name: Deploy Logic Apps
+    name: 🔄 Deploy Logic Apps
     runs-on: ubuntu-latest
     needs: [deploy]
     if: |
@@ -439,15 +439,15 @@ jobs:
     environment: ${{ inputs.environment }}
 
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: Azure Login
+      - name: 🔐 Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Set Azure Subscription
+      - name: 🌐 Set Azure Subscription
         run: |
           SUBSCRIPTION_ID=$(jq -r '.subscriptions.${{ inputs.environment }}.subscriptionId' config/subscriptions.json)
           az account set --subscription "$SUBSCRIPTION_ID"
@@ -610,6 +610,6 @@ jobs:
             echo "- ⚠️ Nomentia to ERP Reference Payments (workflow.json not found)" >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Azure Logout
+      - name: 🚪 Azure Logout
         if: always()
         run: az logout
