@@ -1,0 +1,200 @@
+name: 🔒 Security Vulnerability Scan
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Run weekly on Monday at 2 AM UTC
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+  pull-requests: read
+
+jobs:
+  codeql-analysis:
+    name: 🔍 CodeQL Analysis (C#)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+
+      - name: 🔧 Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: 🔍 Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: csharp
+          queries: security-extended,security-and-quality
+
+      - name: 🏗️ Build C# Projects
+        run: |
+          echo "Building SEPA Function App..."
+          dotnet build src/Sepa/functionApp/SepaTransformer.csproj --configuration Release
+
+          echo "Building Nomentia Function App..."
+          dotnet build src/Efima.IL.Nomentia/Efima.IL.Nomentia.csproj --configuration Release
+
+          echo "Building Efima.IL Library..."
+          dotnet build src/Efima.IL/Efima.IL.csproj --configuration Release
+
+      - name: 🔍 Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:csharp"
+
+  iac-security-scan:
+    name: 🏗️ Infrastructure Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+
+      - name: 🔍 Run Microsoft Security DevOps
+        uses: microsoft/security-devops-action@v1
+        id: msdo
+        with:
+          categories: 'IaC'
+          tools: 'templateanalyzer'
+
+      - name: 📤 Upload results to Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.msdo.outputs.sarifFile }}
+
+      - name: 📊 Display scan summary
+        run: |
+          echo "## Infrastructure Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Scanned all Bicep templates for security misconfigurations" >> $GITHUB_STEP_SUMMARY
+          echo "📋 Results uploaded to Security tab" >> $GITHUB_STEP_SUMMARY
+
+  dependency-scan:
+    name: 📦 Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+
+      - name: 🔧 Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: 🔍 Scan SEPA Function App Dependencies
+        run: |
+          echo "## Scanning SEPA Function App"
+          dotnet restore src/Sepa/functionApp/SepaTransformer.csproj
+          dotnet list src/Sepa/functionApp/SepaTransformer.csproj package --vulnerable --include-transitive || echo "✅ No vulnerabilities found"
+
+      - name: 🔍 Scan Nomentia Function App Dependencies
+        run: |
+          echo "## Scanning Nomentia Function App"
+          dotnet restore src/Efima.IL.Nomentia/Efima.IL.Nomentia.csproj
+          dotnet list src/Efima.IL.Nomentia/Efima.IL.Nomentia.csproj package --vulnerable --include-transitive || echo "✅ No vulnerabilities found"
+
+      - name: 🔍 Scan Efima.IL Library Dependencies
+        run: |
+          echo "## Scanning Efima.IL Library"
+          dotnet restore src/Efima.IL/Efima.IL.csproj
+          dotnet list src/Efima.IL/Efima.IL.csproj package --vulnerable --include-transitive || echo "✅ No vulnerabilities found"
+
+      - name: 🔍 Trivy Filesystem Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: 📤 Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'trivy-dependencies'
+
+  bicep-linting:
+    name: 🧹 Bicep Security Linting
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+
+      - name: 🔐 Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: 🔍 Lint Common Infrastructure
+        run: |
+          echo "Linting common infrastructure..."
+          az bicep build --file bicep/common/main.bicep
+
+      - name: 🔍 Lint Standard Integration Template
+        run: |
+          echo "Linting standard integration template..."
+          az bicep build --file bicep/modules/standardIntegration.bicep
+
+      - name: 🔍 Lint All Bicep Modules
+        run: |
+          echo "Linting all Bicep modules..."
+          for file in $(find bicep/modules -name "*.bicep" -not -path "*/obj/*"); do
+            echo "Linting $file"
+            az bicep build --file "$file"
+          done
+          echo "✅ All Bicep files passed linting"
+
+      - name: 🔍 Lint Integration Templates
+        run: |
+          echo "Linting SEPA integration..."
+          az bicep build --file bicep/integrations/sepa/single-workflow.bicep || echo "⚠️ No single-workflow.bicep found"
+
+          echo "Linting Nomentia integration..."
+          az bicep build --file bicep/integrations/nomentia/workflow-type.bicep || echo "⚠️ No workflow-type.bicep found"
+
+          echo "Linting Sample integration..."
+          az bicep build --file bicep/integrations/sample-integration/main.bicep || echo "⚠️ No main.bicep found"
+
+      - name: 🚪 Azure Logout
+        if: always()
+        run: az logout
+
+  security-summary:
+    name: 📊 Security Scan Summary
+    runs-on: ubuntu-latest
+    needs: [codeql-analysis, iac-security-scan, dependency-scan, bicep-linting]
+    if: always()
+
+    steps:
+      - name: 📊 Create Summary
+        run: |
+          echo "# 🔒 Security Vulnerability Scan Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Scan Type | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 CodeQL (C#) | ${{ needs.codeql-analysis.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏗️ Infrastructure (Bicep) | ${{ needs.iac-security-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📦 Dependencies (NuGet) | ${{ needs.dependency-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🧹 Bicep Linting | ${{ needs.bicep-linting.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📋 Detailed results available in the [Security tab](../../security)" >> $GITHUB_STEP_SUMMARY

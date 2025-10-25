@@ -1,0 +1,157 @@
+version: 2
+updates:
+  # ============================================================================
+  # NuGet Package Dependencies
+  # ============================================================================
+
+  # SEPA Function App
+  - package-ecosystem: "nuget"
+    directory: "/src/Sepa/functionApp"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "sepa"
+      - "security"
+    groups:
+      azure-functions:
+        patterns:
+          - "Microsoft.Azure.Functions*"
+        update-types:
+          - "minor"
+          - "patch"
+      microsoft-packages:
+        patterns:
+          - "Microsoft.*"
+        update-types:
+          - "patch"
+      azure-packages:
+        patterns:
+          - "Azure.*"
+        update-types:
+          - "patch"
+    reviewers:
+      - "sepa-team"
+    commit-message:
+      prefix: "🔒"
+      prefix-development: "🔧"
+
+  # Nomentia Function App
+  - package-ecosystem: "nuget"
+    directory: "/src/Efima.IL.Nomentia"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "nomentia"
+      - "security"
+    groups:
+      azure-functions:
+        patterns:
+          - "Microsoft.Azure.Functions*"
+        update-types:
+          - "minor"
+          - "patch"
+      microsoft-packages:
+        patterns:
+          - "Microsoft.*"
+        update-types:
+          - "patch"
+      azure-packages:
+        patterns:
+          - "Azure.*"
+        update-types:
+          - "patch"
+    reviewers:
+      - "nomentia-team"
+    commit-message:
+      prefix: "🔒"
+      prefix-development: "🔧"
+
+  # Efima.IL Shared Library
+  - package-ecosystem: "nuget"
+    directory: "/src/Efima.IL"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "shared-library"
+      - "security"
+    groups:
+      microsoft-packages:
+        patterns:
+          - "Microsoft.*"
+        update-types:
+          - "patch"
+      azure-packages:
+        patterns:
+          - "Azure.*"
+        update-types:
+          - "patch"
+    commit-message:
+      prefix: "🔒"
+      prefix-development: "🔧"
+
+  # Sample Integration Function App
+  - package-ecosystem: "nuget"
+    directory: "/src/sample-integration/function-app"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "sample"
+    groups:
+      all-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+    commit-message:
+      prefix: "🔧"
+
+  # ============================================================================
+  # GitHub Actions Dependencies
+  # ============================================================================
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "ci-cd"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    reviewers:
+      - "devops-team"
+    commit-message:
+      prefix: "🔧"
+      prefix-development: "🚀"
+
+# Configuration Notes:
+# - All scans run Monday at 3:00 AM UTC
+# - Security updates are auto-labeled for priority review
+# - Dependencies are grouped to reduce PR noise
+# - Major version updates require manual review
+# - Assign reviewers based on your team structure

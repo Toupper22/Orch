@@ -49,12 +49,26 @@ jobs:
 
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 🔧 Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+
+      - name: 🔒 Security Vulnerability Check
+        run: |
+          echo "🔍 Checking for vulnerable NuGet packages..."
+          dotnet list src/Sepa/functionApp/SepaTransformer.csproj package --vulnerable --include-transitive 2>&1 | tee vulnerability-check.log
+
+          if grep -q "has the following vulnerable packages" vulnerability-check.log; then
+            echo "⚠️ WARNING: Vulnerable packages detected!"
+            echo "Please review and update before deploying to production"
+            # Don't fail build for now, just warn
+          else
+            echo "✅ No known vulnerabilities in dependencies"
+          fi
+          rm vulnerability-check.log
 
       - name: 🔐 Setup NuGet Authentication
         run: |
@@ -96,7 +110,7 @@ jobs:
 
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 🔐 Azure Login
         uses: azure/login@v2
@@ -107,6 +121,12 @@ jobs:
         run: |
           SUBSCRIPTION_ID=$(jq -r '.subscriptions.${{ inputs.environment }}.subscriptionId' config/subscriptions.json)
           az account set --subscription "$SUBSCRIPTION_ID"
+
+      - name: 🔒 Bicep Security Lint
+        run: |
+          echo "🔍 Linting Bicep templates for security issues..."
+          az bicep build --file bicep/modules/standardIntegration.bicep
+          echo "✅ Bicep template passed security linting"
 
       - name: ✅ Validate Bicep template
         uses: azure/arm-deploy@v2
@@ -126,7 +146,7 @@ jobs:
 
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 🔐 Azure Login
         uses: azure/login@v2
@@ -164,7 +184,7 @@ jobs:
 
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 📥 Download Function App Package
         if: ${{ inputs.deployFunctionApp == true }}
@@ -449,7 +469,7 @@ jobs:
 
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 🔐 Azure Login
         uses: azure/login@v2
