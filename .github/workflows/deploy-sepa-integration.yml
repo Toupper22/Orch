@@ -310,38 +310,6 @@ jobs:
             echo "✅ Deployment successful via Functions Core Tools"
           fi
 
-      - name: 🏥 Verify Function App Health
-        if: ${{ inputs.deployFunctionApp == true }}
-        run: |
-          # Use outputs from either infrastructure deployment or existing deployment
-          FUNCTION_APP_NAME="${{ steps.deploy.outputs.functionAppName || steps.existing.outputs.functionAppName }}"
-          RESOURCE_GROUP="${{ steps.deploy.outputs.resourceGroupName || steps.existing.outputs.resourceGroupName }}"
-
-          echo "Checking Function App health after deployment..."
-
-          # Get the function app URL
-          FUNCTION_URL=$(az functionapp show \
-            --name $FUNCTION_APP_NAME \
-            --resource-group $RESOURCE_GROUP \
-            --query "defaultHostName" -o tsv)
-
-          echo "Function App URL: https://$FUNCTION_URL"
-
-          # Wait a bit for the app to settle after deployment
-          echo "Waiting 30 seconds for functions to initialize..."
-          sleep 30
-
-          # Try to ping the function app (it should return 200 or 401/403, not 503)
-          echo "Checking if Function App is responding..."
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://$FUNCTION_URL" || echo "000")
-          echo "HTTP response code: $HTTP_CODE"
-
-          if [ "$HTTP_CODE" = "503" ]; then
-            echo "⚠️ Warning: Function App returning 503 - may need manual restart"
-          else
-            echo "✅ Function App is responding (HTTP $HTTP_CODE)"
-          fi
-
       - name: 📊 Output Deployment Results
         run: |
           echo "## Deployment Results" >> $GITHUB_STEP_SUMMARY
