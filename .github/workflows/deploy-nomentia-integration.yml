@@ -113,7 +113,7 @@ jobs:
         with:
           scope: subscription
           region: swedencentral
-          template: ./bicep/integrations/nomentia/main.bicep
+          template: ./bicep/modules/standardIntegration.bicep
           parameters: ./bicep/integrations/nomentia/parameters.${{ inputs.environment }}.json
           deploymentMode: Validate
 
@@ -143,7 +143,7 @@ jobs:
         with:
           scope: subscription
           region: swedencentral
-          template: ./bicep/integrations/nomentia/main.bicep
+          template: ./bicep/modules/standardIntegration.bicep
           parameters: ./bicep/integrations/nomentia/parameters.${{ inputs.environment }}.json
           additionalArguments: --what-if
 
@@ -190,7 +190,7 @@ jobs:
         with:
           scope: subscription
           region: swedencentral
-          template: ./bicep/integrations/nomentia/main.bicep
+          template: ./bicep/modules/standardIntegration.bicep
           parameters: ./bicep/integrations/nomentia/parameters.${{ inputs.environment }}.json
           deploymentName: nomentia-integration-${{ inputs.environment }}-${{ github.run_number }}
           failOnStdErr: false

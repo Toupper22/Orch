@@ -27,6 +27,93 @@
     },
     "serviceBusSku": {
       "value": "Standard"
+    },
+    "serviceBusQueues": {
+      "value": [
+        {
+          "name": "nomentia-inbound",
+          "maxDeliveryCount": 10,
+          "lockDuration": "PT5M",
+          "defaultMessageTimeToLive": "P7D"
+        },
+        {
+          "name": "nomentia-outbound",
+          "maxDeliveryCount": 10,
+          "lockDuration": "PT5M",
+          "defaultMessageTimeToLive": "P7D"
+        }
+      ]
+    },
+    "storageFirewallDefault": {
+      "value": "Deny"
+    },
+    "functionStorageContainers": {
+      "value": [
+        {
+          "name": "input-files",
+          "publicAccess": "None"
+        },
+        {
+          "name": "output-files",
+          "publicAccess": "None"
+        },
+        {
+          "name": "errors",
+          "publicAccess": "None"
+        }
+      ]
+    },
+    "functionStorageTables": {
+      "value": [
+        {
+          "name": "Values"
+        },
+        {
+          "name": "Conversions"
+        }
+      ]
+    },
+    "integrationStorageContainers": {
+      "value": [
+        {
+          "name": "bank-statements",
+          "publicAccess": "None"
+        },
+        {
+          "name": "ar-transactions",
+          "publicAccess": "None"
+        },
+        {
+          "name": "payments",
+          "publicAccess": "None"
+        },
+        {
+          "name": "archive",
+          "publicAccess": "None"
+        }
+      ]
+    },
+    "integrationStorageTables": {
+      "value": [
+        {
+          "name": "Values"
+        },
+        {
+          "name": "Conversions"
+        }
+      ]
+    },
+    "integrationStorageInstance": {
+      "value": "int"
+    },
+    "functionAppSettings": {
+      "value": []
+    },
+    "enableBlobApiConnection": {
+      "value": false
+    },
+    "enableTableApiConnection": {
+      "value": false
     }
   }
 }
