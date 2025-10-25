@@ -577,8 +577,9 @@ jobs:
           WORKFLOW_DEF=$(cat src/Sepa/logicapps/sepa-handler/workflow.json | jq --arg id "$PROCESS_LOGIC_APP_ID" '
             # Remove the processLogicAppId parameter from definition
             del(.parameters.processLogicAppId) |
-            # Replace the parameter reference with the actual resource ID
-            .actions.Call_Process_Logic_App.inputs.host.workflow.id = $id
+            # Replace the parameter reference with the actual resource ID and add triggerName
+            .actions.Call_Process_Logic_App.inputs.host.workflow.id = $id |
+            .actions.Call_Process_Logic_App.inputs.host.triggerName = "manual"
           ')
 
           # Debug: Show what we're about to use
@@ -661,8 +662,9 @@ jobs:
           WORKFLOW_DEF=$(cat src/Sepa/logicapps/sepa-starter/workflow.json | jq --arg id "$HANDLER_LOGIC_APP_ID" '
             # Remove the handlerLogicAppId parameter from definition
             del(.parameters.handlerLogicAppId) |
-            # Replace the parameter reference with the actual resource ID
-            .actions.For_each_new_file.actions.Call_Handler_Logic_App.inputs.host.workflow.id = $id
+            # Replace the parameter reference with the actual resource ID and add triggerName
+            .actions.For_each_new_file.actions.Call_Handler_Logic_App.inputs.host.workflow.id = $id |
+            .actions.For_each_new_file.actions.Call_Handler_Logic_App.inputs.host.triggerName = "manual"
           ')
 
           # Debug: Show what we're about to use
