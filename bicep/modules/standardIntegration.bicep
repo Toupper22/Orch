@@ -557,13 +557,13 @@ output integrationKeyVaultName string = integrationKeyVault.outputs.name
 output integrationKeyVaultUri string = integrationKeyVault.outputs.uri
 
 @description('Blob API Connection ID')
-output blobApiConnectionId string = enableBlobApiConnection ? blobApiConnection.outputs.id : ''
+output blobApiConnectionId string = enableBlobApiConnection ? blobApiConnection!.outputs.id : ''
 
 @description('Blob API Connection name')
-output blobApiConnectionName string = enableBlobApiConnection ? blobApiConnection.outputs.name : ''
+output blobApiConnectionName string = enableBlobApiConnection ? blobApiConnection!.outputs.name : ''
 
 @description('Table API Connection ID')
-output tableApiConnectionId string = enableTableApiConnection ? tableApiConnection.outputs.id : ''
+output tableApiConnectionId string = enableTableApiConnection ? tableApiConnection!.outputs.id : ''
 
 @description('Table API Connection name')
-output tableApiConnectionName string = enableTableApiConnection ? tableApiConnection.outputs.name : ''
+output tableApiConnectionName string = enableTableApiConnection ? tableApiConnection!.outputs.name : ''
