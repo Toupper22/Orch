@@ -467,46 +467,30 @@ jobs:
           PARAMS=$(jq -c '{prefix: .parameters.prefix.value, locationShort: .parameters.locationShort.value}' bicep/integrations/sepa/parameters.${{ inputs.environment }}.json)
           echo "params=$PARAMS" >> $GITHUB_OUTPUT
 
-      - name: Get API Connection IDs
+      - name: Construct API Connection IDs
         id: get_connections
         run: |
           PREFIX=$(jq -r '.prefix' <<< '${{ steps.load_params.outputs.params }}')
+          SUBSCRIPTION_ID=$(az account show --query id -o tsv)
           RESOURCE_GROUP="${PREFIX}-${{ inputs.environment }}-sepa-rg"
 
-          # Get Blob API Connection ID
+          # Construct API Connection resource IDs using naming convention
           BLOB_CONN_NAME="${PREFIX}-${{ inputs.environment }}-sepa-blob-conn"
-          BLOB_CONN_ID=$(az resource show \
-            --resource-group "$RESOURCE_GROUP" \
-            --resource-type "Microsoft.Web/connections" \
-            --name "$BLOB_CONN_NAME" \
-            --query "id" -o tsv 2>/dev/null || echo "")
+          BLOB_CONN_ID="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.Web/connections/${BLOB_CONN_NAME}"
 
-          # Get Table API Connection ID
           TABLE_CONN_NAME="${PREFIX}-${{ inputs.environment }}-sepa-table-conn"
-          TABLE_CONN_ID=$(az resource show \
-            --resource-group "$RESOURCE_GROUP" \
-            --resource-type "Microsoft.Web/connections" \
-            --name "$TABLE_CONN_NAME" \
-            --query "id" -o tsv 2>/dev/null || echo "")
+          TABLE_CONN_ID="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.Web/connections/${TABLE_CONN_NAME}"
 
           echo "blobApiConnectionId=$BLOB_CONN_ID" >> $GITHUB_OUTPUT
           echo "blobApiConnectionName=$BLOB_CONN_NAME" >> $GITHUB_OUTPUT
           echo "tableApiConnectionId=$TABLE_CONN_ID" >> $GITHUB_OUTPUT
           echo "tableApiConnectionName=$TABLE_CONN_NAME" >> $GITHUB_OUTPUT
 
-          echo "📋 API Connection IDs from Azure resources:"
-          echo "   Blob ID: $BLOB_CONN_ID"
-          echo "   Blob Name: $BLOB_CONN_NAME"
-          echo "   Table ID: $TABLE_CONN_ID"
-          echo "   Table Name: $TABLE_CONN_NAME"
-
-          # Debug: Check if we got valid IDs
-          if [ -z "$BLOB_CONN_ID" ]; then
-            echo "⚠️  WARNING: Blob connection ID is empty!"
-          fi
-          if [ -z "$TABLE_CONN_ID" ]; then
-            echo "⚠️  WARNING: Table connection ID is empty!"
-          fi
+          echo "📋 Constructed API Connection IDs:"
+          echo "   Blob: $BLOB_CONN_NAME"
+          echo "        $BLOB_CONN_ID"
+          echo "   Table: $TABLE_CONN_NAME"
+          echo "        $TABLE_CONN_ID"
 
       - name: Get Function App URL
         id: get_function_url
@@ -573,45 +557,20 @@ jobs:
           LOCATION_SHORT=$(jq -r '.locationShort' <<< '${{ steps.load_params.outputs.params }}')
           PROCESS_LOGIC_APP_ID="${{ steps.deploy_process.outputs.logicAppId }}"
 
-          # Get API Connection IDs (prefer deployment outputs, fallback to queried resources)
-          BLOB_CONN_ID_FROM_DEPLOY="${{ steps.deploy.outputs.blobApiConnectionId }}"
-          BLOB_CONN_ID_FROM_QUERY="${{ steps.get_connections.outputs.blobApiConnectionId }}"
-          BLOB_CONN_ID="${BLOB_CONN_ID_FROM_DEPLOY:-$BLOB_CONN_ID_FROM_QUERY}"
-
-          TABLE_CONN_ID_FROM_DEPLOY="${{ steps.deploy.outputs.tableApiConnectionId }}"
-          TABLE_CONN_ID_FROM_QUERY="${{ steps.get_connections.outputs.tableApiConnectionId }}"
-          TABLE_CONN_ID="${TABLE_CONN_ID_FROM_DEPLOY:-$TABLE_CONN_ID_FROM_QUERY}"
-
-          BLOB_CONN_NAME_FROM_DEPLOY="${{ steps.deploy.outputs.blobApiConnectionName }}"
-          BLOB_CONN_NAME_FROM_QUERY="${{ steps.get_connections.outputs.blobApiConnectionName }}"
-          BLOB_CONN_NAME="${BLOB_CONN_NAME_FROM_DEPLOY:-$BLOB_CONN_NAME_FROM_QUERY}"
-
-          TABLE_CONN_NAME_FROM_DEPLOY="${{ steps.deploy.outputs.tableApiConnectionName }}"
-          TABLE_CONN_NAME_FROM_QUERY="${{ steps.get_connections.outputs.tableApiConnectionName }}"
-          TABLE_CONN_NAME="${TABLE_CONN_NAME_FROM_DEPLOY:-$TABLE_CONN_NAME_FROM_QUERY}"
+          # Get API Connection IDs from the construction step
+          BLOB_CONN_ID="${{ steps.get_connections.outputs.blobApiConnectionId }}"
+          TABLE_CONN_ID="${{ steps.get_connections.outputs.tableApiConnectionId }}"
+          BLOB_CONN_NAME="${{ steps.get_connections.outputs.blobApiConnectionName }}"
+          TABLE_CONN_NAME="${{ steps.get_connections.outputs.tableApiConnectionName }}"
 
           # Get current subscription ID
           SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 
-          echo "🔍 Debug API Connection Sources:"
-          echo "  Blob ID from deploy: ${BLOB_CONN_ID_FROM_DEPLOY:-<empty>}"
-          echo "  Blob ID from query: ${BLOB_CONN_ID_FROM_QUERY:-<empty>}"
-          echo "  Blob ID final: ${BLOB_CONN_ID:-<empty>}"
-          echo "  Table ID from deploy: ${TABLE_CONN_ID_FROM_DEPLOY:-<empty>}"
-          echo "  Table ID from query: ${TABLE_CONN_ID_FROM_QUERY:-<empty>}"
-          echo "  Table ID final: ${TABLE_CONN_ID:-<empty>}"
-
-          # Validate we have required IDs
-          if [ -z "$BLOB_CONN_ID" ] || [ -z "$TABLE_CONN_ID" ]; then
-            echo "❌ ERROR: Missing required API connection IDs"
-            echo "   Blob: ${BLOB_CONN_ID:-MISSING}"
-            echo "   Table: ${TABLE_CONN_ID:-MISSING}"
-            exit 1
-          fi
-
           echo "✅ Using API Connections:"
-          echo "  Blob: $BLOB_CONN_NAME ($BLOB_CONN_ID)"
-          echo "  Table: $TABLE_CONN_NAME ($TABLE_CONN_ID)"
+          echo "  Blob: $BLOB_CONN_NAME"
+          echo "        $BLOB_CONN_ID"
+          echo "  Table: $TABLE_CONN_NAME"
+          echo "        $TABLE_CONN_ID"
 
           # Inject the actual resource ID into the workflow definition
           # Replace @parameters('processLogicAppId') with the actual resource ID
@@ -674,30 +633,16 @@ jobs:
           LOCATION_SHORT=$(jq -r '.locationShort' <<< '${{ steps.load_params.outputs.params }}')
           HANDLER_LOGIC_APP_ID="${{ steps.deploy_handler.outputs.logicAppId }}"
 
-          # Get API Connection IDs (prefer deployment outputs, fallback to queried resources)
-          BLOB_CONN_ID_FROM_DEPLOY="${{ steps.deploy.outputs.blobApiConnectionId }}"
-          BLOB_CONN_ID_FROM_QUERY="${{ steps.get_connections.outputs.blobApiConnectionId }}"
-          BLOB_CONN_ID="${BLOB_CONN_ID_FROM_DEPLOY:-$BLOB_CONN_ID_FROM_QUERY}"
-
-          BLOB_CONN_NAME_FROM_DEPLOY="${{ steps.deploy.outputs.blobApiConnectionName }}"
-          BLOB_CONN_NAME_FROM_QUERY="${{ steps.get_connections.outputs.blobApiConnectionName }}"
-          BLOB_CONN_NAME="${BLOB_CONN_NAME_FROM_DEPLOY:-$BLOB_CONN_NAME_FROM_QUERY}"
+          # Get API Connection IDs from the construction step
+          BLOB_CONN_ID="${{ steps.get_connections.outputs.blobApiConnectionId }}"
+          BLOB_CONN_NAME="${{ steps.get_connections.outputs.blobApiConnectionName }}"
 
           # Get current subscription ID
           SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 
-          echo "🔍 Debug Blob API Connection Sources:"
-          echo "  Blob ID from deploy: ${BLOB_CONN_ID_FROM_DEPLOY:-<empty>}"
-          echo "  Blob ID from query: ${BLOB_CONN_ID_FROM_QUERY:-<empty>}"
-          echo "  Blob ID final: ${BLOB_CONN_ID:-<empty>}"
-
-          # Validate we have required ID
-          if [ -z "$BLOB_CONN_ID" ]; then
-            echo "❌ ERROR: Missing required Blob API connection ID"
-            exit 1
-          fi
-
-          echo "✅ Using Blob API Connection: $BLOB_CONN_NAME ($BLOB_CONN_ID)"
+          echo "✅ Using Blob API Connection:"
+          echo "  Name: $BLOB_CONN_NAME"
+          echo "  ID: $BLOB_CONN_ID"
 
           # Inject the actual resource ID into the workflow definition
           # Replace @parameters('handlerLogicAppId') with the actual resource ID
