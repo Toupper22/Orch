@@ -9,6 +9,19 @@
     }
   },
   "actions": {
+    "Initialize_error_count": {
+      "type": "InitializeVariable",
+      "inputs": {
+        "variables": [
+          {
+            "name": "errorCount",
+            "type": "integer",
+            "value": 0
+          }
+        ]
+      },
+      "runAfter": {}
+    },
     "List_blobs_in_sepa_container": {
       "type": "ApiConnection",
       "inputs": {
@@ -23,7 +36,11 @@
           "useFlatListing": false
         }
       },
-      "runAfter": {}
+      "runAfter": {
+        "Initialize_error_count": [
+          "Succeeded"
+        ]
+      }
     },
     "Filter_new_files": {
       "type": "Query",
@@ -118,14 +135,11 @@
                 },
                 "runAfter": {}
               },
-              "Terminate_with_failure": {
-                "type": "Terminate",
+              "Increment_error_count": {
+                "type": "IncrementVariable",
                 "inputs": {
-                  "runStatus": "Failed",
-                  "runError": {
-                    "code": "FileProcessingFailed",
-                    "message": "@{body('Call_Handler_Logic_App')?['error']}"
-                  }
+                  "name": "errorCount",
+                  "value": 1
                 },
                 "runAfter": {
                   "Log_Error": [
@@ -151,6 +165,40 @@
         "concurrency": {
           "repetitions": 1
         }
+      }
+    },
+    "Check_for_errors": {
+      "type": "If",
+      "expression": {
+        "and": [
+          {
+            "greater": [
+              "@variables('errorCount')",
+              0
+            ]
+          }
+        ]
+      },
+      "actions": {
+        "Terminate_with_failure": {
+          "type": "Terminate",
+          "inputs": {
+            "runStatus": "Failed",
+            "runError": {
+              "code": "FileProcessingFailed",
+              "message": "@{variables('errorCount')} file(s) failed to process"
+            }
+          },
+          "runAfter": {}
+        }
+      },
+      "runAfter": {
+        "For_each_new_file": [
+          "Succeeded",
+          "Failed",
+          "Skipped",
+          "TimedOut"
+        ]
       }
     }
   },
