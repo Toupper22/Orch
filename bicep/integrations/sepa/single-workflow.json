@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "8436749032978667925"
+      "templateHash": "17844719152740803267"
     }
   },
   "parameters": {
@@ -138,7 +138,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "14927422444535525589"
+              "templateHash": "13092430735796584004"
             }
           },
           "parameters": {
@@ -207,7 +207,7 @@
               "properties": {
                 "state": "[parameters('state')]",
                 "definition": "[parameters('workflowDefinition')]",
-                "parameters": "[union(parameters('workflowParameters'), createObject('$connections', createObject('value', parameters('connections'))))]"
+                "parameters": "[if(not(empty(parameters('connections'))), union(parameters('workflowParameters'), createObject('$connections', createObject('value', parameters('connections')))), parameters('workflowParameters'))]"
               }
             }
           ],

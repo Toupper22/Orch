@@ -23,7 +23,7 @@
         "type": "Http",
         "inputs": {
           "method": "POST",
-          "uri": "@parameters('functionAppUrl')/api/TransformSepaFile",
+          "uri": "@concat(parameters('functionAppUrl'), '/api/TransformSepaFile')",
           "headers": {
             "Content-Type": "application/json"
           },
