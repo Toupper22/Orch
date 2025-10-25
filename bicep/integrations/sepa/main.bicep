@@ -467,6 +467,40 @@ module functionAppContributorRole '../../modules/rbacAssignment.bicep' = {
 }
 
 // ============================================================================
+// API Connections for Logic Apps
+// ============================================================================
+
+// Azure Blob Storage API Connection
+module blobApiConnection '../../modules/apiConnection.bicep' = {
+  name: 'blobApiConnection'
+  scope: integrationResourceGroup
+  params: {
+    connectionName: '${prefix}-${environment}-${integrationName}-blob-conn'
+    location: location
+    tags: commonTags
+    connectionType: 'azureblob'
+    displayName: 'SEPA Archive Blob Storage'
+    storageAccountResourceGroup: integrationResourceGroup.name
+    storageAccountName: archiveStorage.outputs.name
+  }
+}
+
+// Azure Table Storage API Connection
+module tableApiConnection '../../modules/apiConnection.bicep' = {
+  name: 'tableApiConnection'
+  scope: integrationResourceGroup
+  params: {
+    connectionName: '${prefix}-${environment}-${integrationName}-table-conn'
+    location: location
+    tags: commonTags
+    connectionType: 'azuretables'
+    displayName: 'SEPA Archive Table Storage'
+    storageAccountResourceGroup: integrationResourceGroup.name
+    storageAccountName: archiveStorage.outputs.name
+  }
+}
+
+// ============================================================================
 // Post-Deployment: Restart Function App
 // ============================================================================
 
@@ -512,3 +546,15 @@ output integrationKeyVaultName string = integrationKeyVault.outputs.name
 
 @description('Integration Key Vault URI')
 output integrationKeyVaultUri string = integrationKeyVault.outputs.uri
+
+@description('Blob API Connection ID')
+output blobApiConnectionId string = blobApiConnection.outputs.id
+
+@description('Blob API Connection name')
+output blobApiConnectionName string = blobApiConnection.outputs.name
+
+@description('Table API Connection ID')
+output tableApiConnectionId string = tableApiConnection.outputs.id
+
+@description('Table API Connection name')
+output tableApiConnectionName string = tableApiConnection.outputs.name

@@ -59,8 +59,14 @@ var azureTablesParams = connectionType == 'azuretables' && !empty(storageAccount
   sharedkey: listKeys(resourceId(storageAccountResourceGroup, 'Microsoft.Storage/storageAccounts', storageAccountName), '2023-01-01').keys[0].value
 } : {}
 
+// Build parameter values for azureblob connection type
+var azureBlobParams = connectionType == 'azureblob' && !empty(storageAccountResourceGroup) && !empty(storageAccountName) ? {
+  accountName: storageAccountName
+  accessKey: listKeys(resourceId(storageAccountResourceGroup, 'Microsoft.Storage/storageAccounts', storageAccountName), '2023-01-01').keys[0].value
+} : {}
+
 // Merge all parameter values
-var finalParameterValues = union(parameterValues, additionalParameterValues, azureTablesParams)
+var finalParameterValues = union(parameterValues, additionalParameterValues, azureTablesParams, azureBlobParams)
 
 // Deploy API Connection
 resource apiConnection 'Microsoft.Web/connections@2016-06-01' = {

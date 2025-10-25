@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "4308667893580991802"
+      "templateHash": "7727104349069766018"
     }
   },
   "parameters": {
@@ -105,7 +105,7 @@
         "api": {
           "id": "[variables('connectionTypes')[parameters('connectionType')].id]"
         },
-        "parameterValues": "[union(parameters('parameterValues'), parameters('additionalParameterValues'), if(and(and(equals(parameters('connectionType'), 'azuretables'), not(empty(parameters('storageAccountResourceGroup')))), not(empty(parameters('storageAccountName')))), createObject('storageaccount', parameters('storageAccountName'), 'sharedkey', listKeys(resourceId(parameters('storageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-01-01').keys[0].value), createObject()))]"
+        "parameterValues": "[union(parameters('parameterValues'), parameters('additionalParameterValues'), if(and(and(equals(parameters('connectionType'), 'azuretables'), not(empty(parameters('storageAccountResourceGroup')))), not(empty(parameters('storageAccountName')))), createObject('storageaccount', parameters('storageAccountName'), 'sharedkey', listKeys(resourceId(parameters('storageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-01-01').keys[0].value), createObject()), if(and(and(equals(parameters('connectionType'), 'azureblob'), not(empty(parameters('storageAccountResourceGroup')))), not(empty(parameters('storageAccountName')))), createObject('accountName', parameters('storageAccountName'), 'accessKey', listKeys(resourceId(parameters('storageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-01-01').keys[0].value), createObject()))]"
       }
     }
   ],

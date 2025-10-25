@@ -1,6 +1,9 @@
 {
   "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
   "parameters": {
+    "$connections": {
+      "type": "Object"
+    },
     "handlerLogicAppId": {
       "type": "String"
     }
@@ -11,7 +14,7 @@
       "inputs": {
         "host": {
           "connection": {
-            "referenceName": "azureblob"
+            "name": "@parameters('$connections')['azureblob']['connectionId']"
           }
         },
         "method": "get",
@@ -43,7 +46,7 @@
           "inputs": {
             "host": {
               "connection": {
-                "referenceName": "azureblob"
+                "name": "@parameters('$connections')['azureblob']['connectionId']"
               }
             },
             "method": "get",
@@ -90,7 +93,7 @@
               "inputs": {
                 "host": {
                   "connection": {
-                    "referenceName": "azureblob"
+                    "name": "@parameters('$connections')['azureblob']['connectionId']"
                   }
                 },
                 "method": "post",

@@ -521,8 +521,25 @@ jobs:
 
           PREFIX=$(jq -r '.prefix' <<< '${{ steps.load_params.outputs.params }}')
           LOCATION_SHORT=$(jq -r '.locationShort' <<< '${{ steps.load_params.outputs.params }}')
+          PROCESS_LOGIC_APP_ID="${{ steps.deploy_process.outputs.logicAppId }}"
 
-          # Create parameters file with workflow definition and process Logic App ID
+          # Get API Connection IDs from infrastructure deployment
+          BLOB_CONN_ID="${{ steps.deploy.outputs.blobApiConnectionId }}"
+          TABLE_CONN_ID="${{ steps.deploy.outputs.tableApiConnectionId }}"
+
+          # Get current subscription ID
+          SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+          # Inject the actual resource ID into the workflow definition
+          # Replace @parameters('processLogicAppId') with the actual resource ID
+          WORKFLOW_DEF=$(cat src/Sepa/logicapps/sepa-handler/workflow.json | jq --arg id "$PROCESS_LOGIC_APP_ID" '
+            # Remove the processLogicAppId parameter from definition
+            del(.parameters.processLogicAppId) |
+            # Replace the parameter reference with the actual resource ID
+            .actions.Call_Process_Logic_App.inputs.host.workflow.id = $id
+          ')
+
+          # Create parameters file with modified workflow definition and API connections
           cat > /tmp/handler-params.json <<EOF
           {
             "\$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
@@ -534,11 +551,19 @@ jobs:
               "locationShort": { "value": "$LOCATION_SHORT" },
               "integrationName": { "value": "sepa" },
               "workflowName": { "value": "sepa-handler" },
-              "workflowDefinition": { "value": $(cat src/Sepa/logicapps/sepa-handler/workflow.json) },
-              "workflowParameters": {
+              "workflowDefinition": { "value": $WORKFLOW_DEF },
+              "workflowParameters": { "value": {} },
+              "connections": {
                 "value": {
-                  "processLogicAppId": {
-                    "value": "${{ steps.deploy_process.outputs.logicAppId }}"
+                  "azureblob": {
+                    "connectionId": "$BLOB_CONN_ID",
+                    "connectionName": "${{ steps.deploy.outputs.blobApiConnectionName }}",
+                    "id": "/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Web/locations/swedencentral/managedApis/azureblob"
+                  },
+                  "azuretables": {
+                    "connectionId": "$TABLE_CONN_ID",
+                    "connectionName": "${{ steps.deploy.outputs.tableApiConnectionName }}",
+                    "id": "/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Web/locations/swedencentral/managedApis/azuretables"
                   }
                 }
               }
@@ -555,18 +580,34 @@ jobs:
 
           echo "logicAppId=$DEPLOYMENT_OUTPUT" >> $GITHUB_OUTPUT
 
-      - name: Deploy SEPA Scheduler Logic App
+      - name: Deploy SEPA Starter Logic App
         run: |
-          if [ ! -f "src/Sepa/logicapps/sepa-scheduler/workflow.json" ]; then
+          if [ ! -f "src/Sepa/logicapps/sepa-starter/workflow.json" ]; then
             echo "⚠️ Workflow definition not found, skipping"
             exit 0
           fi
 
           PREFIX=$(jq -r '.prefix' <<< '${{ steps.load_params.outputs.params }}')
           LOCATION_SHORT=$(jq -r '.locationShort' <<< '${{ steps.load_params.outputs.params }}')
+          HANDLER_LOGIC_APP_ID="${{ steps.deploy_handler.outputs.logicAppId }}"
 
-          # Create parameters file with workflow definition and handler Logic App ID
-          cat > /tmp/scheduler-params.json <<EOF
+          # Get API Connection IDs from infrastructure deployment
+          BLOB_CONN_ID="${{ steps.deploy.outputs.blobApiConnectionId }}"
+
+          # Get current subscription ID
+          SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+          # Inject the actual resource ID into the workflow definition
+          # Replace @parameters('handlerLogicAppId') with the actual resource ID
+          WORKFLOW_DEF=$(cat src/Sepa/logicapps/sepa-starter/workflow.json | jq --arg id "$HANDLER_LOGIC_APP_ID" '
+            # Remove the handlerLogicAppId parameter from definition
+            del(.parameters.handlerLogicAppId) |
+            # Replace the parameter reference with the actual resource ID
+            .actions.For_each_new_file.actions.Call_Handler_Logic_App.inputs.host.workflow.id = $id
+          ')
+
+          # Create parameters file with modified workflow definition and API connections
+          cat > /tmp/starter-params.json <<EOF
           {
             "\$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
             "contentVersion": "1.0.0.0",
@@ -576,12 +617,15 @@ jobs:
               "location": { "value": "swedencentral" },
               "locationShort": { "value": "$LOCATION_SHORT" },
               "integrationName": { "value": "sepa" },
-              "workflowName": { "value": "sepa-scheduler" },
-              "workflowDefinition": { "value": $(cat src/Sepa/logicapps/sepa-scheduler/workflow.json) },
-              "workflowParameters": {
+              "workflowName": { "value": "sepa-starter" },
+              "workflowDefinition": { "value": $WORKFLOW_DEF },
+              "workflowParameters": { "value": {} },
+              "connections": {
                 "value": {
-                  "handlerLogicAppId": {
-                    "value": "${{ steps.deploy_handler.outputs.logicAppId }}"
+                  "azureblob": {
+                    "connectionId": "$BLOB_CONN_ID",
+                    "connectionName": "${{ steps.deploy.outputs.blobApiConnectionName }}",
+                    "id": "/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Web/locations/swedencentral/managedApis/azureblob"
                   }
                 }
               }
@@ -592,8 +636,8 @@ jobs:
           az deployment sub create \
             --location swedencentral \
             --template-file bicep/integrations/sepa/single-workflow.bicep \
-            --parameters /tmp/scheduler-params.json \
-            --name sepa-scheduler-${{ inputs.environment }}-${{ github.run_number }}
+            --parameters /tmp/starter-params.json \
+            --name sepa-starter-${{ inputs.environment }}-${{ github.run_number }}
 
       - name: Output Logic Apps Deployment Summary
         run: |
@@ -602,10 +646,10 @@ jobs:
           echo "**Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Deployed Logic Apps" >> $GITHUB_STEP_SUMMARY
-          if [ -f "src/Sepa/logicapps/sepa-scheduler/workflow.json" ]; then
-            echo "- ✅ SEPA Scheduler" >> $GITHUB_STEP_SUMMARY
+          if [ -f "src/Sepa/logicapps/sepa-starter/workflow.json" ]; then
+            echo "- ✅ SEPA Starter" >> $GITHUB_STEP_SUMMARY
           else
-            echo "- ⚠️ SEPA Scheduler (workflow.json not found)" >> $GITHUB_STEP_SUMMARY
+            echo "- ⚠️ SEPA Starter (workflow.json not found)" >> $GITHUB_STEP_SUMMARY
           fi
           if [ -f "src/Sepa/logicapps/sepa-handler/workflow.json" ]; then
             echo "- ✅ SEPA Handler" >> $GITHUB_STEP_SUMMARY

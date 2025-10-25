@@ -1,6 +1,9 @@
 {
   "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
   "parameters": {
+    "$connections": {
+      "type": "Object"
+    },
     "processLogicAppId": {
       "type": "String"
     }
@@ -91,13 +94,13 @@
             "inputs": {
               "host": {
                 "connection": {
-                  "referenceName": "azureblob"
+                  "name": "@parameters('$connections')['azureblob']['connectionId']"
                 }
               },
               "method": "post",
               "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/files",
               "queries": {
-                "folderPath": "/sepa/transformed",
+                "folderPath": "/sepa-transformed",
                 "name": "@{variables('fileInfo')?['fileName']}",
                 "queryParametersSingleEncoded": true
               },
@@ -139,7 +142,7 @@
               "inputs": {
                 "host": {
                   "connection": {
-                    "referenceName": "azuretables"
+                    "name": "@parameters('$connections')['azuretables']['connectionId']"
                   }
                 },
                 "method": "post",
