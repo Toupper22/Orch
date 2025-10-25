@@ -41,11 +41,11 @@ resource logicApp 'Microsoft.Logic/workflows@2019-05-01' = {
   properties: {
     state: state
     definition: workflowDefinition
-    parameters: union(workflowParameters, {
+    parameters: !empty(connections) ? union(workflowParameters, {
       '$connections': {
         value: connections
       }
-    })
+    }) : workflowParameters
   }
 }
 
