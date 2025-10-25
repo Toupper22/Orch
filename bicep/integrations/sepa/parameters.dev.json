@@ -28,8 +28,72 @@
     "serviceBusSku": {
       "value": "Standard"
     },
+    "serviceBusQueues": {
+      "value": [
+        {
+          "name": "sepa-inbound",
+          "maxDeliveryCount": 10,
+          "lockDuration": "PT5M",
+          "defaultMessageTimeToLive": "P7D"
+        },
+        {
+          "name": "sepa-errors",
+          "maxDeliveryCount": 10,
+          "lockDuration": "PT5M",
+          "defaultMessageTimeToLive": "P14D"
+        }
+      ]
+    },
     "storageFirewallDefault": {
       "value": "Allow"
+    },
+    "functionStorageContainers": {
+      "value": []
+    },
+    "functionStorageTables": {
+      "value": []
+    },
+    "integrationStorageContainers": {
+      "value": [
+        {
+          "name": "sepa",
+          "publicAccess": "None"
+        },
+        {
+          "name": "sepa-processed",
+          "publicAccess": "None"
+        },
+        {
+          "name": "sepa-transformed",
+          "publicAccess": "None"
+        },
+        {
+          "name": "sepa-errors",
+          "publicAccess": "None"
+        }
+      ]
+    },
+    "integrationStorageTables": {
+      "value": [
+        {
+          "name": "ErrorLog"
+        },
+        {
+          "name": "ProcessingLog"
+        }
+      ]
+    },
+    "integrationStorageInstance": {
+      "value": "arc"
+    },
+    "functionAppSettings": {
+      "value": []
+    },
+    "enableBlobApiConnection": {
+      "value": true
+    },
+    "enableTableApiConnection": {
+      "value": true
     }
   }
 }
