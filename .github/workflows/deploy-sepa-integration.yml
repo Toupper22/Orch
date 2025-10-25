@@ -581,6 +581,13 @@ jobs:
             .actions.Call_Process_Logic_App.inputs.host.workflow.id = $id
           ')
 
+          # Debug: Show what we're about to use
+          echo "🔍 Values before creating JSON:"
+          echo "  BLOB_CONN_ID length: ${#BLOB_CONN_ID}"
+          echo "  BLOB_CONN_ID: $BLOB_CONN_ID"
+          echo "  TABLE_CONN_ID length: ${#TABLE_CONN_ID}"
+          echo "  TABLE_CONN_ID: $TABLE_CONN_ID"
+
           # Create parameters file with modified workflow definition and API connections
           cat > /tmp/handler-params.json <<EOF
           {
@@ -612,6 +619,11 @@ jobs:
             }
           }
           EOF
+
+          # Debug: Show what was actually written
+          echo "🔍 Generated parameters file:"
+          cat /tmp/handler-params.json | jq '.parameters.connections.value.azureblob'
+          cat /tmp/handler-params.json | jq '.parameters.connections.value.azuretables'
 
           DEPLOYMENT_OUTPUT=$(az deployment sub create \
             --location swedencentral \
@@ -653,6 +665,11 @@ jobs:
             .actions.For_each_new_file.actions.Call_Handler_Logic_App.inputs.host.workflow.id = $id
           ')
 
+          # Debug: Show what we're about to use
+          echo "🔍 Values before creating JSON:"
+          echo "  BLOB_CONN_ID length: ${#BLOB_CONN_ID}"
+          echo "  BLOB_CONN_ID: $BLOB_CONN_ID"
+
           # Create parameters file with modified workflow definition and API connections
           cat > /tmp/starter-params.json <<EOF
           {
@@ -679,6 +696,10 @@ jobs:
             }
           }
           EOF
+
+          # Debug: Show what was actually written
+          echo "🔍 Generated parameters file:"
+          cat /tmp/starter-params.json | jq '.parameters.connections.value.azureblob'
 
           az deployment sub create \
             --location swedencentral \
