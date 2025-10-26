@@ -91,16 +91,6 @@ var finalComponents = !empty(instance) ? concat(nameWithType, [instanceShort]) :
 // Generate the final name
 var resourceName = useShortNames ? toLower(replace(join(finalComponents, ''), '-', '')) : join(finalComponents, separator)
 
-// Validate storage account name length (max 24 characters for Azure Storage)
-// This helps catch prefix configuration issues early
-var isStorageAccount = resourceType == 'st'
-var nameLength = length(resourceName)
-
-// Assert that storage account names don't exceed 24 characters
-// This prevents deployment failures when prefix is too long
-@description('Storage account name length validation - max 24 characters allowed')
-var storageNameValidation = isStorageAccount && useShortNames ? (nameLength <= 24 ? true : error('Storage account name "${resourceName}" is ${nameLength} characters long, exceeding the maximum of 24. Please use a shorter prefix (current: "${prefix}").')) : true
-
 // Output the generated name
 output name string = resourceName
 
