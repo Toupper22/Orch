@@ -4,7 +4,7 @@
 
 This document summarizes the Azure Integration Template Repository (Orch) that has been created. This is a production-ready template for building Azure integration projects with Dynamics 365 Finance and Operations.
 
-## What Has Been Built - Phase 1 (MVP)
+## What Has Been Built
 
 ### 1. Project Structure ✅
 
@@ -70,13 +70,17 @@ Orch/
 |--------|---------|--------------|
 | **functionApp.bicep** | Deploys Azure Function App | VNet integration, managed identity, app settings |
 | **logicApp.bicep** | Deploys Logic App Standard | VNet integration, managed identity, workflow hosting |
+| **logicAppConsumption.bicep** | Deploys Logic App Consumption | Serverless, pay-per-execution |
+| **restartFunctionApp.bicep** | Restarts Function App | Used in CI/CD for config reload |
 
 #### Integration Modules
 
 | Module | Purpose | Key Features |
 |--------|---------|--------------|
+| **standardIntegration.bicep** | Unified integration template | Parameterized, eliminates duplication |
 | **serviceBus.bicep** | Deploys Service Bus namespace | Queues, topics, subscriptions, SKU options |
 | **apiConnection.bicep** | Creates API Connection for Logic Apps | Azure Tables, Blob, Service Bus connections |
+| **singleWorkflow.bicep** | Deploys single Logic App workflow | Post-deployment workflow addition |
 
 #### Secrets Management Modules
 
@@ -95,12 +99,15 @@ Orch/
 | **actionGroup.bicep** | Deploys Action Group for alerts | Email receivers, enabled/disabled state |
 | **metricAlert.bicep** | Creates metric alert rules | Threshold criteria, action groups, auto-mitigation |
 
-#### Main Deployments
+#### Main Deployment Templates
 
 | File | Purpose | Scope |
 |------|---------|-------|
 | **bicep/common/main.bicep** | Orchestrates common infrastructure | Subscription-level deployment |
-| **bicep/integrations/sample-integration/main.bicep** | Orchestrates sample integration | Subscription-level deployment |
+| **bicep/modules/standardIntegration.bicep** | Unified integration template | Subscription-level deployment |
+| **bicep/integrations/sample-integration/main.bicep** | Sample integration (legacy approach) | Subscription-level deployment |
+
+**Total Modules**: 25 Bicep modules
 
 ### 3. Configuration System ✅
 
@@ -125,14 +132,38 @@ Four environment-specific parameter files:
 | **uat** | Standard | Standard_GRS | EP1 (Elastic Premium) | 90 days |
 | **prod** | Premium | Standard_GRS | EP1 (Elastic Premium) | 90 days |
 
-### 4. GitHub Actions Workflow ✅
+### 4. GitHub Actions Workflows ✅
 
-**deploy-common-infra.yml** provides:
+#### Deployment Workflows
+
+**deploy-common-infra.yml** - Common infrastructure deployment:
 - Environment selection (dev/test/uat/prod)
 - What-if preview option
 - Validation step
 - Deployment with output summary
 - Environment-based secrets (AZURE_CREDENTIALS)
+
+**deploy-sepa-integration.yml** - SEPA integration deployment:
+- Uses standardIntegration.bicep template
+- Production integration workflow
+
+**deploy-nomentia-integration.yml** - Nomentia integration deployment:
+- Uses standardIntegration.bicep template
+- Production integration workflow
+
+**deploy-sample-integration.yml** - Sample integration deployment:
+- Uses custom main.bicep (legacy approach)
+- Educational reference workflow
+
+#### Security & Quality Workflows
+
+**codeql.yml** - CodeQL security analysis:
+- Automated code scanning
+- Security vulnerability detection
+
+**nuget-vulnerability-scan.yml** - NuGet package scanning:
+- Dependency vulnerability checks
+- .NET package security auditing
 
 ### 5. Documentation ✅
 
@@ -289,33 +320,43 @@ This template can be:
 - Customized for organization-specific requirements
 - Used as a reference architecture
 
-## What's Next - Phase 2
+## Production Integrations ✅
 
-The following features are planned for Phase 2:
+This repository includes the following production integrations:
 
-### Integration Pattern Templates
+### 1. SEPA Integration
+- **Approach**: Uses `standardIntegration.bicep`
+- **Location**: `bicep/integrations/sepa/`
+- **Workflow**: `deploy-sepa-integration.yml`
+- **Purpose**: SEPA payment processing integration
 
-- [ ] Logic App Standard template
-- [ ] Function App template
-- [ ] Service Bus deployment module
-- [ ] Integration resource group template
-- [ ] Reusable integration deployment workflow
+### 2. Nomentia Integration
+- **Approach**: Uses `standardIntegration.bicep`
+- **Location**: `bicep/integrations/nomentia/`
+- **Workflow**: `deploy-nomentia-integration.yml`
+- **Purpose**: Nomentia system integration
 
-### Additional Features
+### 3. Sample Integration (Reference)
+- **Approach**: Custom `main.bicep` (legacy)
+- **Location**: `bicep/integrations/sample-integration/`
+- **Workflow**: `deploy-sample-integration.yml`
+- **Purpose**: Educational reference for developers
 
-- [ ] Application Insights module
-- [ ] Log Analytics Workspace module
-- [ ] Service Bus namespace module
-- [ ] Sample integration projects
+## Future Enhancements
+
+Potential areas for future development:
+
+### Advanced Features
 - [ ] Integration testing framework
-- [ ] Cost estimation tools
+- [ ] Cost estimation and optimization tools
+- [ ] Advanced monitoring dashboards
+- [ ] Multi-region deployment support
 
-### Documentation
-
-- [ ] Integration development guide
-- [ ] Architecture decision records
-- [ ] Security best practices guide
-- [ ] Cost optimization guide
+### Additional Documentation
+- [ ] Architecture decision records (ADRs)
+- [ ] Security best practices deep-dive
+- [ ] Performance tuning guide
+- [ ] Disaster recovery procedures
 
 ## Technical Specifications
 
@@ -355,10 +396,13 @@ Default: West Europe (configurable)
 This implementation delivers:
 
 ✅ **Complete common infrastructure** - Ready to deploy with monitoring and alerting
-✅ **Sample integration template** - End-to-end working example
+✅ **Production integrations** - SEPA and Nomentia integrations deployed
+✅ **Unified integration template** - `standardIntegration.bicep` for consistency
+✅ **Sample integration reference** - End-to-end working example
 ✅ **4 environment configurations** - Dev, Test, UAT, Prod
-✅ **20 reusable Bicep modules** - Well-tested and documented
-✅ **Automated deployment pipelines** - GitHub Actions for common + integrations
+✅ **25 reusable Bicep modules** - Well-tested and documented
+✅ **6 automated deployment pipelines** - GitHub Actions for common + integrations
+✅ **Security scanning** - CodeQL and NuGet vulnerability scanning
 ✅ **Comprehensive documentation** - README, guides, troubleshooting
 ✅ **Security by default** - Access policies, managed identities, Key Vault with auto-secrets
 ✅ **API Connections** - Pre-configured for Logic Apps
@@ -412,24 +456,28 @@ When adding features:
 
 ## Conclusion
 
-This Phase 1 implementation provides a solid foundation for building Azure integration projects. The template is:
+This implementation provides a production-ready foundation for building Azure integration projects. The template is:
 
-- ✅ **Production-ready**: Follows best practices and security standards
+- ✅ **Production-ready**: Follows best practices and security standards with active integrations
 - ✅ **Well-documented**: Comprehensive guides and examples
-- ✅ **Modular**: Easy to extend and customize
-- ✅ **Automated**: CI/CD ready with GitHub Actions
+- ✅ **Modular**: Easy to extend and customize with 25 reusable modules
+- ✅ **Automated**: Full CI/CD with GitHub Actions including security scanning
 - ✅ **Multi-environment**: Separate configs for each environment
+- ✅ **Battle-tested**: SEPA and Nomentia integrations in production
 
-Developers can now:
+Developers can:
 1. Clone this template
-2. Configure for their project
-3. Deploy common infrastructure
-4. Start building integrations
+2. Configure for their project using `config/settings.json`
+3. Deploy common infrastructure via GitHub Actions or Azure CLI
+4. Create integrations using the unified `standardIntegration.bicep` template
+5. Reference sample integration for educational purposes
 
 ---
 
 **Created**: 2025-10-21
-**Last Updated**: 2025-10-22
-**Status**: Complete - Production Ready
-**Modules**: 20 Bicep modules
-**Integrations**: Sample integration included
+**Last Updated**: 2025-10-26
+**Status**: Production Ready with Active Integrations
+**Version**: 2.1.0
+**Modules**: 25 Bicep modules
+**Integrations**: 3 integrations (2 production, 1 sample)
+**Workflows**: 6 GitHub Actions workflows

@@ -69,7 +69,21 @@ Each integration has its own resource group containing:
 - **API Connections**: For Logic Apps to access storage (blob, tables)
 - **References**: Uses shared common infrastructure (VNet, App Plan, Managed Identity)
 
-**New!** All integrations now use a **unified template** (`bicep/modules/standardIntegration.bicep`) configured through parameters, eliminating code duplication.
+### Integration Approaches
+
+This repository supports two approaches for creating integrations:
+
+**🆕 Recommended: Standard Integration Template** (`bicep/modules/standardIntegration.bicep`)
+- Used by: SEPA and Nomentia integrations
+- Benefits: Consistent infrastructure, reduced duplication, easier maintenance
+- Just define parameters - no custom Bicep code needed
+- See [Standard Integration Guide](bicep/modules/README-standardIntegration.md)
+
+**Legacy: Custom Integration Template** (e.g., `sample-integration/main.bicep`)
+- Used by: Sample integration (for educational purposes)
+- Allows full customization of infrastructure
+- Requires maintaining separate Bicep files
+- Useful for complex integrations with unique requirements
 
 ```mermaid
 graph TB
@@ -380,6 +394,32 @@ EOF
 - ✅ Just define parameters for your specific needs
 - ✅ Automatic updates when base template improves
 
+### Existing Integrations
+
+This repository includes the following integrations:
+
+#### 1. SEPA Integration (Production)
+- **Location**: `bicep/integrations/sepa/`
+- **Approach**: Uses `standardIntegration.bicep` ✅
+- **Workflow**: `.github/workflows/deploy-sepa-integration.yml`
+- **Purpose**: SEPA payment processing integration
+
+#### 2. Nomentia Integration (Production)
+- **Location**: `bicep/integrations/nomentia/`
+- **Approach**: Uses `standardIntegration.bicep` ✅
+- **Workflow**: `.github/workflows/deploy-nomentia-integration.yml`
+- **Documentation**: See `bicep/integrations/nomentia/README.md`
+- **Purpose**: Nomentia system integration
+
+#### 3. Sample Integration (Template/Reference)
+- **Location**: `bicep/integrations/sample-integration/`
+- **Approach**: Custom `main.bicep` (legacy approach)
+- **Workflow**: `.github/workflows/deploy-sample-integration.yml`
+- **Documentation**: See `bicep/integrations/sample-integration/README.md`
+- **Purpose**: Educational reference showing end-to-end integration pattern
+
+**Note**: For new integrations, use the **Standard Integration Template** approach as demonstrated by SEPA and Nomentia. The sample integration uses a custom approach for educational purposes to show how all components work together.
+
 ## Testing & Validation
 
 ### Quick Testing
@@ -423,7 +463,11 @@ Orch/
 ├── .github/
 │   └── workflows/
 │       ├── deploy-common-infra.yml         # Common infra deployment workflow
-│       └── deploy-sample-integration.yml   # Sample integration deployment
+│       ├── deploy-sample-integration.yml   # Sample integration deployment
+│       ├── deploy-sepa-integration.yml     # SEPA integration deployment
+│       ├── deploy-nomentia-integration.yml # Nomentia integration deployment
+│       ├── codeql.yml                      # CodeQL security analysis
+│       └── nuget-vulnerability-scan.yml    # NuGet package vulnerability scanning
 ├── bicep/
 │   ├── common/
 │   │   ├── main.bicep                      # Main common infrastructure
@@ -432,14 +476,21 @@ Orch/
 │   │   ├── parameters.uat.json             # UAT environment parameters
 │   │   └── parameters.prod.json            # Prod environment parameters
 │   ├── integrations/
-│   │   ├── sepa/                           # SEPA integration
-│   │   │   └── parameters.*.json           # SEPA parameters
-│   │   ├── nomentia/                       # Nomentia integration
-│   │   │   └── parameters.*.json           # Nomentia parameters
+│   │   ├── sepa/                           # SEPA integration (production)
+│   │   │   ├── parameters.*.json           # SEPA environment parameters
+│   │   │   └── workflow-type.bicep         # SEPA-specific workflow type
+│   │   ├── nomentia/                       # Nomentia integration (production)
+│   │   │   ├── parameters.*.json           # Nomentia environment parameters
+│   │   │   ├── workflow-type.bicep         # Nomentia-specific workflow type
+│   │   │   └── README.md                   # Nomentia integration docs
 │   │   └── sample-integration/             # Sample integration template
-│   │       └── parameters.*.json           # Sample parameters
+│   │       ├── main.bicep                  # Sample main template (legacy approach)
+│   │       ├── parameters.*.json           # Sample parameters
+│   │       ├── workflow-type.bicep         # Sample workflow type
+│   │       ├── logicapps/                  # Sample Logic App workflows
+│   │       └── README.md                   # Sample integration docs
 │   └── modules/
-│       ├── standardIntegration.bicep       # 🆕 Unified template for all integrations
+│       ├── standardIntegration.bicep       # 🆕 Unified template for integrations
 │       ├── naming.bicep                    # Naming convention module
 │       ├── keyVault.bicep                  # Key Vault deployment
 │       ├── keyVaultSecret.bicep            # Key Vault secret creation
@@ -449,6 +500,7 @@ Orch/
 │       ├── managedIdentity.bicep           # Managed Identity deployment
 │       ├── appServicePlan.bicep            # App Service Plan deployment
 │       ├── functionApp.bicep               # Function App deployment
+│       ├── logicApp.bicep                  # Logic App (Standard) deployment
 │       ├── logicAppConsumption.bicep       # Logic App (Consumption) deployment
 │       ├── apiConnection.bicep             # API Connection for Logic Apps
 │       ├── serviceBus.bicep                # Service Bus namespace/queues/topics
@@ -460,6 +512,8 @@ Orch/
 │       ├── actionGroup.bicep               # Action Group for alerts
 │       ├── metricAlert.bicep               # Metric alert rules
 │       ├── rbacAssignment.bicep            # RBAC role assignment
+│       ├── restartFunctionApp.bicep        # Function App restart utility
+│       ├── singleWorkflow.bicep            # Single Logic App workflow deployment
 │       └── README-standardIntegration.md   # Standard integration guide
 ├── config/
 │   ├── settings.json                       # Project configuration
@@ -468,8 +522,10 @@ Orch/
 ├── scripts/
 │   ├── generate-common-params.sh           # Generate common parameters
 │   ├── generate-integration-params.sh      # Generate integration parameters
+│   ├── create-integration-params.sh        # Create new integration parameters
 │   ├── test-deployment.sh                  # Comprehensive testing
-│   └── validate-bicep.sh                   # Bicep validation
+│   ├── validate-bicep.sh                   # Bicep validation
+│   └── lib/                                # Shared script libraries
 └── README.md                               # This file
 ```
 
@@ -558,11 +614,53 @@ az deployment sub what-if \
 
 ### Deploy Integration
 
-*(Coming in Phase 2)*
+Integration deployments are available via GitHub Actions workflows:
 
-Integration-specific deployments will use a similar pattern with their own parameter files and workflows.
+**Using GitHub Actions (Recommended):**
+1. Navigate to Actions tab
+2. Select the integration workflow:
+   - "Deploy SEPA Integration"
+   - "Deploy Nomentia Integration"
+   - "Deploy Sample Integration"
+3. Click "Run workflow"
+4. Select environment and options
+5. Review deployment summary
+
+**Using Azure CLI:**
+```bash
+# Example: Deploy SEPA integration using standardIntegration.bicep
+az deployment sub create \
+  --location swedencentral \
+  --template-file bicep/modules/standardIntegration.bicep \
+  --parameters bicep/integrations/sepa/parameters.dev.json \
+  --name sepa-integration-dev-$(date +%Y%m%d-%H%M%S)
+
+# Example: Deploy sample integration using custom main.bicep
+az deployment sub create \
+  --location swedencentral \
+  --template-file bicep/integrations/sample-integration/main.bicep \
+  --parameters bicep/integrations/sample-integration/parameters.dev.json
+```
 
 ## Infrastructure Components
+
+### Bicep Modules Overview
+
+The repository includes specialized Bicep modules for different purposes:
+
+#### Logic App Modules
+- **`logicAppConsumption.bicep`**: Logic App (Consumption) tier - pay-per-execution, serverless
+  - Use for: Most integrations with variable workload
+  - Used by: Production integrations (SEPA, Nomentia)
+- **`logicApp.bicep`**: Logic App (Standard) tier - dedicated hosting with App Service Plan
+  - Use for: High-volume integrations requiring VNet integration
+  - Note: Currently not used by active integrations
+- **`singleWorkflow.bicep`**: Deploy individual workflow to existing Logic App
+  - Use for: Adding workflows to Logic Apps post-deployment
+
+#### Utility Modules
+- **`restartFunctionApp.bicep`**: Restart Function App after deployment
+  - Use for: Forcing configuration reload in CI/CD pipelines
 
 ### Key Vault
 
@@ -809,13 +907,21 @@ This template is provided as-is for use within your organization.
 
 ---
 
-**Version**: 2.0.0
-**Last Updated**: 2025-10-25
+**Version**: 2.1.0
+**Last Updated**: 2025-10-26
 
 ## Changelog
 
+### Version 2.1.0 (2025-10-26)
+- 📝 **DOCUMENTATION**: Updated project structure to reflect actual implementation
+- ✅ **DOCUMENTATION**: Documented SEPA and Nomentia production integrations
+- 📚 **DOCUMENTATION**: Clarified standardIntegration.bicep usage patterns
+- 🔍 **DOCUMENTATION**: Added documentation for additional Bicep modules (logicApp, restartFunctionApp, singleWorkflow)
+- 🚀 **DOCUMENTATION**: Documented all GitHub Actions workflows including security scans
+- 📋 **DOCUMENTATION**: Added create-integration-params.sh to scripts documentation
+
 ### Version 2.0.0 (2025-10-25)
-- ✨ **NEW**: Unified `standardIntegration.bicep` template for all integrations
+- ✨ **NEW**: Unified `standardIntegration.bicep` template for integrations
 - 🔄 **BREAKING**: Replaced integration-specific main.bicep files with parameterized approach
 - 📝 Updated all documentation to reflect Logic Apps Consumption tier (not Standard)
 - 🧹 Removed WS1-WS3 App Service Plan SKU references
