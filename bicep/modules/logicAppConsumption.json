@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "4729778566697904519"
+      "templateHash": "5815962228354388657"
     }
   },
   "parameters": {
@@ -71,11 +71,8 @@
     },
     "allowedCallerIpAddresses": {
       "type": "array",
-      "defaultValue": [
-        "217.149.56.100"
-      ],
       "metadata": {
-        "description": "Array of allowed caller IP addresses (CIDR notation or single IPs)"
+        "description": "Array of allowed caller IP addresses (CIDR notation) - configured centrally in config/settings.json"
       }
     }
   },

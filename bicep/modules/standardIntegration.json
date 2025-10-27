@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "10809189837328429736"
+      "templateHash": "18044140604568510230"
     }
   },
   "parameters": {
@@ -55,11 +55,8 @@
     },
     "allowedCallerIpAddresses": {
       "type": "array",
-      "defaultValue": [
-        "217.149.56.100"
-      ],
       "metadata": {
-        "description": "Array of allowed caller IP addresses for Logic Apps and Storage Accounts (CIDR notation or single IPs)"
+        "description": "Array of allowed caller IP addresses for Logic Apps and Storage Accounts (CIDR notation) - configured centrally in config/settings.json"
       }
     },
     "serviceBusSku": {

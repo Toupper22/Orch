@@ -28,8 +28,8 @@ param state string = 'Enabled'
 @description('Enable IP-based access restrictions for triggers, actions, and run history')
 param enableIpRestrictions bool = true
 
-@description('Array of allowed caller IP addresses (CIDR notation or single IPs)')
-param allowedCallerIpAddresses array = ['217.149.56.100']
+@description('Array of allowed caller IP addresses (CIDR notation) - configured centrally in config/settings.json')
+param allowedCallerIpAddresses array
 
 // Variables
 var ipAddressRanges = [for ip in allowedCallerIpAddresses: {

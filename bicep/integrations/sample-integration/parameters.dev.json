@@ -27,6 +27,9 @@
     },
     "serviceBusSku": {
       "value": "Standard"
+    },
+    "allowedCallerIpAddresses": {
+      "value": ["217.149.56.100/32"]
     }
   }
 }

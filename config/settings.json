@@ -148,7 +148,7 @@
   },
   "security": {
     "enablePrivateEndpoints": false,
-    "allowedIpAddresses": ["217.149.56.100"],
+    "allowedIpAddresses": ["217.149.56.100/32"],
     "enableDiagnostics": true,
     "externalLogAnalyticsWorkspaceId": ""
   },
