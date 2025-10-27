@@ -25,10 +25,10 @@ param managedIdentityId string = ''
 @description('Enable or disable the Logic App')
 param state string = 'Enabled'
 
-@description('Enable IP-based access restrictions for triggers, actions, and run history')
-param enableIpRestrictions bool = true
+@description('Enable IP-based access restrictions for run history (contents). Triggers will use "Only other Logic Apps" mode.')
+param enableContentIpRestrictions bool = true
 
-@description('Array of allowed caller IP addresses (CIDR notation) - configured centrally in config/settings.json')
+@description('Array of allowed caller IP addresses (CIDR notation) for viewing run history - configured centrally in config/settings.json')
 param allowedCallerIpAddresses array
 
 // Variables
@@ -57,14 +57,8 @@ resource logicApp 'Microsoft.Logic/workflows@2019-05-01' = {
         value: connections
       }
     }) : workflowParameters
-    accessControl: enableIpRestrictions ? {
-      triggers: {
-        allowedCallerIpAddresses: ipAddressRanges
-      }
+    accessControl: enableContentIpRestrictions ? {
       contents: {
-        allowedCallerIpAddresses: ipAddressRanges
-      }
-      actions: {
         allowedCallerIpAddresses: ipAddressRanges
       }
     } : null

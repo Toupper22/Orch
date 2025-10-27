@@ -405,7 +405,6 @@ jobs:
 
           PREFIX=$(jq -r '.prefix' <<< '${{ steps.load_params.outputs.params }}')
           LOCATION_SHORT=$(jq -r '.locationShort' <<< '${{ steps.load_params.outputs.params }}')
-          ALLOWED_IPS=$(jq -c '.security.allowedIpAddresses' config/settings.json)
 
           # Create parameters file with workflow definition and function URL
           cat > /tmp/process-params.json <<EOF
@@ -418,7 +417,7 @@ jobs:
               "location": { "value": "swedencentral" },
               "locationShort": { "value": "$LOCATION_SHORT" },
               "integrationName": { "value": "sepa" },
-              "workflowName": { "value": "sepa-process" },
+              "workflowName": { "value": "process" },
               "workflowDefinition": { "value": $(cat src/Sepa/logicapps/sepa-process/workflow.json) },
               "workflowParameters": {
                 "value": {
@@ -426,8 +425,7 @@ jobs:
                     "value": "${{ steps.get_function_url.outputs.functionUrl }}"
                   }
                 }
-              },
-              "allowedCallerIpAddresses": { "value": $ALLOWED_IPS }
+              }
             }
           }
           EOF
@@ -452,7 +450,6 @@ jobs:
           PREFIX=$(jq -r '.prefix' <<< '${{ steps.load_params.outputs.params }}')
           LOCATION_SHORT=$(jq -r '.locationShort' <<< '${{ steps.load_params.outputs.params }}')
           PROCESS_LOGIC_APP_ID="${{ steps.deploy_process.outputs.logicAppId }}"
-          ALLOWED_IPS=$(jq -c '.security.allowedIpAddresses' config/settings.json)
 
           # Get API Connection IDs from the construction step
           BLOB_CONN_ID="${{ steps.get_connections.outputs.blobApiConnectionId }}"
@@ -497,7 +494,7 @@ jobs:
               "location": { "value": "swedencentral" },
               "locationShort": { "value": "$LOCATION_SHORT" },
               "integrationName": { "value": "sepa" },
-              "workflowName": { "value": "sepa-handler" },
+              "workflowName": { "value": "handler" },
               "workflowDefinition": { "value": $WORKFLOW_DEF },
               "workflowParameters": { "value": {} },
               "connections": {
@@ -513,8 +510,7 @@ jobs:
                     "id": "/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Web/locations/swedencentral/managedApis/azuretables"
                   }
                 }
-              },
-              "allowedCallerIpAddresses": { "value": $ALLOWED_IPS }
+              }
             }
           }
           EOF
@@ -543,7 +539,6 @@ jobs:
           PREFIX=$(jq -r '.prefix' <<< '${{ steps.load_params.outputs.params }}')
           LOCATION_SHORT=$(jq -r '.locationShort' <<< '${{ steps.load_params.outputs.params }}')
           HANDLER_LOGIC_APP_ID="${{ steps.deploy_handler.outputs.logicAppId }}"
-          ALLOWED_IPS=$(jq -c '.security.allowedIpAddresses' config/settings.json)
 
           # Get API Connection IDs from the construction step
           BLOB_CONN_ID="${{ steps.get_connections.outputs.blobApiConnectionId }}"
@@ -582,7 +577,7 @@ jobs:
               "location": { "value": "swedencentral" },
               "locationShort": { "value": "$LOCATION_SHORT" },
               "integrationName": { "value": "sepa" },
-              "workflowName": { "value": "sepa-starter" },
+              "workflowName": { "value": "starter" },
               "workflowDefinition": { "value": $WORKFLOW_DEF },
               "workflowParameters": { "value": {} },
               "connections": {
@@ -593,8 +588,7 @@ jobs:
                     "id": "/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Web/locations/swedencentral/managedApis/azureblob"
                   }
                 }
-              },
-              "allowedCallerIpAddresses": { "value": $ALLOWED_IPS }
+              }
             }
           }
           EOF

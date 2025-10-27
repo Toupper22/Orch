@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "8399355278125264142"
+      "templateHash": "16578773331644588407"
     }
   },
   "parameters": {
@@ -78,17 +78,17 @@
         "description": "Common workflow definition"
       }
     },
-    "enableIpRestrictions": {
+    "enableContentIpRestrictions": {
       "type": "bool",
       "defaultValue": true,
       "metadata": {
-        "description": "Enable IP-based access restrictions for triggers, actions, and run history"
+        "description": "Enable IP-based access restrictions for run history (contents). Triggers will use \"Only other Logic Apps\" mode."
       }
     },
     "allowedCallerIpAddresses": {
       "type": "array",
       "metadata": {
-        "description": "Array of allowed caller IP addresses (CIDR notation or single IPs) - configured centrally in config/settings.json"
+        "description": "Array of allowed caller IP addresses (CIDR notation) for viewing run history - configured centrally in config/settings.json"
       }
     }
   },
@@ -130,8 +130,8 @@
           "state": {
             "value": "Enabled"
           },
-          "enableIpRestrictions": {
-            "value": "[parameters('enableIpRestrictions')]"
+          "enableContentIpRestrictions": {
+            "value": "[parameters('enableContentIpRestrictions')]"
           },
           "allowedCallerIpAddresses": {
             "value": "[parameters('allowedCallerIpAddresses')]"
@@ -144,7 +144,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "4729778566697904519"
+              "templateHash": "1276956074060704933"
             }
           },
           "parameters": {
@@ -201,20 +201,17 @@
                 "description": "Enable or disable the Logic App"
               }
             },
-            "enableIpRestrictions": {
+            "enableContentIpRestrictions": {
               "type": "bool",
               "defaultValue": true,
               "metadata": {
-                "description": "Enable IP-based access restrictions for triggers, actions, and run history"
+                "description": "Enable IP-based access restrictions for run history (contents). Triggers will use \"Only other Logic Apps\" mode."
               }
             },
             "allowedCallerIpAddresses": {
               "type": "array",
-              "defaultValue": [
-                "217.149.56.100"
-              ],
               "metadata": {
-                "description": "Array of allowed caller IP addresses (CIDR notation or single IPs)"
+                "description": "Array of allowed caller IP addresses (CIDR notation) for viewing run history - configured centrally in config/settings.json"
               }
             }
           },
@@ -241,7 +238,7 @@
                 "state": "[parameters('state')]",
                 "definition": "[parameters('workflowDefinition')]",
                 "parameters": "[if(not(empty(parameters('connections'))), union(parameters('workflowParameters'), createObject('$connections', createObject('value', parameters('connections')))), parameters('workflowParameters'))]",
-                "accessControl": "[if(parameters('enableIpRestrictions'), createObject('triggers', createObject('allowedCallerIpAddresses', variables('ipAddressRanges')), 'contents', createObject('allowedCallerIpAddresses', variables('ipAddressRanges')), 'actions', createObject('allowedCallerIpAddresses', variables('ipAddressRanges'))), null())]"
+                "accessControl": "[if(parameters('enableContentIpRestrictions'), createObject('contents', createObject('allowedCallerIpAddresses', variables('ipAddressRanges'))), null())]"
               }
             }
           ],
@@ -307,8 +304,8 @@
           "state": {
             "value": "Enabled"
           },
-          "enableIpRestrictions": {
-            "value": "[parameters('enableIpRestrictions')]"
+          "enableContentIpRestrictions": {
+            "value": "[parameters('enableContentIpRestrictions')]"
           },
           "allowedCallerIpAddresses": {
             "value": "[parameters('allowedCallerIpAddresses')]"
@@ -321,7 +318,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "4729778566697904519"
+              "templateHash": "1276956074060704933"
             }
           },
           "parameters": {
@@ -378,20 +375,17 @@
                 "description": "Enable or disable the Logic App"
               }
             },
-            "enableIpRestrictions": {
+            "enableContentIpRestrictions": {
               "type": "bool",
               "defaultValue": true,
               "metadata": {
-                "description": "Enable IP-based access restrictions for triggers, actions, and run history"
+                "description": "Enable IP-based access restrictions for run history (contents). Triggers will use \"Only other Logic Apps\" mode."
               }
             },
             "allowedCallerIpAddresses": {
               "type": "array",
-              "defaultValue": [
-                "217.149.56.100"
-              ],
               "metadata": {
-                "description": "Array of allowed caller IP addresses (CIDR notation or single IPs)"
+                "description": "Array of allowed caller IP addresses (CIDR notation) for viewing run history - configured centrally in config/settings.json"
               }
             }
           },
@@ -418,7 +412,7 @@
                 "state": "[parameters('state')]",
                 "definition": "[parameters('workflowDefinition')]",
                 "parameters": "[if(not(empty(parameters('connections'))), union(parameters('workflowParameters'), createObject('$connections', createObject('value', parameters('connections')))), parameters('workflowParameters'))]",
-                "accessControl": "[if(parameters('enableIpRestrictions'), createObject('triggers', createObject('allowedCallerIpAddresses', variables('ipAddressRanges')), 'contents', createObject('allowedCallerIpAddresses', variables('ipAddressRanges')), 'actions', createObject('allowedCallerIpAddresses', variables('ipAddressRanges'))), null())]"
+                "accessControl": "[if(parameters('enableContentIpRestrictions'), createObject('contents', createObject('allowedCallerIpAddresses', variables('ipAddressRanges'))), null())]"
               }
             }
           ],
@@ -484,8 +478,8 @@
           "state": {
             "value": "Enabled"
           },
-          "enableIpRestrictions": {
-            "value": "[parameters('enableIpRestrictions')]"
+          "enableContentIpRestrictions": {
+            "value": "[parameters('enableContentIpRestrictions')]"
           },
           "allowedCallerIpAddresses": {
             "value": "[parameters('allowedCallerIpAddresses')]"
@@ -498,7 +492,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "4729778566697904519"
+              "templateHash": "1276956074060704933"
             }
           },
           "parameters": {
@@ -555,20 +549,17 @@
                 "description": "Enable or disable the Logic App"
               }
             },
-            "enableIpRestrictions": {
+            "enableContentIpRestrictions": {
               "type": "bool",
               "defaultValue": true,
               "metadata": {
-                "description": "Enable IP-based access restrictions for triggers, actions, and run history"
+                "description": "Enable IP-based access restrictions for run history (contents). Triggers will use \"Only other Logic Apps\" mode."
               }
             },
             "allowedCallerIpAddresses": {
               "type": "array",
-              "defaultValue": [
-                "217.149.56.100"
-              ],
               "metadata": {
-                "description": "Array of allowed caller IP addresses (CIDR notation or single IPs)"
+                "description": "Array of allowed caller IP addresses (CIDR notation) for viewing run history - configured centrally in config/settings.json"
               }
             }
           },
@@ -595,7 +586,7 @@
                 "state": "[parameters('state')]",
                 "definition": "[parameters('workflowDefinition')]",
                 "parameters": "[if(not(empty(parameters('connections'))), union(parameters('workflowParameters'), createObject('$connections', createObject('value', parameters('connections')))), parameters('workflowParameters'))]",
-                "accessControl": "[if(parameters('enableIpRestrictions'), createObject('triggers', createObject('allowedCallerIpAddresses', variables('ipAddressRanges')), 'contents', createObject('allowedCallerIpAddresses', variables('ipAddressRanges')), 'actions', createObject('allowedCallerIpAddresses', variables('ipAddressRanges'))), null())]"
+                "accessControl": "[if(parameters('enableContentIpRestrictions'), createObject('contents', createObject('allowedCallerIpAddresses', variables('ipAddressRanges'))), null())]"
               }
             }
           ],

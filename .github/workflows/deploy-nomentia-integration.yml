@@ -351,8 +351,6 @@ jobs:
         run: |
           PARAMS=$(jq -c '{prefix: .parameters.prefix.value, locationShort: .parameters.locationShort.value}' bicep/integrations/nomentia/parameters.${{ inputs.environment }}.json)
           echo "params=$PARAMS" >> $GITHUB_OUTPUT
-          ALLOWED_IPS=$(jq -c '.security.allowedIpAddresses' config/settings.json)
-          echo "allowedIps=$ALLOWED_IPS" >> $GITHUB_OUTPUT
 
       - name: Load Workflow Definition - D365FO to Nomentia AR Transactions
         id: load_artransactions
@@ -383,7 +381,6 @@ jobs:
             integrationName=nomentia
             workflowName=d365fo-nomentia-artransactions
             workflowDefinition='${{ steps.load_artransactions.outputs.workflow }}'
-            allowedCallerIpAddresses='${{ steps.load_params.outputs.allowedIps }}'
           deploymentName: nomentia-artransactions-${{ inputs.environment }}-${{ github.run_number }}
 
       - name: Load Workflow Definition - ERP to Nomentia Outbound Payments
@@ -415,7 +412,6 @@ jobs:
             integrationName=nomentia
             workflowName=erp-nomentia-outboundpayments
             workflowDefinition='${{ steps.load_outboundpayments.outputs.workflow }}'
-            allowedCallerIpAddresses='${{ steps.load_params.outputs.allowedIps }}'
           deploymentName: nomentia-outboundpayments-${{ inputs.environment }}-${{ github.run_number }}
 
       - name: Load Workflow Definition - Nomentia to D365FO Posted Bank Statements
@@ -447,7 +443,6 @@ jobs:
             integrationName=nomentia
             workflowName=nomentia-d365fo-postedbankstatements
             workflowDefinition='${{ steps.load_bankstatements.outputs.workflow }}'
-            allowedCallerIpAddresses='${{ steps.load_params.outputs.allowedIps }}'
           deploymentName: nomentia-bankstatements-${{ inputs.environment }}-${{ github.run_number }}
 
       - name: Load Workflow Definition - Nomentia to ERP Reference Payments
@@ -479,7 +474,6 @@ jobs:
             integrationName=nomentia
             workflowName=nomentia-erp-referencepayments
             workflowDefinition='${{ steps.load_referencepayments.outputs.workflow }}'
-            allowedCallerIpAddresses='${{ steps.load_params.outputs.allowedIps }}'
           deploymentName: nomentia-referencepayments-${{ inputs.environment }}-${{ github.run_number }}
 
       - name: Output Logic Apps Deployment Summary
