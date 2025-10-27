@@ -46,6 +46,7 @@ LOCATION=$(jq -r '.azure.location' "$SETTINGS_FILE")
 LOCATION_SHORT=$(jq -r '.azure.locationShort' "$SETTINGS_FILE")
 CUSTOMER=$(jq -r '.project.customerName' "$SETTINGS_FILE")
 PROJECT=$(jq -r '.project.projectName' "$SETTINGS_FILE")
+ALLOWED_IPS=$(jq -c '.security.allowedIpAddresses' "$SETTINGS_FILE")
 
 # Expected common resource group name (for verification)
 COMMON_RG="${PREFIX}-${ENV}-common-rg"
@@ -114,6 +115,9 @@ cat > "$PARAM_FILE" <<EOF
     },
     "serviceBusSku": {
       "value": "Standard"
+    },
+    "allowedCallerIpAddresses": {
+      "value": $ALLOWED_IPS
     }
   }
 }

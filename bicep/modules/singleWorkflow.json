@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "67259191264687461"
+      "templateHash": "16104341220076843477"
     }
   },
   "parameters": {
@@ -85,6 +85,19 @@
       "metadata": {
         "description": "Enable or disable the workflow"
       }
+    },
+    "enableIpRestrictions": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable IP-based access restrictions for triggers, actions, and run history"
+      }
+    },
+    "allowedCallerIpAddresses": {
+      "type": "array",
+      "metadata": {
+        "description": "Array of allowed caller IP addresses (CIDR notation or single IPs) - configured centrally in config/settings.json"
+      }
     }
   },
   "variables": {
@@ -128,6 +141,12 @@
           },
           "state": {
             "value": "[parameters('state')]"
+          },
+          "enableIpRestrictions": {
+            "value": "[parameters('enableIpRestrictions')]"
+          },
+          "allowedCallerIpAddresses": {
+            "value": "[parameters('allowedCallerIpAddresses')]"
           }
         },
         "template": {
@@ -137,7 +156,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "13092430735796584004"
+              "templateHash": "4729778566697904519"
             }
           },
           "parameters": {
@@ -193,7 +212,34 @@
               "metadata": {
                 "description": "Enable or disable the Logic App"
               }
+            },
+            "enableIpRestrictions": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Enable IP-based access restrictions for triggers, actions, and run history"
+              }
+            },
+            "allowedCallerIpAddresses": {
+              "type": "array",
+              "defaultValue": [
+                "217.149.56.100"
+              ],
+              "metadata": {
+                "description": "Array of allowed caller IP addresses (CIDR notation or single IPs)"
+              }
             }
+          },
+          "variables": {
+            "copy": [
+              {
+                "name": "ipAddressRanges",
+                "count": "[length(parameters('allowedCallerIpAddresses'))]",
+                "input": {
+                  "addressRange": "[parameters('allowedCallerIpAddresses')[copyIndex('ipAddressRanges')]]"
+                }
+              }
+            ]
           },
           "resources": [
             {
@@ -206,7 +252,8 @@
               "properties": {
                 "state": "[parameters('state')]",
                 "definition": "[parameters('workflowDefinition')]",
-                "parameters": "[if(not(empty(parameters('connections'))), union(parameters('workflowParameters'), createObject('$connections', createObject('value', parameters('connections')))), parameters('workflowParameters'))]"
+                "parameters": "[if(not(empty(parameters('connections'))), union(parameters('workflowParameters'), createObject('$connections', createObject('value', parameters('connections')))), parameters('workflowParameters'))]",
+                "accessControl": "[if(parameters('enableIpRestrictions'), createObject('triggers', createObject('allowedCallerIpAddresses', variables('ipAddressRanges')), 'contents', createObject('allowedCallerIpAddresses', variables('ipAddressRanges')), 'actions', createObject('allowedCallerIpAddresses', variables('ipAddressRanges'))), null())]"
               }
             }
           ],
@@ -231,6 +278,13 @@
                 "description": "Logic App principal ID"
               },
               "value": "[if(not(empty(parameters('managedIdentityId'))), '', reference(resourceId('Microsoft.Logic/workflows', parameters('logicAppName')), '2019-05-01', 'full').identity.principalId)]"
+            },
+            "callbackUrl": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App callback URL for manual/request triggers"
+              },
+              "value": "[listCallbackUrl(format('{0}/triggers/manual', resourceId('Microsoft.Logic/workflows', parameters('logicAppName'))), '2019-05-01').value]"
             }
           }
         }

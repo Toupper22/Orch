@@ -41,6 +41,9 @@ param tags object = {}
 ])
 param serviceBusSku string = 'Standard'
 
+@description('Array of allowed caller IP addresses for Storage Accounts (CIDR notation or single IPs) - configured centrally in config/settings.json')
+param allowedCallerIpAddresses array
+
 // ============================================================================
 // Variables
 // ============================================================================
@@ -266,9 +269,7 @@ module functionStorage '../../modules/storageAccount.bicep' = {
       }
     ]
     networkAclDefaultAction: 'Deny'
-    ipRules: [
-      '217.149.56.100'
-    ]
+    ipRules: allowedCallerIpAddresses
     virtualNetworkRules: [
       integrationSubnetId
     ]
@@ -305,9 +306,7 @@ module archiveStorage '../../modules/storageAccount.bicep' = {
       }
     ]
     networkAclDefaultAction: 'Deny'
-    ipRules: [
-      '217.149.56.100'
-    ]
+    ipRules: allowedCallerIpAddresses
     virtualNetworkRules: [
       integrationSubnetId
     ]

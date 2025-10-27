@@ -44,6 +44,12 @@ param processWorkflowDefinition object
 @description('Common workflow definition')
 param commonWorkflowDefinition object
 
+@description('Enable IP-based access restrictions for triggers, actions, and run history')
+param enableIpRestrictions bool = true
+
+@description('Array of allowed caller IP addresses (CIDR notation or single IPs) - configured centrally in config/settings.json')
+param allowedCallerIpAddresses array
+
 // ============================================================================
 // Variables
 // ============================================================================
@@ -104,6 +110,8 @@ module starterLogicApp '../../modules/logicAppConsumption.bicep' = {
     workflowDefinition: starterWorkflowDefinition
     managedIdentityId: commonManagedIdentity.id
     state: 'Enabled'
+    enableIpRestrictions: enableIpRestrictions
+    allowedCallerIpAddresses: allowedCallerIpAddresses
   }
 }
 
@@ -118,6 +126,8 @@ module processLogicApp '../../modules/logicAppConsumption.bicep' = {
     workflowDefinition: processWorkflowDefinition
     managedIdentityId: commonManagedIdentity.id
     state: 'Enabled'
+    enableIpRestrictions: enableIpRestrictions
+    allowedCallerIpAddresses: allowedCallerIpAddresses
   }
 }
 
@@ -132,6 +142,8 @@ module commonLogicApp '../../modules/logicAppConsumption.bicep' = {
     workflowDefinition: commonWorkflowDefinition
     managedIdentityId: commonManagedIdentity.id
     state: 'Enabled'
+    enableIpRestrictions: enableIpRestrictions
+    allowedCallerIpAddresses: allowedCallerIpAddresses
   }
 }
 

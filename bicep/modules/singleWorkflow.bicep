@@ -46,6 +46,12 @@ param connections object = {}
 @description('Enable or disable the workflow')
 param state string = 'Enabled'
 
+@description('Enable IP-based access restrictions for triggers, actions, and run history')
+param enableIpRestrictions bool = true
+
+@description('Array of allowed caller IP addresses (CIDR notation or single IPs) - configured centrally in config/settings.json')
+param allowedCallerIpAddresses array
+
 // ============================================================================
 // Variables
 // ============================================================================
@@ -104,6 +110,8 @@ module logicApp '../modules/logicAppConsumption.bicep' = {
     connections: connections
     managedIdentityId: commonManagedIdentity.id
     state: state
+    enableIpRestrictions: enableIpRestrictions
+    allowedCallerIpAddresses: allowedCallerIpAddresses
   }
 }
 

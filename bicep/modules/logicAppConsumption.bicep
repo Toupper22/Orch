@@ -25,6 +25,17 @@ param managedIdentityId string = ''
 @description('Enable or disable the Logic App')
 param state string = 'Enabled'
 
+@description('Enable IP-based access restrictions for triggers, actions, and run history')
+param enableIpRestrictions bool = true
+
+@description('Array of allowed caller IP addresses (CIDR notation or single IPs)')
+param allowedCallerIpAddresses array = ['217.149.56.100']
+
+// Variables
+var ipAddressRanges = [for ip in allowedCallerIpAddresses: {
+  addressRange: ip
+}]
+
 // Deploy Logic App (Consumption)
 resource logicApp 'Microsoft.Logic/workflows@2019-05-01' = {
   name: logicAppName
@@ -46,6 +57,17 @@ resource logicApp 'Microsoft.Logic/workflows@2019-05-01' = {
         value: connections
       }
     }) : workflowParameters
+    accessControl: enableIpRestrictions ? {
+      triggers: {
+        allowedCallerIpAddresses: ipAddressRanges
+      }
+      contents: {
+        allowedCallerIpAddresses: ipAddressRanges
+      }
+      actions: {
+        allowedCallerIpAddresses: ipAddressRanges
+      }
+    } : null
   }
 }
 
@@ -58,3 +80,7 @@ output name string = logicApp.name
 
 @description('Logic App principal ID')
 output principalId string = !empty(managedIdentityId) ? '' : logicApp.identity.principalId
+
+@description('Logic App callback URL for manual/request triggers')
+#disable-next-line outputs-should-not-contain-secrets
+output callbackUrl string = listCallbackUrl('${logicApp.id}/triggers/manual', '2019-05-01').value

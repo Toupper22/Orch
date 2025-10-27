@@ -31,6 +31,9 @@ param integrationName string
 @description('Common tags')
 param tags object = {}
 
+@description('Array of allowed caller IP addresses for Logic Apps and Storage Accounts (CIDR notation or single IPs)')
+param allowedCallerIpAddresses array = ['217.149.56.100']
+
 // ============================================================================
 // Parameters - Service Bus
 // ============================================================================
@@ -295,9 +298,7 @@ module functionStorage '../modules/storageAccount.bicep' = {
       }
     ]
     networkAclDefaultAction: storageFirewallDefault
-    ipRules: storageFirewallDefault == 'Deny' ? [
-      '217.149.56.100'
-    ] : []
+    ipRules: storageFirewallDefault == 'Deny' ? allowedCallerIpAddresses : []
     virtualNetworkRules: [
       integrationSubnetId
     ]
@@ -318,9 +319,7 @@ module integrationStorage '../modules/storageAccount.bicep' = {
     containers: integrationStorageContainers
     tables: integrationStorageTables
     networkAclDefaultAction: storageFirewallDefault
-    ipRules: storageFirewallDefault == 'Deny' ? [
-      '217.149.56.100'
-    ] : []
+    ipRules: storageFirewallDefault == 'Deny' ? allowedCallerIpAddresses : []
     virtualNetworkRules: [
       integrationSubnetId
     ]

@@ -1,0 +1,663 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.38.33.27573",
+      "templateHash": "4959337338732384770"
+    }
+  },
+  "parameters": {
+    "prefix": {
+      "type": "string",
+      "metadata": {
+        "description": "Customer/project prefix for resource naming"
+      }
+    },
+    "environment": {
+      "type": "string",
+      "allowedValues": [
+        "dev",
+        "test",
+        "uat",
+        "prod"
+      ],
+      "metadata": {
+        "description": "Environment name (dev, test, uat, prod)"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[deployment().location]",
+      "metadata": {
+        "description": "Azure region for resources"
+      }
+    },
+    "locationShort": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region short code"
+      }
+    },
+    "integrationName": {
+      "type": "string",
+      "defaultValue": "nomentia",
+      "metadata": {
+        "description": "Integration name"
+      }
+    },
+    "workflowType": {
+      "type": "string",
+      "metadata": {
+        "description": "Workflow type name (e.g., d365fo-nomentia-artransactions)"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Common tags"
+      }
+    },
+    "starterWorkflowDefinition": {
+      "type": "object",
+      "metadata": {
+        "description": "Starter workflow definition"
+      }
+    },
+    "processWorkflowDefinition": {
+      "type": "object",
+      "metadata": {
+        "description": "Process workflow definition"
+      }
+    },
+    "commonWorkflowDefinition": {
+      "type": "object",
+      "metadata": {
+        "description": "Common workflow definition"
+      }
+    }
+  },
+  "variables": {
+    "resourceGroupName": "[format('{0}-{1}-{2}-rg', parameters('prefix'), parameters('environment'), parameters('integrationName'))]",
+    "commonResourceGroupName": "[format('{0}-{1}-common-rg', parameters('prefix'), parameters('environment'))]",
+    "commonTags": "[union(parameters('tags'), createObject('Environment', parameters('environment'), 'Integration', parameters('integrationName'), 'WorkflowType', parameters('workflowType'), 'ManagedBy', 'Bicep'))]",
+    "starterLogicAppName": "[format('{0}-{1}-{2}-{3}-starter-logic', parameters('prefix'), parameters('environment'), parameters('integrationName'), parameters('workflowType'))]",
+    "processLogicAppName": "[format('{0}-{1}-{2}-{3}-process-logic', parameters('prefix'), parameters('environment'), parameters('integrationName'), parameters('workflowType'))]",
+    "commonLogicAppName": "[format('{0}-{1}-{2}-{3}-common-logic', parameters('prefix'), parameters('environment'), parameters('integrationName'), parameters('workflowType'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('starter-{0}', parameters('workflowType'))]",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "logicAppName": {
+            "value": "[variables('starterLogicAppName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[union(variables('commonTags'), createObject('Stage', 'Starter'))]"
+          },
+          "workflowDefinition": {
+            "value": "[parameters('starterWorkflowDefinition')]"
+          },
+          "managedIdentityId": {
+            "value": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', replace(format('{0}-{1}-{2}-id', parameters('prefix'), parameters('environment'), parameters('locationShort')), '-', ''))]"
+          },
+          "state": {
+            "value": "Enabled"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "4729778566697904519"
+            }
+          },
+          "parameters": {
+            "logicAppName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Logic App"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for the Logic App"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags to apply to the Logic App"
+              }
+            },
+            "workflowDefinition": {
+              "type": "object",
+              "metadata": {
+                "description": "Workflow definition JSON"
+              }
+            },
+            "workflowParameters": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Workflow parameters"
+              }
+            },
+            "connections": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "API connections for the workflow"
+              }
+            },
+            "managedIdentityId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Managed Identity resource ID (optional)"
+              }
+            },
+            "state": {
+              "type": "string",
+              "defaultValue": "Enabled",
+              "metadata": {
+                "description": "Enable or disable the Logic App"
+              }
+            },
+            "enableIpRestrictions": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Enable IP-based access restrictions for triggers, actions, and run history"
+              }
+            },
+            "allowedCallerIpAddresses": {
+              "type": "array",
+              "defaultValue": [
+                "217.149.56.100"
+              ],
+              "metadata": {
+                "description": "Array of allowed caller IP addresses (CIDR notation or single IPs)"
+              }
+            }
+          },
+          "variables": {
+            "copy": [
+              {
+                "name": "ipAddressRanges",
+                "count": "[length(parameters('allowedCallerIpAddresses'))]",
+                "input": {
+                  "addressRange": "[parameters('allowedCallerIpAddresses')[copyIndex('ipAddressRanges')]]"
+                }
+              }
+            ]
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Logic/workflows",
+              "apiVersion": "2019-05-01",
+              "name": "[parameters('logicAppName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "identity": "[if(not(empty(parameters('managedIdentityId'))), createObject('type', 'UserAssigned', 'userAssignedIdentities', createObject(format('{0}', parameters('managedIdentityId')), createObject())), createObject('type', 'SystemAssigned'))]",
+              "properties": {
+                "state": "[parameters('state')]",
+                "definition": "[parameters('workflowDefinition')]",
+                "parameters": "[if(not(empty(parameters('connections'))), union(parameters('workflowParameters'), createObject('$connections', createObject('value', parameters('connections')))), parameters('workflowParameters'))]",
+                "accessControl": "[if(parameters('enableIpRestrictions'), createObject('triggers', createObject('allowedCallerIpAddresses', variables('ipAddressRanges')), 'contents', createObject('allowedCallerIpAddresses', variables('ipAddressRanges')), 'actions', createObject('allowedCallerIpAddresses', variables('ipAddressRanges'))), null())]"
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App resource ID"
+              },
+              "value": "[resourceId('Microsoft.Logic/workflows', parameters('logicAppName'))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App name"
+              },
+              "value": "[parameters('logicAppName')]"
+            },
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App principal ID"
+              },
+              "value": "[if(not(empty(parameters('managedIdentityId'))), '', reference(resourceId('Microsoft.Logic/workflows', parameters('logicAppName')), '2019-05-01', 'full').identity.principalId)]"
+            },
+            "callbackUrl": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App callback URL for manual/request triggers"
+              },
+              "value": "[listCallbackUrl(format('{0}/triggers/manual', resourceId('Microsoft.Logic/workflows', parameters('logicAppName'))), '2019-05-01').value]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('process-{0}', parameters('workflowType'))]",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "logicAppName": {
+            "value": "[variables('processLogicAppName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[union(variables('commonTags'), createObject('Stage', 'Process'))]"
+          },
+          "workflowDefinition": {
+            "value": "[parameters('processWorkflowDefinition')]"
+          },
+          "managedIdentityId": {
+            "value": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', replace(format('{0}-{1}-{2}-id', parameters('prefix'), parameters('environment'), parameters('locationShort')), '-', ''))]"
+          },
+          "state": {
+            "value": "Enabled"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "4729778566697904519"
+            }
+          },
+          "parameters": {
+            "logicAppName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Logic App"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for the Logic App"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags to apply to the Logic App"
+              }
+            },
+            "workflowDefinition": {
+              "type": "object",
+              "metadata": {
+                "description": "Workflow definition JSON"
+              }
+            },
+            "workflowParameters": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Workflow parameters"
+              }
+            },
+            "connections": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "API connections for the workflow"
+              }
+            },
+            "managedIdentityId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Managed Identity resource ID (optional)"
+              }
+            },
+            "state": {
+              "type": "string",
+              "defaultValue": "Enabled",
+              "metadata": {
+                "description": "Enable or disable the Logic App"
+              }
+            },
+            "enableIpRestrictions": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Enable IP-based access restrictions for triggers, actions, and run history"
+              }
+            },
+            "allowedCallerIpAddresses": {
+              "type": "array",
+              "defaultValue": [
+                "217.149.56.100"
+              ],
+              "metadata": {
+                "description": "Array of allowed caller IP addresses (CIDR notation or single IPs)"
+              }
+            }
+          },
+          "variables": {
+            "copy": [
+              {
+                "name": "ipAddressRanges",
+                "count": "[length(parameters('allowedCallerIpAddresses'))]",
+                "input": {
+                  "addressRange": "[parameters('allowedCallerIpAddresses')[copyIndex('ipAddressRanges')]]"
+                }
+              }
+            ]
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Logic/workflows",
+              "apiVersion": "2019-05-01",
+              "name": "[parameters('logicAppName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "identity": "[if(not(empty(parameters('managedIdentityId'))), createObject('type', 'UserAssigned', 'userAssignedIdentities', createObject(format('{0}', parameters('managedIdentityId')), createObject())), createObject('type', 'SystemAssigned'))]",
+              "properties": {
+                "state": "[parameters('state')]",
+                "definition": "[parameters('workflowDefinition')]",
+                "parameters": "[if(not(empty(parameters('connections'))), union(parameters('workflowParameters'), createObject('$connections', createObject('value', parameters('connections')))), parameters('workflowParameters'))]",
+                "accessControl": "[if(parameters('enableIpRestrictions'), createObject('triggers', createObject('allowedCallerIpAddresses', variables('ipAddressRanges')), 'contents', createObject('allowedCallerIpAddresses', variables('ipAddressRanges')), 'actions', createObject('allowedCallerIpAddresses', variables('ipAddressRanges'))), null())]"
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App resource ID"
+              },
+              "value": "[resourceId('Microsoft.Logic/workflows', parameters('logicAppName'))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App name"
+              },
+              "value": "[parameters('logicAppName')]"
+            },
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App principal ID"
+              },
+              "value": "[if(not(empty(parameters('managedIdentityId'))), '', reference(resourceId('Microsoft.Logic/workflows', parameters('logicAppName')), '2019-05-01', 'full').identity.principalId)]"
+            },
+            "callbackUrl": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App callback URL for manual/request triggers"
+              },
+              "value": "[listCallbackUrl(format('{0}/triggers/manual', resourceId('Microsoft.Logic/workflows', parameters('logicAppName'))), '2019-05-01').value]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('common-{0}', parameters('workflowType'))]",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "logicAppName": {
+            "value": "[variables('commonLogicAppName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[union(variables('commonTags'), createObject('Stage', 'Common'))]"
+          },
+          "workflowDefinition": {
+            "value": "[parameters('commonWorkflowDefinition')]"
+          },
+          "managedIdentityId": {
+            "value": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', replace(format('{0}-{1}-{2}-id', parameters('prefix'), parameters('environment'), parameters('locationShort')), '-', ''))]"
+          },
+          "state": {
+            "value": "Enabled"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "4729778566697904519"
+            }
+          },
+          "parameters": {
+            "logicAppName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Logic App"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for the Logic App"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags to apply to the Logic App"
+              }
+            },
+            "workflowDefinition": {
+              "type": "object",
+              "metadata": {
+                "description": "Workflow definition JSON"
+              }
+            },
+            "workflowParameters": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Workflow parameters"
+              }
+            },
+            "connections": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "API connections for the workflow"
+              }
+            },
+            "managedIdentityId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Managed Identity resource ID (optional)"
+              }
+            },
+            "state": {
+              "type": "string",
+              "defaultValue": "Enabled",
+              "metadata": {
+                "description": "Enable or disable the Logic App"
+              }
+            },
+            "enableIpRestrictions": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Enable IP-based access restrictions for triggers, actions, and run history"
+              }
+            },
+            "allowedCallerIpAddresses": {
+              "type": "array",
+              "defaultValue": [
+                "217.149.56.100"
+              ],
+              "metadata": {
+                "description": "Array of allowed caller IP addresses (CIDR notation or single IPs)"
+              }
+            }
+          },
+          "variables": {
+            "copy": [
+              {
+                "name": "ipAddressRanges",
+                "count": "[length(parameters('allowedCallerIpAddresses'))]",
+                "input": {
+                  "addressRange": "[parameters('allowedCallerIpAddresses')[copyIndex('ipAddressRanges')]]"
+                }
+              }
+            ]
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Logic/workflows",
+              "apiVersion": "2019-05-01",
+              "name": "[parameters('logicAppName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "identity": "[if(not(empty(parameters('managedIdentityId'))), createObject('type', 'UserAssigned', 'userAssignedIdentities', createObject(format('{0}', parameters('managedIdentityId')), createObject())), createObject('type', 'SystemAssigned'))]",
+              "properties": {
+                "state": "[parameters('state')]",
+                "definition": "[parameters('workflowDefinition')]",
+                "parameters": "[if(not(empty(parameters('connections'))), union(parameters('workflowParameters'), createObject('$connections', createObject('value', parameters('connections')))), parameters('workflowParameters'))]",
+                "accessControl": "[if(parameters('enableIpRestrictions'), createObject('triggers', createObject('allowedCallerIpAddresses', variables('ipAddressRanges')), 'contents', createObject('allowedCallerIpAddresses', variables('ipAddressRanges')), 'actions', createObject('allowedCallerIpAddresses', variables('ipAddressRanges'))), null())]"
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App resource ID"
+              },
+              "value": "[resourceId('Microsoft.Logic/workflows', parameters('logicAppName'))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App name"
+              },
+              "value": "[parameters('logicAppName')]"
+            },
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App principal ID"
+              },
+              "value": "[if(not(empty(parameters('managedIdentityId'))), '', reference(resourceId('Microsoft.Logic/workflows', parameters('logicAppName')), '2019-05-01', 'full').identity.principalId)]"
+            },
+            "callbackUrl": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App callback URL for manual/request triggers"
+              },
+              "value": "[listCallbackUrl(format('{0}/triggers/manual', resourceId('Microsoft.Logic/workflows', parameters('logicAppName'))), '2019-05-01').value]"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "starterLogicAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "Starter Logic App name"
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('starter-{0}', parameters('workflowType'))), '2025-04-01').outputs.name.value]"
+    },
+    "starterLogicAppId": {
+      "type": "string",
+      "metadata": {
+        "description": "Starter Logic App ID"
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('starter-{0}', parameters('workflowType'))), '2025-04-01').outputs.id.value]"
+    },
+    "processLogicAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "Process Logic App name"
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('process-{0}', parameters('workflowType'))), '2025-04-01').outputs.name.value]"
+    },
+    "processLogicAppId": {
+      "type": "string",
+      "metadata": {
+        "description": "Process Logic App ID"
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('process-{0}', parameters('workflowType'))), '2025-04-01').outputs.id.value]"
+    },
+    "processLogicAppCallbackUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "Process Logic App callback URL"
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('process-{0}', parameters('workflowType'))), '2025-04-01').outputs.callbackUrl.value]"
+    },
+    "commonLogicAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "Common Logic App name"
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('common-{0}', parameters('workflowType'))), '2025-04-01').outputs.name.value]"
+    },
+    "commonLogicAppId": {
+      "type": "string",
+      "metadata": {
+        "description": "Common Logic App ID"
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('common-{0}', parameters('workflowType'))), '2025-04-01').outputs.id.value]"
+    },
+    "commonLogicAppCallbackUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "Common Logic App callback URL"
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('common-{0}', parameters('workflowType'))), '2025-04-01').outputs.callbackUrl.value]"
+    }
+  }
+}

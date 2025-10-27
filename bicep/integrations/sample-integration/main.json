@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "10809189837328429736"
+      "templateHash": "14150263910871131480"
     }
   },
   "parameters": {
@@ -42,6 +42,7 @@
     },
     "integrationName": {
       "type": "string",
+      "defaultValue": "sample",
       "metadata": {
         "description": "Integration name"
       }
@@ -51,15 +52,6 @@
       "defaultValue": {},
       "metadata": {
         "description": "Common tags"
-      }
-    },
-    "allowedCallerIpAddresses": {
-      "type": "array",
-      "defaultValue": [
-        "217.149.56.100"
-      ],
-      "metadata": {
-        "description": "Array of allowed caller IP addresses for Logic Apps and Storage Accounts (CIDR notation or single IPs)"
       }
     },
     "serviceBusSku": {
@@ -74,91 +66,17 @@
         "description": "Service Bus SKU"
       }
     },
-    "serviceBusQueues": {
+    "allowedCallerIpAddresses": {
       "type": "array",
-      "defaultValue": [],
       "metadata": {
-        "description": "Service Bus queues configuration"
-      }
-    },
-    "customServiceBusName": {
-      "type": "string",
-      "defaultValue": "",
-      "metadata": {
-        "description": "Custom Service Bus namespace name (optional, overrides naming convention)"
-      }
-    },
-    "storageFirewallDefault": {
-      "type": "string",
-      "defaultValue": "Allow",
-      "allowedValues": [
-        "Allow",
-        "Deny"
-      ],
-      "metadata": {
-        "description": "Storage firewall default action (use Allow for initial deployment, then Deny)"
-      }
-    },
-    "functionStorageContainers": {
-      "type": "array",
-      "defaultValue": [],
-      "metadata": {
-        "description": "Function storage containers"
-      }
-    },
-    "functionStorageTables": {
-      "type": "array",
-      "defaultValue": [],
-      "metadata": {
-        "description": "Function storage tables"
-      }
-    },
-    "integrationStorageContainers": {
-      "type": "array",
-      "defaultValue": [],
-      "metadata": {
-        "description": "Integration storage containers"
-      }
-    },
-    "integrationStorageTables": {
-      "type": "array",
-      "defaultValue": [],
-      "metadata": {
-        "description": "Integration storage tables"
-      }
-    },
-    "integrationStorageInstance": {
-      "type": "string",
-      "defaultValue": "int",
-      "metadata": {
-        "description": "Integration storage instance suffix (e.g., \"arc\" for archive, \"int\" for integration data)"
-      }
-    },
-    "functionAppSettings": {
-      "type": "array",
-      "defaultValue": [],
-      "metadata": {
-        "description": "Additional app settings for the Function App"
-      }
-    },
-    "enableBlobApiConnection": {
-      "type": "bool",
-      "defaultValue": false,
-      "metadata": {
-        "description": "Enable Azure Blob Storage API Connection"
-      }
-    },
-    "enableTableApiConnection": {
-      "type": "bool",
-      "defaultValue": false,
-      "metadata": {
-        "description": "Enable Azure Table Storage API Connection"
+        "description": "Array of allowed caller IP addresses for Storage Accounts (CIDR notation or single IPs) - configured centrally in config/settings.json"
       }
     }
   },
   "variables": {
     "resourceGroupName": "[format('{0}-{1}-{2}-rg', parameters('prefix'), parameters('environment'), parameters('integrationName'))]",
     "commonResourceGroupName": "[format('{0}-{1}-common-rg', parameters('prefix'), parameters('environment'))]",
+    "commonStorageAccountName": "[toLower(replace(format('{0}-{1}-{2}-st', parameters('prefix'), parameters('environment'), parameters('locationShort')), '-', ''))]",
     "commonVNetName": "[format('{0}-{1}-{2}-vnet', parameters('prefix'), parameters('environment'), parameters('locationShort'))]",
     "commonTags": "[union(parameters('tags'), createObject('Environment', parameters('environment'), 'Integration', parameters('integrationName'), 'ManagedBy', 'Bicep'))]",
     "commonAppServicePlanId": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.Web/serverfarms', format('{0}-{1}-{2}-plan', parameters('prefix'), parameters('environment'), parameters('locationShort')))]",
@@ -166,9 +84,7 @@
     "integrationSubnetId": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.Network/virtualNetworks/subnets', variables('commonVNetName'), 'integration-subnet')]",
     "serviceBusDataReceiverRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4f6d3b9b-027b-4f4c-9142-0e5a2a2247e0')]",
     "serviceBusDataSenderRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '69a216fc-b8fb-44d8-bc22-1f3c2cd27a39')]",
-    "storageBlobDataContributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
-    "storageTableDataContributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')]",
-    "websiteContributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'de139f84-1756-47ae-9be6-808fbbe84772')]"
+    "storageBlobDataContributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]"
   },
   "resources": [
     {
@@ -487,6 +403,159 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
+      "name": "logicAppNaming",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "locationShort": {
+            "value": "[parameters('locationShort')]"
+          },
+          "workloadName": {
+            "value": "[parameters('integrationName')]"
+          },
+          "resourceType": {
+            "value": "logic"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "9076932791527102817"
+            }
+          },
+          "parameters": {
+            "prefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Customer/project prefix for resource naming"
+              }
+            },
+            "environment": {
+              "type": "string",
+              "allowedValues": [
+                "dev",
+                "test",
+                "uat",
+                "prod"
+              ],
+              "metadata": {
+                "description": "Environment name (dev, test, uat, prod)"
+              }
+            },
+            "locationShort": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region short code (e.g., weu for West Europe)"
+              }
+            },
+            "workloadName": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional workload or integration name"
+              }
+            },
+            "resourceType": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource type abbreviation"
+              }
+            },
+            "instance": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional instance number for multiple instances"
+              }
+            },
+            "useShortNames": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Use short naming format (for resources with strict character limits like storage accounts)"
+              }
+            }
+          },
+          "variables": {
+            "separator": "-",
+            "environmentShortNames": {
+              "dev": "d",
+              "test": "t",
+              "uat": "u",
+              "prod": "p"
+            },
+            "locationShortNames": {
+              "weu": "we",
+              "eus": "eu",
+              "sdc": "sc",
+              "westeurope": "we",
+              "eastus": "eu",
+              "swedencentral": "sc",
+              "northeurope": "ne",
+              "westus": "wu",
+              "centralus": "cu"
+            },
+            "resourceTypeShortNames": {
+              "st": "st",
+              "kv": "kv",
+              "func": "fn",
+              "logic": "la",
+              "sb": "sbus",
+              "appi": "ai",
+              "plan": "pl",
+              "vnet": "vn",
+              "id": "id"
+            },
+            "nameComponents": "[if(parameters('useShortNames'), createArray(take(parameters('prefix'), 6), variables('environmentShortNames')[parameters('environment')], coalesce(tryGet(variables('locationShortNames'), parameters('locationShort')), take(parameters('locationShort'), 2))), createArray(parameters('prefix'), parameters('environment'), parameters('locationShort')))]",
+            "workloadShortName": "[if(and(parameters('useShortNames'), not(empty(parameters('workloadName')))), take(parameters('workloadName'), 8), parameters('workloadName'))]",
+            "nameWithWorkload": "[if(not(empty(parameters('workloadName'))), concat(variables('nameComponents'), createArray(variables('workloadShortName'))), variables('nameComponents'))]",
+            "resourceTypeShort": "[if(parameters('useShortNames'), coalesce(tryGet(variables('resourceTypeShortNames'), parameters('resourceType')), parameters('resourceType')), parameters('resourceType'))]",
+            "nameWithType": "[concat(variables('nameWithWorkload'), createArray(variables('resourceTypeShort')))]",
+            "instanceShort": "[if(and(parameters('useShortNames'), not(empty(parameters('instance')))), take(parameters('instance'), 2), parameters('instance'))]",
+            "finalComponents": "[if(not(empty(parameters('instance'))), concat(variables('nameWithType'), createArray(variables('instanceShort'))), variables('nameWithType'))]",
+            "resourceName": "[if(parameters('useShortNames'), toLower(replace(join(variables('finalComponents'), ''), '-', '')), join(variables('finalComponents'), variables('separator')))]"
+          },
+          "resources": [],
+          "outputs": {
+            "name": {
+              "type": "string",
+              "value": "[variables('resourceName')]"
+            },
+            "components": {
+              "type": "object",
+              "value": {
+                "prefix": "[parameters('prefix')]",
+                "environment": "[parameters('environment')]",
+                "locationShort": "[parameters('locationShort')]",
+                "workloadName": "[parameters('workloadName')]",
+                "resourceType": "[parameters('resourceType')]",
+                "instance": "[parameters('instance')]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
       "name": "functionStorageNaming",
       "resourceGroup": "[variables('resourceGroupName')]",
       "properties": {
@@ -643,7 +712,7 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
-      "name": "integrationStorageNaming",
+      "name": "archiveStorageNaming",
       "resourceGroup": "[variables('resourceGroupName')]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -667,7 +736,7 @@
             "value": "st"
           },
           "instance": {
-            "value": "[parameters('integrationStorageInstance')]"
+            "value": "arc"
           },
           "useShortNames": {
             "value": true
@@ -1251,23 +1320,37 @@
             "value": "Hot"
           },
           "containers": {
-            "value": "[parameters('functionStorageContainers')]"
-          },
-          "tables": {
-            "value": "[parameters('functionStorageTables')]"
-          },
-          "fileShares": {
             "value": [
               {
-                "name": "[toLower(reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionAppNaming'), '2025-04-01').outputs.name.value)]",
-                "shareQuota": 5120
+                "name": "input-messages",
+                "publicAccess": "None"
+              },
+              {
+                "name": "transformed-messages",
+                "publicAccess": "None"
+              },
+              {
+                "name": "errors",
+                "publicAccess": "None"
+              }
+            ]
+          },
+          "tables": {
+            "value": [
+              {
+                "name": "Values"
+              },
+              {
+                "name": "Conversions"
               }
             ]
           },
           "networkAclDefaultAction": {
-            "value": "[parameters('storageFirewallDefault')]"
+            "value": "Deny"
           },
-          "ipRules": "[if(equals(parameters('storageFirewallDefault'), 'Deny'), createObject('value', parameters('allowedCallerIpAddresses')), createObject('value', createArray()))]",
+          "ipRules": {
+            "value": "[parameters('allowedCallerIpAddresses')]"
+          },
           "virtualNetworkRules": {
             "value": [
               "[variables('integrationSubnetId')]"
@@ -1656,7 +1739,6 @@
         }
       },
       "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionAppNaming')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionStorageNaming')]",
         "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
       ]
@@ -1664,7 +1746,7 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
-      "name": "integrationStorage",
+      "name": "archiveStorage",
       "resourceGroup": "[variables('resourceGroupName')]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -1673,13 +1755,13 @@
         "mode": "Incremental",
         "parameters": {
           "storageAccountName": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationStorageNaming'), '2025-04-01').outputs.name.value]"
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'archiveStorageNaming'), '2025-04-01').outputs.name.value]"
           },
           "location": {
             "value": "[parameters('location')]"
           },
           "tags": {
-            "value": "[union(variables('commonTags'), createObject('Purpose', 'Integration Data Storage'))]"
+            "value": "[union(variables('commonTags'), createObject('Purpose', 'Archive Storage'))]"
           },
           "skuName": {
             "value": "Standard_LRS"
@@ -1688,18 +1770,36 @@
             "value": "StorageV2"
           },
           "accessTier": {
-            "value": "Hot"
+            "value": "Cool"
           },
           "containers": {
-            "value": "[parameters('integrationStorageContainers')]"
+            "value": [
+              {
+                "name": "archive",
+                "publicAccess": "None"
+              },
+              {
+                "name": "audit",
+                "publicAccess": "None"
+              }
+            ]
           },
           "tables": {
-            "value": "[parameters('integrationStorageTables')]"
+            "value": [
+              {
+                "name": "Values"
+              },
+              {
+                "name": "Conversions"
+              }
+            ]
           },
           "networkAclDefaultAction": {
-            "value": "[parameters('storageFirewallDefault')]"
+            "value": "Deny"
           },
-          "ipRules": "[if(equals(parameters('storageFirewallDefault'), 'Deny'), createObject('value', parameters('allowedCallerIpAddresses')), createObject('value', createArray()))]",
+          "ipRules": {
+            "value": "[parameters('allowedCallerIpAddresses')]"
+          },
           "virtualNetworkRules": {
             "value": [
               "[variables('integrationSubnetId')]"
@@ -2088,8 +2188,248 @@
         }
       },
       "dependsOn": [
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationStorageNaming')]"
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'archiveStorageNaming')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "functionStorageKeySecret",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "keyVaultName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationKeyVault'), '2025-04-01').outputs.name.value]"
+          },
+          "secretName": {
+            "value": "FunctionStorageAccountKey"
+          },
+          "storageAccountResourceGroup": {
+            "value": "[variables('resourceGroupName')]"
+          },
+          "storageAccountName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionStorageNaming'), '2025-04-01').outputs.name.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "15042784745903541444"
+            }
+          },
+          "parameters": {
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the existing Key Vault"
+              }
+            },
+            "secretName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the secret"
+              }
+            },
+            "storageAccountResourceGroup": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource group containing the storage account"
+              }
+            },
+            "storageAccountName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the storage account"
+              }
+            },
+            "keyIndex": {
+              "type": "int",
+              "defaultValue": 0,
+              "allowedValues": [
+                0,
+                1
+              ],
+              "metadata": {
+                "description": "Which key to use (0 = primary, 1 = secondary)"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags to apply to the secret"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', parameters('keyVaultName'), parameters('secretName'))]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "value": "[listKeys(resourceId(parameters('storageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-01-01').keys[parameters('keyIndex')].value]"
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Secret resource ID"
+              },
+              "value": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Secret name"
+              },
+              "value": "[parameters('secretName')]"
+            },
+            "uri": {
+              "type": "string",
+              "metadata": {
+                "description": "Secret URI"
+              },
+              "value": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName')), '2023-07-01').secretUri]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionStorageNaming')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationKeyVault')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "archiveStorageKeySecret",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "keyVaultName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationKeyVault'), '2025-04-01').outputs.name.value]"
+          },
+          "secretName": {
+            "value": "ArchiveStorageAccountKey"
+          },
+          "storageAccountResourceGroup": {
+            "value": "[variables('resourceGroupName')]"
+          },
+          "storageAccountName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'archiveStorageNaming'), '2025-04-01').outputs.name.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "15042784745903541444"
+            }
+          },
+          "parameters": {
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the existing Key Vault"
+              }
+            },
+            "secretName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the secret"
+              }
+            },
+            "storageAccountResourceGroup": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource group containing the storage account"
+              }
+            },
+            "storageAccountName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the storage account"
+              }
+            },
+            "keyIndex": {
+              "type": "int",
+              "defaultValue": 0,
+              "allowedValues": [
+                0,
+                1
+              ],
+              "metadata": {
+                "description": "Which key to use (0 = primary, 1 = secondary)"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags to apply to the secret"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', parameters('keyVaultName'), parameters('secretName'))]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "value": "[listKeys(resourceId(parameters('storageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-01-01').keys[parameters('keyIndex')].value]"
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Secret resource ID"
+              },
+              "value": "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName'))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Secret name"
+              },
+              "value": "[parameters('secretName')]"
+            },
+            "uri": {
+              "type": "string",
+              "metadata": {
+                "description": "Secret URI"
+              },
+              "value": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('secretName')), '2023-07-01').secretUri]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'archiveStorageNaming')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationKeyVault')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
       ]
     },
     {
@@ -2204,7 +2544,7 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
-      "name": "integrationStorageConnectionStringSecret",
+      "name": "archiveStorageConnectionStringSecret",
       "resourceGroup": "[variables('resourceGroupName')]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -2216,13 +2556,13 @@
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationKeyVault'), '2025-04-01').outputs.name.value]"
           },
           "secretName": {
-            "value": "IntegrationStorageConnectionString"
+            "value": "ArchiveStorageConnectionString"
           },
           "storageAccountResourceGroup": {
             "value": "[variables('resourceGroupName')]"
           },
           "storageAccountName": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationStorageNaming'), '2025-04-01').outputs.name.value]"
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'archiveStorageNaming'), '2025-04-01').outputs.name.value]"
           }
         },
         "template": {
@@ -2305,9 +2645,9 @@
         }
       },
       "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'archiveStorageNaming')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationKeyVault')]",
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationStorageNaming')]"
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
       ]
     },
     {
@@ -2321,7 +2661,9 @@
         },
         "mode": "Incremental",
         "parameters": {
-          "serviceBusName": "[if(not(empty(parameters('customServiceBusName'))), createObject('value', parameters('customServiceBusName')), createObject('value', replace(reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBusNaming'), '2025-04-01').outputs.name.value, '-', '')))]",
+          "serviceBusName": {
+            "value": "[replace(reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBusNaming'), '2025-04-01').outputs.name.value, '-', '')]"
+          },
           "location": {
             "value": "[parameters('location')]"
           },
@@ -2332,7 +2674,14 @@
             "value": "[parameters('serviceBusSku')]"
           },
           "queues": {
-            "value": "[parameters('serviceBusQueues')]"
+            "value": [
+              {
+                "name": "incoming-messages",
+                "maxDeliveryCount": 10,
+                "lockDuration": "PT5M",
+                "defaultMessageTimeToLive": "P7D"
+              }
+            ]
           }
         },
         "template": {
@@ -2612,9 +2961,6 @@
           "managedIdentityId": {
             "value": "[variables('commonManagedIdentityId')]"
           },
-          "managedIdentityClientId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', replace(format('{0}-{1}-{2}-id', parameters('prefix'), parameters('environment'), parameters('locationShort')), '-', '')), '2023-01-31').clientId]"
-          },
           "vnetIntegrationSubnetId": {
             "value": "[variables('integrationSubnetId')]"
           },
@@ -2622,7 +2968,20 @@
             "value": true
           },
           "appSettings": {
-            "value": "[concat(createArray(createObject('name', 'ServiceBusConnection__fullyQualifiedNamespace', 'value', format('{0}.servicebus.windows.net', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBus'), '2025-04-01').outputs.name.value)), createObject('name', 'IntegrationStorage__accountName', 'value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationStorage'), '2025-04-01').outputs.name.value), createObject('name', 'KeyVaultUri', 'value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationKeyVault'), '2025-04-01').outputs.uri.value)), parameters('functionAppSettings'))]"
+            "value": [
+              {
+                "name": "ServiceBusConnection__fullyQualifiedNamespace",
+                "value": "[format('{0}.servicebus.windows.net', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBus'), '2025-04-01').outputs.name.value)]"
+              },
+              {
+                "name": "FunctionStorage__accountName",
+                "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionStorage'), '2025-04-01').outputs.name.value]"
+              },
+              {
+                "name": "ArchiveStorage__accountName",
+                "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'archiveStorage'), '2025-04-01').outputs.name.value]"
+              }
+            ]
           }
         },
         "template": {
@@ -2792,11 +3151,233 @@
         }
       },
       "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'archiveStorage')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionAppNaming')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionStorage')]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationKeyVault')]",
         "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationStorage')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBus')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "logicApp",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "logicAppName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'logicAppNaming'), '2025-04-01').outputs.name.value]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[variables('commonTags')]"
+          },
+          "appServicePlanId": {
+            "value": "[variables('commonAppServicePlanId')]"
+          },
+          "storageAccountName": {
+            "value": "[variables('commonStorageAccountName')]"
+          },
+          "managedIdentityId": {
+            "value": "[variables('commonManagedIdentityId')]"
+          },
+          "vnetIntegrationSubnetId": {
+            "value": "[variables('integrationSubnetId')]"
+          },
+          "enableVNetIntegration": {
+            "value": true
+          },
+          "appSettings": {
+            "value": [
+              {
+                "name": "ServiceBusConnection__fullyQualifiedNamespace",
+                "value": "[format('{0}.servicebus.windows.net', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBus'), '2025-04-01').outputs.name.value)]"
+              },
+              {
+                "name": "FunctionStorage__accountName",
+                "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionStorage'), '2025-04-01').outputs.name.value]"
+              },
+              {
+                "name": "ArchiveStorage__accountName",
+                "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'archiveStorage'), '2025-04-01').outputs.name.value]"
+              },
+              {
+                "name": "FunctionAppUrl",
+                "value": "[format('https://{0}', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionApp'), '2025-04-01').outputs.defaultHostname.value)]"
+              }
+            ]
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "8108027765875485686"
+            }
+          },
+          "parameters": {
+            "logicAppName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Logic App"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for the Logic App"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags to apply to the Logic App"
+              }
+            },
+            "appServicePlanId": {
+              "type": "string",
+              "metadata": {
+                "description": "App Service Plan resource ID"
+              }
+            },
+            "storageAccountName": {
+              "type": "string",
+              "metadata": {
+                "description": "Storage Account name for Logic App"
+              }
+            },
+            "appInsightsConnectionString": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Application Insights Connection String"
+              }
+            },
+            "managedIdentityId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Managed Identity resource ID"
+              }
+            },
+            "vnetIntegrationSubnetId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "VNet integration subnet ID"
+              }
+            },
+            "appSettings": {
+              "type": "array",
+              "defaultValue": [],
+              "metadata": {
+                "description": "Application settings"
+              }
+            },
+            "enableVNetIntegration": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Enable VNet integration"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Web/sites",
+              "apiVersion": "2023-01-01",
+              "name": "[parameters('logicAppName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "functionapp,workflowapp,linux",
+              "identity": {
+                "type": "[if(not(empty(parameters('managedIdentityId'))), 'UserAssigned', 'SystemAssigned')]",
+                "userAssignedIdentities": "[if(not(empty(parameters('managedIdentityId'))), createObject(format('{0}', parameters('managedIdentityId')), createObject()), null())]"
+              },
+              "properties": {
+                "serverFarmId": "[parameters('appServicePlanId')]",
+                "httpsOnly": true,
+                "clientAffinityEnabled": false,
+                "virtualNetworkSubnetId": "[if(and(parameters('enableVNetIntegration'), not(empty(parameters('vnetIntegrationSubnetId')))), parameters('vnetIntegrationSubnetId'), null())]",
+                "siteConfig": {
+                  "ftpsState": "Disabled",
+                  "minTlsVersion": "1.2",
+                  "http20Enabled": true,
+                  "use32BitWorkerProcess": false,
+                  "alwaysOn": true,
+                  "appSettings": "[concat(createArray(createObject('name', 'FUNCTIONS_EXTENSION_VERSION', 'value', '~4'), createObject('name', 'FUNCTIONS_WORKER_RUNTIME', 'value', 'node'), createObject('name', 'WEBSITE_NODE_DEFAULT_VERSION', 'value', '~18'), createObject('name', 'AzureWebJobsStorage__accountName', 'value', parameters('storageAccountName')), createObject('name', 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING', 'value', format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey=***;EndpointSuffix=core.windows.net', parameters('storageAccountName'))), createObject('name', 'WEBSITE_CONTENTSHARE', 'value', toLower(parameters('logicAppName'))), createObject('name', 'AzureFunctionsJobHost__extensionBundle__id', 'value', 'Microsoft.Azure.Functions.ExtensionBundle.Workflows'), createObject('name', 'AzureFunctionsJobHost__extensionBundle__version', 'value', '[1.*, 2.0.0)'), createObject('name', 'APP_KIND', 'value', 'workflowApp')), if(not(empty(parameters('appInsightsConnectionString'))), createArray(createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', parameters('appInsightsConnectionString')), createObject('name', 'ApplicationInsightsAgent_EXTENSION_VERSION', 'value', '~3')), createArray()), parameters('appSettings'))]"
+                }
+              }
+            },
+            {
+              "condition": "[and(parameters('enableVNetIntegration'), not(empty(parameters('vnetIntegrationSubnetId'))))]",
+              "type": "Microsoft.Web/sites/networkConfig",
+              "apiVersion": "2023-01-01",
+              "name": "[format('{0}/{1}', parameters('logicAppName'), 'virtualNetwork')]",
+              "properties": {
+                "subnetResourceId": "[parameters('vnetIntegrationSubnetId')]",
+                "swiftSupported": true
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', parameters('logicAppName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App resource ID"
+              },
+              "value": "[resourceId('Microsoft.Web/sites', parameters('logicAppName'))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App name"
+              },
+              "value": "[parameters('logicAppName')]"
+            },
+            "defaultHostname": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App default hostname"
+              },
+              "value": "[reference(resourceId('Microsoft.Web/sites', parameters('logicAppName')), '2023-01-01').defaultHostName]"
+            },
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Logic App principal ID"
+              },
+              "value": "[if(not(empty(parameters('managedIdentityId'))), '', reference(resourceId('Microsoft.Web/sites', parameters('logicAppName')), '2023-01-01', 'full').identity.principalId)]"
+            },
+            "logicApp": {
+              "type": "object",
+              "metadata": {
+                "description": "Logic App object"
+              },
+              "value": "[reference(resourceId('Microsoft.Web/sites', parameters('logicAppName')), '2023-01-01', 'full')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'archiveStorage')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionApp')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionStorage')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'logicAppNaming')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBus')]"
       ]
     },
@@ -3003,7 +3584,7 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
-      "name": "integrationStorageBlobRole",
+      "name": "functionStorageRole",
       "resourceGroup": "[variables('resourceGroupName')]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -3103,7 +3684,7 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
-      "name": "integrationStorageTableRole",
+      "name": "archiveStorageRole",
       "resourceGroup": "[variables('resourceGroupName')]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -3115,7 +3696,7 @@
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', replace(format('{0}-{1}-{2}-id', parameters('prefix'), parameters('environment'), parameters('locationShort')), '-', '')), '2023-01-31').principalId]"
           },
           "roleDefinitionId": {
-            "value": "[variables('storageTableDataContributorRoleId')]"
+            "value": "[variables('storageBlobDataContributorRoleId')]"
           },
           "principalType": {
             "value": "ServicePrincipal"
@@ -3198,569 +3779,6 @@
       },
       "dependsOn": [
         "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
-      ]
-    },
-    {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
-      "name": "functionAppContributorRole",
-      "resourceGroup": "[variables('resourceGroupName')]",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "principalId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('commonResourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', replace(format('{0}-{1}-{2}-id', parameters('prefix'), parameters('environment'), parameters('locationShort')), '-', '')), '2023-01-31').principalId]"
-          },
-          "roleDefinitionId": {
-            "value": "[variables('websiteContributorRoleId')]"
-          },
-          "principalType": {
-            "value": "ServicePrincipal"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.38.33.27573",
-              "templateHash": "10391257520998757089"
-            }
-          },
-          "parameters": {
-            "principalId": {
-              "type": "string",
-              "metadata": {
-                "description": "The principal ID (object ID) to assign the role to"
-              }
-            },
-            "roleDefinitionId": {
-              "type": "string",
-              "metadata": {
-                "description": "The role definition ID to assign"
-              }
-            },
-            "principalType": {
-              "type": "string",
-              "defaultValue": "ServicePrincipal",
-              "allowedValues": [
-                "User",
-                "Group",
-                "ServicePrincipal",
-                "ForeignGroup"
-              ],
-              "metadata": {
-                "description": "The type of principal"
-              }
-            },
-            "roleDescription": {
-              "type": "string",
-              "defaultValue": "",
-              "metadata": {
-                "description": "Description of the role assignment"
-              }
-            }
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(parameters('principalId'), parameters('roleDefinitionId'), resourceGroup().id)]",
-              "properties": {
-                "roleDefinitionId": "[parameters('roleDefinitionId')]",
-                "principalId": "[parameters('principalId')]",
-                "principalType": "[parameters('principalType')]",
-                "description": "[if(not(empty(parameters('roleDescription'))), parameters('roleDescription'), null())]"
-              }
-            }
-          ],
-          "outputs": {
-            "id": {
-              "type": "string",
-              "metadata": {
-                "description": "Role assignment ID"
-              },
-              "value": "[resourceId('Microsoft.Authorization/roleAssignments', guid(parameters('principalId'), parameters('roleDefinitionId'), resourceGroup().id))]"
-            },
-            "name": {
-              "type": "string",
-              "metadata": {
-                "description": "Role assignment name"
-              },
-              "value": "[guid(parameters('principalId'), parameters('roleDefinitionId'), resourceGroup().id)]"
-            }
-          }
-        }
-      },
-      "dependsOn": [
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
-      ]
-    },
-    {
-      "condition": "[parameters('enableBlobApiConnection')]",
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
-      "name": "blobApiConnection",
-      "resourceGroup": "[variables('resourceGroupName')]",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "connectionName": {
-            "value": "[format('{0}-{1}-{2}-blob-conn', parameters('prefix'), parameters('environment'), parameters('integrationName'))]"
-          },
-          "location": {
-            "value": "[parameters('location')]"
-          },
-          "tags": {
-            "value": "[variables('commonTags')]"
-          },
-          "connectionType": {
-            "value": "azureblob"
-          },
-          "displayName": {
-            "value": "[format('{0} Integration Blob Storage', parameters('integrationName'))]"
-          },
-          "storageAccountResourceGroup": {
-            "value": "[variables('resourceGroupName')]"
-          },
-          "storageAccountName": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationStorage'), '2025-04-01').outputs.name.value]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.38.33.27573",
-              "templateHash": "7727104349069766018"
-            }
-          },
-          "parameters": {
-            "connectionName": {
-              "type": "string",
-              "metadata": {
-                "description": "Name of the API connection"
-              }
-            },
-            "location": {
-              "type": "string",
-              "metadata": {
-                "description": "Azure region for the connection"
-              }
-            },
-            "tags": {
-              "type": "object",
-              "defaultValue": {},
-              "metadata": {
-                "description": "Tags to apply to the connection"
-              }
-            },
-            "connectionType": {
-              "type": "string",
-              "metadata": {
-                "description": "Connection type (azuretables, azureblob, office365, etc.)"
-              }
-            },
-            "displayName": {
-              "type": "string",
-              "metadata": {
-                "description": "Display name for the connection"
-              }
-            },
-            "parameterValues": {
-              "type": "secureObject",
-              "defaultValue": {},
-              "metadata": {
-                "description": "Connection parameters - varies by connection type"
-              }
-            },
-            "additionalParameterValues": {
-              "type": "object",
-              "defaultValue": {},
-              "metadata": {
-                "description": "Connection parameter values that are not sensitive"
-              }
-            },
-            "storageAccountResourceGroup": {
-              "type": "string",
-              "defaultValue": "",
-              "metadata": {
-                "description": "For azuretables connection: Resource group containing the storage account"
-              }
-            },
-            "storageAccountName": {
-              "type": "string",
-              "defaultValue": "",
-              "metadata": {
-                "description": "For azuretables connection: Storage account name"
-              }
-            }
-          },
-          "variables": {
-            "connectionTypes": {
-              "azuretables": {
-                "id": "[subscriptionResourceId('Microsoft.Web/locations/managedApis', parameters('location'), 'azuretables')]",
-                "displayName": "Azure Table Storage"
-              },
-              "azureblob": {
-                "id": "[subscriptionResourceId('Microsoft.Web/locations/managedApis', parameters('location'), 'azureblob')]",
-                "displayName": "Azure Blob Storage"
-              },
-              "servicebus": {
-                "id": "[subscriptionResourceId('Microsoft.Web/locations/managedApis', parameters('location'), 'servicebus')]",
-                "displayName": "Service Bus"
-              },
-              "office365": {
-                "id": "[subscriptionResourceId('Microsoft.Web/locations/managedApis', parameters('location'), 'office365')]",
-                "displayName": "Office 365 Outlook"
-              },
-              "sql": {
-                "id": "[subscriptionResourceId('Microsoft.Web/locations/managedApis', parameters('location'), 'sql')]",
-                "displayName": "SQL Server"
-              }
-            }
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Web/connections",
-              "apiVersion": "2016-06-01",
-              "name": "[parameters('connectionName')]",
-              "location": "[parameters('location')]",
-              "tags": "[parameters('tags')]",
-              "properties": {
-                "displayName": "[if(not(empty(parameters('displayName'))), parameters('displayName'), variables('connectionTypes')[parameters('connectionType')].displayName)]",
-                "api": {
-                  "id": "[variables('connectionTypes')[parameters('connectionType')].id]"
-                },
-                "parameterValues": "[union(parameters('parameterValues'), parameters('additionalParameterValues'), if(and(and(equals(parameters('connectionType'), 'azuretables'), not(empty(parameters('storageAccountResourceGroup')))), not(empty(parameters('storageAccountName')))), createObject('storageaccount', parameters('storageAccountName'), 'sharedkey', listKeys(resourceId(parameters('storageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-01-01').keys[0].value), createObject()), if(and(and(equals(parameters('connectionType'), 'azureblob'), not(empty(parameters('storageAccountResourceGroup')))), not(empty(parameters('storageAccountName')))), createObject('accountName', parameters('storageAccountName'), 'accessKey', listKeys(resourceId(parameters('storageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-01-01').keys[0].value), createObject()))]"
-              }
-            }
-          ],
-          "outputs": {
-            "id": {
-              "type": "string",
-              "metadata": {
-                "description": "API Connection resource ID"
-              },
-              "value": "[resourceId('Microsoft.Web/connections', parameters('connectionName'))]"
-            },
-            "name": {
-              "type": "string",
-              "metadata": {
-                "description": "API Connection name"
-              },
-              "value": "[parameters('connectionName')]"
-            },
-            "statusLink": {
-              "type": "string",
-              "metadata": {
-                "description": "API Connection status link"
-              },
-              "value": "[if(greater(length(reference(resourceId('Microsoft.Web/connections', parameters('connectionName')), '2016-06-01').statuses), 0), reference(resourceId('Microsoft.Web/connections', parameters('connectionName')), '2016-06-01').statuses[0].status, 'Unknown')]"
-            },
-            "connection": {
-              "type": "object",
-              "metadata": {
-                "description": "API Connection object"
-              },
-              "value": "[reference(resourceId('Microsoft.Web/connections', parameters('connectionName')), '2016-06-01', 'full')]"
-            }
-          }
-        }
-      },
-      "dependsOn": [
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationStorage')]"
-      ]
-    },
-    {
-      "condition": "[parameters('enableTableApiConnection')]",
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
-      "name": "tableApiConnection",
-      "resourceGroup": "[variables('resourceGroupName')]",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "connectionName": {
-            "value": "[format('{0}-{1}-{2}-table-conn', parameters('prefix'), parameters('environment'), parameters('integrationName'))]"
-          },
-          "location": {
-            "value": "[parameters('location')]"
-          },
-          "tags": {
-            "value": "[variables('commonTags')]"
-          },
-          "connectionType": {
-            "value": "azuretables"
-          },
-          "displayName": {
-            "value": "[format('{0} Integration Table Storage', parameters('integrationName'))]"
-          },
-          "storageAccountResourceGroup": {
-            "value": "[variables('resourceGroupName')]"
-          },
-          "storageAccountName": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationStorage'), '2025-04-01').outputs.name.value]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.38.33.27573",
-              "templateHash": "7727104349069766018"
-            }
-          },
-          "parameters": {
-            "connectionName": {
-              "type": "string",
-              "metadata": {
-                "description": "Name of the API connection"
-              }
-            },
-            "location": {
-              "type": "string",
-              "metadata": {
-                "description": "Azure region for the connection"
-              }
-            },
-            "tags": {
-              "type": "object",
-              "defaultValue": {},
-              "metadata": {
-                "description": "Tags to apply to the connection"
-              }
-            },
-            "connectionType": {
-              "type": "string",
-              "metadata": {
-                "description": "Connection type (azuretables, azureblob, office365, etc.)"
-              }
-            },
-            "displayName": {
-              "type": "string",
-              "metadata": {
-                "description": "Display name for the connection"
-              }
-            },
-            "parameterValues": {
-              "type": "secureObject",
-              "defaultValue": {},
-              "metadata": {
-                "description": "Connection parameters - varies by connection type"
-              }
-            },
-            "additionalParameterValues": {
-              "type": "object",
-              "defaultValue": {},
-              "metadata": {
-                "description": "Connection parameter values that are not sensitive"
-              }
-            },
-            "storageAccountResourceGroup": {
-              "type": "string",
-              "defaultValue": "",
-              "metadata": {
-                "description": "For azuretables connection: Resource group containing the storage account"
-              }
-            },
-            "storageAccountName": {
-              "type": "string",
-              "defaultValue": "",
-              "metadata": {
-                "description": "For azuretables connection: Storage account name"
-              }
-            }
-          },
-          "variables": {
-            "connectionTypes": {
-              "azuretables": {
-                "id": "[subscriptionResourceId('Microsoft.Web/locations/managedApis', parameters('location'), 'azuretables')]",
-                "displayName": "Azure Table Storage"
-              },
-              "azureblob": {
-                "id": "[subscriptionResourceId('Microsoft.Web/locations/managedApis', parameters('location'), 'azureblob')]",
-                "displayName": "Azure Blob Storage"
-              },
-              "servicebus": {
-                "id": "[subscriptionResourceId('Microsoft.Web/locations/managedApis', parameters('location'), 'servicebus')]",
-                "displayName": "Service Bus"
-              },
-              "office365": {
-                "id": "[subscriptionResourceId('Microsoft.Web/locations/managedApis', parameters('location'), 'office365')]",
-                "displayName": "Office 365 Outlook"
-              },
-              "sql": {
-                "id": "[subscriptionResourceId('Microsoft.Web/locations/managedApis', parameters('location'), 'sql')]",
-                "displayName": "SQL Server"
-              }
-            }
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Web/connections",
-              "apiVersion": "2016-06-01",
-              "name": "[parameters('connectionName')]",
-              "location": "[parameters('location')]",
-              "tags": "[parameters('tags')]",
-              "properties": {
-                "displayName": "[if(not(empty(parameters('displayName'))), parameters('displayName'), variables('connectionTypes')[parameters('connectionType')].displayName)]",
-                "api": {
-                  "id": "[variables('connectionTypes')[parameters('connectionType')].id]"
-                },
-                "parameterValues": "[union(parameters('parameterValues'), parameters('additionalParameterValues'), if(and(and(equals(parameters('connectionType'), 'azuretables'), not(empty(parameters('storageAccountResourceGroup')))), not(empty(parameters('storageAccountName')))), createObject('storageaccount', parameters('storageAccountName'), 'sharedkey', listKeys(resourceId(parameters('storageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-01-01').keys[0].value), createObject()), if(and(and(equals(parameters('connectionType'), 'azureblob'), not(empty(parameters('storageAccountResourceGroup')))), not(empty(parameters('storageAccountName')))), createObject('accountName', parameters('storageAccountName'), 'accessKey', listKeys(resourceId(parameters('storageAccountResourceGroup'), 'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-01-01').keys[0].value), createObject()))]"
-              }
-            }
-          ],
-          "outputs": {
-            "id": {
-              "type": "string",
-              "metadata": {
-                "description": "API Connection resource ID"
-              },
-              "value": "[resourceId('Microsoft.Web/connections', parameters('connectionName'))]"
-            },
-            "name": {
-              "type": "string",
-              "metadata": {
-                "description": "API Connection name"
-              },
-              "value": "[parameters('connectionName')]"
-            },
-            "statusLink": {
-              "type": "string",
-              "metadata": {
-                "description": "API Connection status link"
-              },
-              "value": "[if(greater(length(reference(resourceId('Microsoft.Web/connections', parameters('connectionName')), '2016-06-01').statuses), 0), reference(resourceId('Microsoft.Web/connections', parameters('connectionName')), '2016-06-01').statuses[0].status, 'Unknown')]"
-            },
-            "connection": {
-              "type": "object",
-              "metadata": {
-                "description": "API Connection object"
-              },
-              "value": "[reference(resourceId('Microsoft.Web/connections', parameters('connectionName')), '2016-06-01', 'full')]"
-            }
-          }
-        }
-      },
-      "dependsOn": [
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationStorage')]"
-      ]
-    },
-    {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
-      "name": "restartFunctionApp",
-      "resourceGroup": "[variables('resourceGroupName')]",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "functionAppName": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionAppNaming'), '2025-04-01').outputs.name.value]"
-          },
-          "location": {
-            "value": "[parameters('location')]"
-          },
-          "managedIdentityId": {
-            "value": "[variables('commonManagedIdentityId')]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.38.33.27573",
-              "templateHash": "11738213553884705152"
-            }
-          },
-          "parameters": {
-            "functionAppName": {
-              "type": "string",
-              "metadata": {
-                "description": "Name of the Function App to restart"
-              }
-            },
-            "location": {
-              "type": "string",
-              "metadata": {
-                "description": "Azure region for the deployment script"
-              }
-            },
-            "managedIdentityId": {
-              "type": "string",
-              "metadata": {
-                "description": "Managed Identity resource ID with permissions to restart the Function App"
-              }
-            }
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Resources/deploymentScripts",
-              "apiVersion": "2023-08-01",
-              "name": "[format('restart-{0}', parameters('functionAppName'))]",
-              "location": "[parameters('location')]",
-              "kind": "AzureCLI",
-              "identity": {
-                "type": "UserAssigned",
-                "userAssignedIdentities": {
-                  "[format('{0}', parameters('managedIdentityId'))]": {}
-                }
-              },
-              "properties": {
-                "azCliVersion": "2.50.0",
-                "retentionInterval": "PT1H",
-                "timeout": "PT10M",
-                "cleanupPreference": "OnSuccess",
-                "scriptContent": "[format('az functionapp restart --name {0} --resource-group {1} && echo \"Function App {2} restarted successfully\"', parameters('functionAppName'), resourceGroup().name, parameters('functionAppName'))]"
-              }
-            }
-          ],
-          "outputs": {
-            "id": {
-              "type": "string",
-              "metadata": {
-                "description": "Deployment script resource ID"
-              },
-              "value": "[resourceId('Microsoft.Resources/deploymentScripts', format('restart-{0}', parameters('functionAppName')))]"
-            },
-            "name": {
-              "type": "string",
-              "metadata": {
-                "description": "Deployment script name"
-              },
-              "value": "[format('restart-{0}', parameters('functionAppName'))]"
-            }
-          }
-        }
-      },
-      "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionAppContributorRole')]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionAppNaming')]",
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationStorageBlobRole')]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationStorageTableRole')]"
       ]
     }
   ],
@@ -3779,12 +3797,12 @@
       },
       "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBus'), '2025-04-01').outputs.name.value]"
     },
-    "queueNames": {
-      "type": "array",
+    "queueName": {
+      "type": "string",
       "metadata": {
-        "description": "Service Bus Queue names"
+        "description": "Service Bus Queue name"
       },
-      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBus'), '2025-04-01').outputs.queueNames.value]"
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'serviceBus'), '2025-04-01').outputs.queueNames.value[0]]"
     },
     "functionAppName": {
       "type": "string",
@@ -3793,6 +3811,13 @@
       },
       "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionApp'), '2025-04-01').outputs.name.value]"
     },
+    "logicAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "Logic App name"
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'logicApp'), '2025-04-01').outputs.name.value]"
+    },
     "functionStorageName": {
       "type": "string",
       "metadata": {
@@ -3800,12 +3825,12 @@
       },
       "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'functionStorage'), '2025-04-01').outputs.name.value]"
     },
-    "integrationStorageName": {
+    "archiveStorageName": {
       "type": "string",
       "metadata": {
-        "description": "Integration Storage Account name"
+        "description": "Archive Storage Account name"
       },
-      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationStorage'), '2025-04-01').outputs.name.value]"
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'archiveStorage'), '2025-04-01').outputs.name.value]"
     },
     "integrationKeyVaultName": {
       "type": "string",
@@ -3820,34 +3845,6 @@
         "description": "Integration Key Vault URI"
       },
       "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'integrationKeyVault'), '2025-04-01').outputs.uri.value]"
-    },
-    "blobApiConnectionId": {
-      "type": "string",
-      "metadata": {
-        "description": "Blob API Connection ID"
-      },
-      "value": "[if(parameters('enableBlobApiConnection'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'blobApiConnection'), '2025-04-01').outputs.id.value, '')]"
-    },
-    "blobApiConnectionName": {
-      "type": "string",
-      "metadata": {
-        "description": "Blob API Connection name"
-      },
-      "value": "[if(parameters('enableBlobApiConnection'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'blobApiConnection'), '2025-04-01').outputs.name.value, '')]"
-    },
-    "tableApiConnectionId": {
-      "type": "string",
-      "metadata": {
-        "description": "Table API Connection ID"
-      },
-      "value": "[if(parameters('enableTableApiConnection'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'tableApiConnection'), '2025-04-01').outputs.id.value, '')]"
-    },
-    "tableApiConnectionName": {
-      "type": "string",
-      "metadata": {
-        "description": "Table API Connection name"
-      },
-      "value": "[if(parameters('enableTableApiConnection'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'tableApiConnection'), '2025-04-01').outputs.name.value, '')]"
     }
   }
 }
