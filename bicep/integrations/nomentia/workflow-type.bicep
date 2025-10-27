@@ -44,6 +44,12 @@ param processWorkflowDefinition object
 @description('Common workflow definition')
 param commonWorkflowDefinition object
 
+@description('Enable IP-based access restrictions for run history (contents). Triggers will use "Only other Logic Apps" mode.')
+param enableContentIpRestrictions bool = true
+
+@description('Array of allowed caller IP addresses (CIDR notation) for viewing run history - configured centrally in config/settings.json')
+param allowedCallerIpAddresses array
+
 // ============================================================================
 // Variables
 // ============================================================================
@@ -104,6 +110,8 @@ module starterLogicApp '../../modules/logicAppConsumption.bicep' = {
     workflowDefinition: starterWorkflowDefinition
     managedIdentityId: commonManagedIdentity.id
     state: 'Enabled'
+    enableContentIpRestrictions: enableContentIpRestrictions
+    allowedCallerIpAddresses: allowedCallerIpAddresses
   }
 }
 
@@ -118,6 +126,8 @@ module processLogicApp '../../modules/logicAppConsumption.bicep' = {
     workflowDefinition: processWorkflowDefinition
     managedIdentityId: commonManagedIdentity.id
     state: 'Enabled'
+    enableContentIpRestrictions: enableContentIpRestrictions
+    allowedCallerIpAddresses: allowedCallerIpAddresses
   }
 }
 
@@ -132,6 +142,8 @@ module commonLogicApp '../../modules/logicAppConsumption.bicep' = {
     workflowDefinition: commonWorkflowDefinition
     managedIdentityId: commonManagedIdentity.id
     state: 'Enabled'
+    enableContentIpRestrictions: enableContentIpRestrictions
+    allowedCallerIpAddresses: allowedCallerIpAddresses
   }
 }
 
@@ -151,14 +163,8 @@ output processLogicAppName string = processLogicApp.outputs.name
 @description('Process Logic App ID')
 output processLogicAppId string = processLogicApp.outputs.id
 
-@description('Process Logic App callback URL')
-output processLogicAppCallbackUrl string = processLogicApp.outputs.callbackUrl
-
 @description('Common Logic App name')
 output commonLogicAppName string = commonLogicApp.outputs.name
 
 @description('Common Logic App ID')
 output commonLogicAppId string = commonLogicApp.outputs.id
-
-@description('Common Logic App callback URL')
-output commonLogicAppCallbackUrl string = commonLogicApp.outputs.callbackUrl

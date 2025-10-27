@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "1276956074060704933"
+      "templateHash": "2376039955719441457"
     }
   },
   "parameters": {
@@ -99,7 +99,12 @@
         "state": "[parameters('state')]",
         "definition": "[parameters('workflowDefinition')]",
         "parameters": "[if(not(empty(parameters('connections'))), union(parameters('workflowParameters'), createObject('$connections', createObject('value', parameters('connections')))), parameters('workflowParameters'))]",
-        "accessControl": "[if(parameters('enableContentIpRestrictions'), createObject('contents', createObject('allowedCallerIpAddresses', variables('ipAddressRanges'))), null())]"
+        "accessControl": {
+          "triggers": {
+            "allowedCallerIpAddresses": []
+          },
+          "contents": "[if(parameters('enableContentIpRestrictions'), createObject('allowedCallerIpAddresses', variables('ipAddressRanges')), createObject('allowedCallerIpAddresses', createArray()))]"
+        }
       }
     }
   ],
@@ -124,13 +129,6 @@
         "description": "Logic App principal ID"
       },
       "value": "[if(not(empty(parameters('managedIdentityId'))), '', reference(resourceId('Microsoft.Logic/workflows', parameters('logicAppName')), '2019-05-01', 'full').identity.principalId)]"
-    },
-    "callbackUrl": {
-      "type": "string",
-      "metadata": {
-        "description": "Logic App callback URL for manual/request triggers"
-      },
-      "value": "[listCallbackUrl(format('{0}/triggers/manual', resourceId('Microsoft.Logic/workflows', parameters('logicAppName'))), '2019-05-01').value]"
     }
   }
 }

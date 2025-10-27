@@ -163,14 +163,8 @@ output processLogicAppName string = processLogicApp.outputs.name
 @description('Process Logic App ID')
 output processLogicAppId string = processLogicApp.outputs.id
 
-@description('Process Logic App callback URL')
-output processLogicAppCallbackUrl string = processLogicApp.outputs.callbackUrl
-
 @description('Common Logic App name')
 output commonLogicAppName string = commonLogicApp.outputs.name
 
 @description('Common Logic App ID')
 output commonLogicAppId string = commonLogicApp.outputs.id
-
-@description('Common Logic App callback URL')
-output commonLogicAppCallbackUrl string = commonLogicApp.outputs.callbackUrl

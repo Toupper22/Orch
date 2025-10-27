@@ -57,11 +57,16 @@ resource logicApp 'Microsoft.Logic/workflows@2019-05-01' = {
         value: connections
       }
     }) : workflowParameters
-    accessControl: enableContentIpRestrictions ? {
-      contents: {
-        allowedCallerIpAddresses: ipAddressRanges
+    accessControl: {
+      triggers: {
+        allowedCallerIpAddresses: []  // Empty array = "Only other Logic Apps" mode
       }
-    } : null
+      contents: enableContentIpRestrictions ? {
+        allowedCallerIpAddresses: ipAddressRanges
+      } : {
+        allowedCallerIpAddresses: []
+      }
+    }
   }
 }
 
@@ -74,7 +79,3 @@ output name string = logicApp.name
 
 @description('Logic App principal ID')
 output principalId string = !empty(managedIdentityId) ? '' : logicApp.identity.principalId
-
-@description('Logic App callback URL for manual/request triggers')
-#disable-next-line outputs-should-not-contain-secrets
-output callbackUrl string = listCallbackUrl('${logicApp.id}/triggers/manual', '2019-05-01').value

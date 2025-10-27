@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "16578773331644588407"
+      "templateHash": "10625352127122032754"
     }
   },
   "parameters": {
@@ -144,7 +144,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "1276956074060704933"
+              "templateHash": "15035312925722194828"
             }
           },
           "parameters": {
@@ -263,13 +263,6 @@
                 "description": "Logic App principal ID"
               },
               "value": "[if(not(empty(parameters('managedIdentityId'))), '', reference(resourceId('Microsoft.Logic/workflows', parameters('logicAppName')), '2019-05-01', 'full').identity.principalId)]"
-            },
-            "callbackUrl": {
-              "type": "string",
-              "metadata": {
-                "description": "Logic App callback URL for manual/request triggers"
-              },
-              "value": "[listCallbackUrl(format('{0}/triggers/manual', resourceId('Microsoft.Logic/workflows', parameters('logicAppName'))), '2019-05-01').value]"
             }
           }
         }
@@ -318,7 +311,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "1276956074060704933"
+              "templateHash": "15035312925722194828"
             }
           },
           "parameters": {
@@ -437,13 +430,6 @@
                 "description": "Logic App principal ID"
               },
               "value": "[if(not(empty(parameters('managedIdentityId'))), '', reference(resourceId('Microsoft.Logic/workflows', parameters('logicAppName')), '2019-05-01', 'full').identity.principalId)]"
-            },
-            "callbackUrl": {
-              "type": "string",
-              "metadata": {
-                "description": "Logic App callback URL for manual/request triggers"
-              },
-              "value": "[listCallbackUrl(format('{0}/triggers/manual', resourceId('Microsoft.Logic/workflows', parameters('logicAppName'))), '2019-05-01').value]"
             }
           }
         }
@@ -492,7 +478,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "1276956074060704933"
+              "templateHash": "15035312925722194828"
             }
           },
           "parameters": {
@@ -611,13 +597,6 @@
                 "description": "Logic App principal ID"
               },
               "value": "[if(not(empty(parameters('managedIdentityId'))), '', reference(resourceId('Microsoft.Logic/workflows', parameters('logicAppName')), '2019-05-01', 'full').identity.principalId)]"
-            },
-            "callbackUrl": {
-              "type": "string",
-              "metadata": {
-                "description": "Logic App callback URL for manual/request triggers"
-              },
-              "value": "[listCallbackUrl(format('{0}/triggers/manual', resourceId('Microsoft.Logic/workflows', parameters('logicAppName'))), '2019-05-01').value]"
             }
           }
         }
@@ -653,13 +632,6 @@
       },
       "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('process-{0}', parameters('workflowType'))), '2025-04-01').outputs.id.value]"
     },
-    "processLogicAppCallbackUrl": {
-      "type": "string",
-      "metadata": {
-        "description": "Process Logic App callback URL"
-      },
-      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('process-{0}', parameters('workflowType'))), '2025-04-01').outputs.callbackUrl.value]"
-    },
     "commonLogicAppName": {
       "type": "string",
       "metadata": {
@@ -673,13 +645,6 @@
         "description": "Common Logic App ID"
       },
       "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('common-{0}', parameters('workflowType'))), '2025-04-01').outputs.id.value]"
-    },
-    "commonLogicAppCallbackUrl": {
-      "type": "string",
-      "metadata": {
-        "description": "Common Logic App callback URL"
-      },
-      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('common-{0}', parameters('workflowType'))), '2025-04-01').outputs.callbackUrl.value]"
     }
   }
 }
