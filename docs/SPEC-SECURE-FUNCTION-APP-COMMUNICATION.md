@@ -4,7 +4,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 1.0.0 |
+| **Version** | 1.1.0 |
 | **Status** | Draft |
 | **Created** | 2026-01-19 |
 | **Author** | Architecture Team |
@@ -22,12 +22,13 @@
 6. [Storage Account Security](#6-storage-account-security)
 7. [Key Vault Security](#7-key-vault-security)
 8. [Function App Configuration](#8-function-app-configuration)
-9. [Bicep Module Changes](#9-bicep-module-changes)
-10. [Implementation Plan](#10-implementation-plan)
-11. [Testing and Validation](#11-testing-and-validation)
-12. [Monitoring and Diagnostics](#12-monitoring-and-diagnostics)
-13. [Rollback Strategy](#13-rollback-strategy)
-14. [Security Checklist](#14-security-checklist)
+9. [Remote Client Access Patterns](#9-remote-client-access-patterns)
+10. [Bicep Module Changes](#10-bicep-module-changes)
+11. [Implementation Plan](#11-implementation-plan)
+12. [Testing and Validation](#12-testing-and-validation)
+13. [Monitoring and Diagnostics](#13-monitoring-and-diagnostics)
+14. [Rollback Strategy](#14-rollback-strategy)
+15. [Security Checklist](#15-security-checklist)
 
 ---
 
@@ -494,9 +495,889 @@ siteConfig: {
 
 ---
 
-## 9. Bicep Module Changes
+## 9. Remote Client Access Patterns
 
-### 9.1 New Modules Required
+This section describes how external/remote clients can securely call the Function App to read/write files and retrieve secrets.
+
+### 9.1 Architecture Overview
+
+```
+                                        ┌─────────────────────────────────────────────────┐
+                                        │              Azure Subscription                  │
+                                        │                                                  │
+┌──────────────────┐                   │  ┌─────────────────────────────────────────────┐│
+│  Remote Clients  │                   │  │           Virtual Network                    ││
+│                  │                   │  │                                              ││
+│  • Web Apps      │    HTTPS/443      │  │  ┌──────────────────────────────────────┐  ││
+│  • Mobile Apps   │ ──────────────────┼──┼─▶│  Option A: Public Function App       │  ││
+│  • Partner APIs  │                   │  │  │  (with access restrictions)          │  ││
+│  • On-Premises   │                   │  │  └──────────────────────────────────────┘  ││
+│                  │                   │  │                     │                       ││
+└──────────────────┘                   │  │                     │ VNet Integration      ││
+        │                              │  │                     ▼                       ││
+        │                              │  │  ┌──────────────────────────────────────┐  ││
+        │    Option B: API Management  │  │  │     Private Endpoints               │  ││
+        └──────────────────────────────┼──┼─▶│  • Storage Account                   │  ││
+                                       │  │  │  • Key Vault                         │  ││
+        │    Option C: App Gateway     │  │  └──────────────────────────────────────┘  ││
+        └──────────────────────────────┼──┤                                              ││
+                                       │  └─────────────────────────────────────────────┘│
+        │    Option D: VPN/ExpressRoute│                                                  │
+        └──────────────────────────────┼──────────────────────────────────────────────────┤
+                                       │                                                  │
+                                       └──────────────────────────────────────────────────┘
+```
+
+### 9.2 Option A: Public Function App with Access Restrictions (Recommended for Most Cases)
+
+The Function App maintains a public endpoint but with strict access restrictions. The Function App uses VNet integration for **outbound** calls to Storage and Key Vault.
+
+#### 9.2.1 Configuration
+
+```bicep
+resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
+  properties: {
+    publicNetworkAccess: 'Enabled'  // Allow inbound from internet
+    virtualNetworkSubnetId: integrationSubnetId  // VNet for outbound
+    siteConfig: {
+      ipSecurityRestrictions: [
+        {
+          name: 'AllowSpecificIPs'
+          ipAddress: '203.0.113.0/24'  // Your client IP range
+          action: 'Allow'
+          priority: 100
+        }
+        {
+          name: 'AllowAzureServices'
+          ipAddress: 'AzureCloud'
+          tag: 'ServiceTag'
+          action: 'Allow'
+          priority: 200
+        }
+        {
+          name: 'DenyAll'
+          ipAddress: 'Any'
+          action: 'Deny'
+          priority: 2147483647
+        }
+      ]
+      ipSecurityRestrictionsDefaultAction: 'Deny'
+    }
+  }
+}
+```
+
+#### 9.2.2 Client Authentication
+
+```csharp
+// Client code to call the Function App
+using var client = new HttpClient();
+
+// Option 1: Function Key Authentication
+client.DefaultRequestHeaders.Add("x-functions-key", "<function-key>");
+
+// Option 2: Azure AD Authentication (Recommended)
+var credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
+var token = await credential.GetTokenAsync(new TokenRequestContext(
+    new[] { "api://<function-app-client-id>/.default" }));
+client.DefaultRequestHeaders.Authorization = 
+    new AuthenticationHeaderValue("Bearer", token.Token);
+
+// Call the Function App
+var response = await client.PostAsync(
+    "https://<function-app>.azurewebsites.net/api/files/upload",
+    new StringContent(jsonPayload, Encoding.UTF8, "application/json"));
+```
+
+#### 9.2.3 Function App API Endpoints
+
+```csharp
+// Function to write files to Storage (via private endpoint)
+[Function("UploadFile")]
+public async Task<HttpResponseData> UploadFile(
+    [HttpTrigger(AuthorizationLevel.Function, "post", Route = "files/upload")] 
+    HttpRequestData req)
+{
+    var blobClient = _blobServiceClient.GetBlobContainerClient("uploads")
+        .GetBlobClient(fileName);
+    
+    await blobClient.UploadAsync(fileStream, overwrite: true);
+    
+    return req.CreateResponse(HttpStatusCode.Created);
+}
+
+// Function to read files from Storage (via private endpoint)
+[Function("DownloadFile")]
+public async Task<HttpResponseData> DownloadFile(
+    [HttpTrigger(AuthorizationLevel.Function, "get", Route = "files/{fileName}")] 
+    HttpRequestData req, string fileName)
+{
+    var blobClient = _blobServiceClient.GetBlobContainerClient("uploads")
+        .GetBlobClient(fileName);
+    
+    var download = await blobClient.DownloadContentAsync();
+    
+    var response = req.CreateResponse(HttpStatusCode.OK);
+    response.Body = download.Value.Content.ToStream();
+    return response;
+}
+
+// Function to get secrets from Key Vault (via private endpoint)
+[Function("GetConfiguration")]
+public async Task<HttpResponseData> GetConfiguration(
+    [HttpTrigger(AuthorizationLevel.Function, "get", Route = "config/{secretName}")] 
+    HttpRequestData req, string secretName)
+{
+    var secret = await _secretClient.GetSecretAsync(secretName);
+    
+    var response = req.CreateResponse(HttpStatusCode.OK);
+    await response.WriteAsJsonAsync(new { value = secret.Value.Value });
+    return response;
+}
+```
+
+### 9.3 Option B: Azure API Management (Enterprise Grade)
+
+For enterprise scenarios requiring advanced features like rate limiting, caching, and API versioning.
+
+#### 9.3.1 Architecture
+
+```
+Remote Client → API Management (Public) → Function App (Private) → Storage/KeyVault
+```
+
+#### 9.3.2 Configuration
+
+```bicep
+resource apiManagement 'Microsoft.ApiManagement/service@2023-03-01-preview' = {
+  name: apiManagementName
+  location: location
+  sku: {
+    name: 'Developer'  // Use 'Premium' for VNet integration
+    capacity: 1
+  }
+  properties: {
+    publisherEmail: 'admin@contoso.com'
+    publisherName: 'Contoso'
+    virtualNetworkType: 'External'  // or 'Internal' for full private
+    virtualNetworkConfiguration: {
+      subnetResourceId: apimSubnetId
+    }
+  }
+}
+
+// API Definition
+resource api 'Microsoft.ApiManagement/service/apis@2023-03-01-preview' = {
+  parent: apiManagement
+  name: 'file-api'
+  properties: {
+    displayName: 'File Management API'
+    path: 'files'
+    protocols: ['https']
+    serviceUrl: 'https://${functionApp.properties.defaultHostName}/api'
+  }
+}
+```
+
+#### 9.3.3 APIM Policy for Authentication
+
+```xml
+<policies>
+  <inbound>
+    <base />
+    <validate-jwt header-name="Authorization" require-scheme="Bearer">
+      <openid-config url="https://login.microsoftonline.com/{tenant-id}/v2.0/.well-known/openid-configuration" />
+      <required-claims>
+        <claim name="aud" match="all">
+          <value>api://{api-client-id}</value>
+        </claim>
+      </required-claims>
+    </validate-jwt>
+    <set-header name="x-functions-key" exists-action="override">
+      <value>{{function-key}}</value>
+    </set-header>
+    <rate-limit calls="100" renewal-period="60" />
+  </inbound>
+</policies>
+```
+
+### 9.4 Option C: Azure Application Gateway with WAF
+
+For scenarios requiring Web Application Firewall protection.
+
+#### 9.4.1 Architecture
+
+```
+Remote Client → Application Gateway (WAF) → Function App (Private Endpoint) → Storage/KeyVault
+```
+
+#### 9.4.2 Configuration
+
+```bicep
+resource applicationGateway 'Microsoft.Network/applicationGateways@2023-09-01' = {
+  name: appGatewayName
+  location: location
+  properties: {
+    sku: {
+      name: 'WAF_v2'
+      tier: 'WAF_v2'
+      capacity: 2
+    }
+    webApplicationFirewallConfiguration: {
+      enabled: true
+      firewallMode: 'Prevention'
+      ruleSetType: 'OWASP'
+      ruleSetVersion: '3.2'
+    }
+    backendAddressPools: [
+      {
+        name: 'functionAppPool'
+        properties: {
+          backendAddresses: [
+            {
+              fqdn: '${functionAppName}.azurewebsites.net'
+            }
+          ]
+        }
+      }
+    ]
+    // ... additional configuration
+  }
+}
+```
+
+### 9.5 Option D: Private Function App with VPN/ExpressRoute
+
+For on-premises clients or full private network scenarios.
+
+#### 9.5.1 Architecture
+
+```
+On-Premises Client → VPN Gateway/ExpressRoute → VNet → Function App (Private Endpoint) → Storage/KeyVault
+```
+
+#### 9.5.2 Function App Private Endpoint
+
+```bicep
+// Make Function App fully private
+resource functionAppPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01' = {
+  name: '${functionAppName}-pe'
+  location: location
+  properties: {
+    subnet: {
+      id: privateEndpointSubnetId
+    }
+    privateLinkServiceConnections: [
+      {
+        name: '${functionAppName}-connection'
+        properties: {
+          privateLinkServiceId: functionApp.id
+          groupIds: ['sites']
+        }
+      }
+    ]
+  }
+}
+
+// Disable public access
+resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
+  properties: {
+    publicNetworkAccess: 'Disabled'
+    // ...
+  }
+}
+```
+
+#### 9.5.3 VPN Gateway Configuration
+
+```bicep
+resource vpnGateway 'Microsoft.Network/virtualNetworkGateways@2023-09-01' = {
+  name: vpnGatewayName
+  location: location
+  properties: {
+    gatewayType: 'Vpn'
+    vpnType: 'RouteBased'
+    sku: {
+      name: 'VpnGw1'
+      tier: 'VpnGw1'
+    }
+    ipConfigurations: [
+      {
+        name: 'vnetGatewayConfig'
+        properties: {
+          subnet: {
+            id: gatewaySubnetId
+          }
+          publicIPAddress: {
+            id: vpnPublicIp.id
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+### 9.6 Client SDK Examples
+
+#### 9.6.1 C# Client
+
+```csharp
+public class SecureFileClient
+{
+    private readonly HttpClient _httpClient;
+    private readonly string _baseUrl;
+    private readonly TokenCredential _credential;
+    
+    public SecureFileClient(string functionAppUrl, TokenCredential credential)
+    {
+        _baseUrl = functionAppUrl;
+        _credential = credential;
+        _httpClient = new HttpClient();
+    }
+    
+    private async Task<string> GetAccessTokenAsync()
+    {
+        var token = await _credential.GetTokenAsync(
+            new TokenRequestContext(new[] { "api://<app-id>/.default" }), 
+            CancellationToken.None);
+        return token.Token;
+    }
+    
+    // Upload a file to Storage via Function App
+    public async Task<bool> UploadFileAsync(string fileName, Stream content)
+    {
+        var token = await GetAccessTokenAsync();
+        _httpClient.DefaultRequestHeaders.Authorization = 
+            new AuthenticationHeaderValue("Bearer", token);
+        
+        using var formContent = new MultipartFormDataContent();
+        formContent.Add(new StreamContent(content), "file", fileName);
+        
+        var response = await _httpClient.PostAsync(
+            $"{_baseUrl}/api/files/upload", formContent);
+        
+        return response.IsSuccessStatusCode;
+    }
+    
+    // Download a file from Storage via Function App
+    public async Task<Stream> DownloadFileAsync(string fileName)
+    {
+        var token = await GetAccessTokenAsync();
+        _httpClient.DefaultRequestHeaders.Authorization = 
+            new AuthenticationHeaderValue("Bearer", token);
+        
+        var response = await _httpClient.GetAsync(
+            $"{_baseUrl}/api/files/{fileName}");
+        
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsStreamAsync();
+    }
+    
+    // Get a secret from Key Vault via Function App
+    public async Task<string> GetSecretAsync(string secretName)
+    {
+        var token = await GetAccessTokenAsync();
+        _httpClient.DefaultRequestHeaders.Authorization = 
+            new AuthenticationHeaderValue("Bearer", token);
+        
+        var response = await _httpClient.GetAsync(
+            $"{_baseUrl}/api/config/{secretName}");
+        
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<SecretResponse>();
+        return result?.Value ?? string.Empty;
+    }
+}
+
+// Usage
+var credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
+var client = new SecureFileClient("https://myfunction.azurewebsites.net", credential);
+
+// Upload file
+await client.UploadFileAsync("document.pdf", fileStream);
+
+// Download file
+var downloadStream = await client.DownloadFileAsync("document.pdf");
+
+// Get secret
+var connectionString = await client.GetSecretAsync("DatabaseConnectionString");
+```
+
+#### 9.6.2 Python Client
+
+```python
+import requests
+from azure.identity import ClientSecretCredential
+
+class SecureFileClient:
+    def __init__(self, function_app_url: str, tenant_id: str, client_id: str, client_secret: str):
+        self.base_url = function_app_url
+        self.credential = ClientSecretCredential(
+            tenant_id=tenant_id,
+            client_id=client_id,
+            client_secret=client_secret
+        )
+        self.scope = f"api://{client_id}/.default"
+    
+    def _get_headers(self) -> dict:
+        token = self.credential.get_token(self.scope)
+        return {
+            "Authorization": f"Bearer {token.token}",
+            "Content-Type": "application/json"
+        }
+    
+    def upload_file(self, file_name: str, content: bytes) -> bool:
+        """Upload a file to Storage via Function App"""
+        headers = self._get_headers()
+        del headers["Content-Type"]  # Let requests set it for multipart
+        
+        files = {"file": (file_name, content)}
+        response = requests.post(
+            f"{self.base_url}/api/files/upload",
+            headers=headers,
+            files=files
+        )
+        return response.status_code == 201
+    
+    def download_file(self, file_name: str) -> bytes:
+        """Download a file from Storage via Function App"""
+        headers = self._get_headers()
+        response = requests.get(
+            f"{self.base_url}/api/files/{file_name}",
+            headers=headers
+        )
+        response.raise_for_status()
+        return response.content
+    
+    def get_secret(self, secret_name: str) -> str:
+        """Get a secret from Key Vault via Function App"""
+        headers = self._get_headers()
+        response = requests.get(
+            f"{self.base_url}/api/config/{secret_name}",
+            headers=headers
+        )
+        response.raise_for_status()
+        return response.json().get("value", "")
+
+# Usage
+client = SecureFileClient(
+    function_app_url="https://myfunction.azurewebsites.net",
+    tenant_id="<tenant-id>",
+    client_id="<client-id>",
+    client_secret="<client-secret>"
+)
+
+# Upload file
+with open("document.pdf", "rb") as f:
+    client.upload_file("document.pdf", f.read())
+
+# Download file
+content = client.download_file("document.pdf")
+
+# Get secret
+connection_string = client.get_secret("DatabaseConnectionString")
+```
+
+#### 9.6.3 PowerShell Client
+
+```powershell
+function Get-FunctionAppToken {
+    param(
+        [string]$TenantId,
+        [string]$ClientId,
+        [string]$ClientSecret,
+        [string]$Scope
+    )
+    
+    $body = @{
+        grant_type    = "client_credentials"
+        client_id     = $ClientId
+        client_secret = $ClientSecret
+        scope         = $Scope
+    }
+    
+    $response = Invoke-RestMethod -Method Post `
+        -Uri "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token" `
+        -ContentType "application/x-www-form-urlencoded" `
+        -Body $body
+    
+    return $response.access_token
+}
+
+function Upload-FileToFunctionApp {
+    param(
+        [string]$FunctionAppUrl,
+        [string]$Token,
+        [string]$FilePath
+    )
+    
+    $fileName = Split-Path $FilePath -Leaf
+    $fileContent = [System.IO.File]::ReadAllBytes($FilePath)
+    
+    $headers = @{
+        "Authorization" = "Bearer $Token"
+    }
+    
+    $form = @{
+        file = Get-Item -Path $FilePath
+    }
+    
+    Invoke-RestMethod -Method Post `
+        -Uri "$FunctionAppUrl/api/files/upload" `
+        -Headers $headers `
+        -Form $form
+}
+
+function Get-SecretFromFunctionApp {
+    param(
+        [string]$FunctionAppUrl,
+        [string]$Token,
+        [string]$SecretName
+    )
+    
+    $headers = @{
+        "Authorization" = "Bearer $Token"
+        "Content-Type"  = "application/json"
+    }
+    
+    $response = Invoke-RestMethod -Method Get `
+        -Uri "$FunctionAppUrl/api/config/$SecretName" `
+        -Headers $headers
+    
+    return $response.value
+}
+
+# Usage
+$token = Get-FunctionAppToken `
+    -TenantId "<tenant-id>" `
+    -ClientId "<client-id>" `
+    -ClientSecret "<client-secret>" `
+    -Scope "api://<app-id>/.default"
+
+# Upload file
+Upload-FileToFunctionApp `
+    -FunctionAppUrl "https://myfunction.azurewebsites.net" `
+    -Token $token `
+    -FilePath "C:\Documents\report.pdf"
+
+# Get secret
+$connectionString = Get-SecretFromFunctionApp `
+    -FunctionAppUrl "https://myfunction.azurewebsites.net" `
+    -Token $token `
+    -SecretName "DatabaseConnectionString"
+```
+
+### 9.7 Function App Implementation
+
+Complete Function App implementation for handling client requests:
+
+```csharp
+using Azure.Identity;
+using Azure.Security.KeyVault.Secrets;
+using Azure.Storage.Blobs;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Extensions.Logging;
+using System.Net;
+
+public class FileManagementFunctions
+{
+    private readonly ILogger<FileManagementFunctions> _logger;
+    private readonly BlobServiceClient _blobServiceClient;
+    private readonly SecretClient _secretClient;
+    
+    public FileManagementFunctions(
+        ILogger<FileManagementFunctions> logger,
+        BlobServiceClient blobServiceClient,
+        SecretClient secretClient)
+    {
+        _logger = logger;
+        _blobServiceClient = blobServiceClient;
+        _secretClient = secretClient;
+    }
+    
+    /// <summary>
+    /// Upload file to blob storage (Storage behind private endpoint)
+    /// POST /api/files/upload
+    /// </summary>
+    [Function("UploadFile")]
+    public async Task<HttpResponseData> UploadFile(
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "files/upload")] 
+        HttpRequestData req)
+    {
+        try
+        {
+            var formData = await req.ReadFormAsync();
+            var file = formData.Files.FirstOrDefault();
+            
+            if (file == null)
+            {
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "No file provided" });
+                return badRequest;
+            }
+            
+            var containerClient = _blobServiceClient.GetBlobContainerClient("uploads");
+            await containerClient.CreateIfNotExistsAsync();
+            
+            var blobClient = containerClient.GetBlobClient(file.FileName);
+            await blobClient.UploadAsync(file.OpenReadStream(), overwrite: true);
+            
+            _logger.LogInformation("File {FileName} uploaded successfully", file.FileName);
+            
+            var response = req.CreateResponse(HttpStatusCode.Created);
+            await response.WriteAsJsonAsync(new 
+            { 
+                message = "File uploaded successfully",
+                fileName = file.FileName,
+                url = blobClient.Uri.ToString()
+            });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading file");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to upload file" });
+            return error;
+        }
+    }
+    
+    /// <summary>
+    /// Download file from blob storage
+    /// GET /api/files/{fileName}
+    /// </summary>
+    [Function("DownloadFile")]
+    public async Task<HttpResponseData> DownloadFile(
+        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "files/{fileName}")] 
+        HttpRequestData req,
+        string fileName)
+    {
+        try
+        {
+            var containerClient = _blobServiceClient.GetBlobContainerClient("uploads");
+            var blobClient = containerClient.GetBlobClient(fileName);
+            
+            if (!await blobClient.ExistsAsync())
+            {
+                var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                await notFound.WriteAsJsonAsync(new { error = "File not found" });
+                return notFound;
+            }
+            
+            var download = await blobClient.DownloadContentAsync();
+            
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            response.Headers.Add("Content-Type", "application/octet-stream");
+            response.Headers.Add("Content-Disposition", $"attachment; filename=\"{fileName}\"");
+            await response.WriteBytesAsync(download.Value.Content.ToArray());
+            
+            _logger.LogInformation("File {FileName} downloaded successfully", fileName);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error downloading file {FileName}", fileName);
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to download file" });
+            return error;
+        }
+    }
+    
+    /// <summary>
+    /// List files in storage
+    /// GET /api/files
+    /// </summary>
+    [Function("ListFiles")]
+    public async Task<HttpResponseData> ListFiles(
+        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "files")] 
+        HttpRequestData req)
+    {
+        try
+        {
+            var containerClient = _blobServiceClient.GetBlobContainerClient("uploads");
+            var files = new List<object>();
+            
+            await foreach (var blob in containerClient.GetBlobsAsync())
+            {
+                files.Add(new
+                {
+                    name = blob.Name,
+                    size = blob.Properties.ContentLength,
+                    lastModified = blob.Properties.LastModified,
+                    contentType = blob.Properties.ContentType
+                });
+            }
+            
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { files });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error listing files");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to list files" });
+            return error;
+        }
+    }
+    
+    /// <summary>
+    /// Get secret from Key Vault (Key Vault behind private endpoint)
+    /// GET /api/config/{secretName}
+    /// </summary>
+    [Function("GetSecret")]
+    public async Task<HttpResponseData> GetSecret(
+        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "config/{secretName}")] 
+        HttpRequestData req,
+        string secretName)
+    {
+        try
+        {
+            // Validate secret name to prevent unauthorized access
+            var allowedSecrets = new[] { "DatabaseConnectionString", "ApiKey", "ServiceEndpoint" };
+            if (!allowedSecrets.Contains(secretName, StringComparer.OrdinalIgnoreCase))
+            {
+                var forbidden = req.CreateResponse(HttpStatusCode.Forbidden);
+                await forbidden.WriteAsJsonAsync(new { error = "Access to this secret is not allowed" });
+                return forbidden;
+            }
+            
+            var secret = await _secretClient.GetSecretAsync(secretName);
+            
+            _logger.LogInformation("Secret {SecretName} retrieved successfully", secretName);
+            
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { value = secret.Value.Value });
+            return response;
+        }
+        catch (Azure.RequestFailedException ex) when (ex.Status == 404)
+        {
+            var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+            await notFound.WriteAsJsonAsync(new { error = "Secret not found" });
+            return notFound;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving secret {SecretName}", secretName);
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteAsJsonAsync(new { error = "Failed to retrieve secret" });
+            return error;
+        }
+    }
+    
+    /// <summary>
+    /// Health check endpoint
+    /// GET /api/health
+    /// </summary>
+    [Function("HealthCheck")]
+    public async Task<HttpResponseData> HealthCheck(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "health")] 
+        HttpRequestData req)
+    {
+        var healthStatus = new
+        {
+            status = "Healthy",
+            timestamp = DateTime.UtcNow,
+            checks = new
+            {
+                storage = await CheckStorageHealthAsync(),
+                keyVault = await CheckKeyVaultHealthAsync()
+            }
+        };
+        
+        var response = req.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(healthStatus);
+        return response;
+    }
+    
+    private async Task<object> CheckStorageHealthAsync()
+    {
+        try
+        {
+            var containerClient = _blobServiceClient.GetBlobContainerClient("uploads");
+            await containerClient.ExistsAsync();
+            return new { status = "Healthy", message = "Storage connection successful" };
+        }
+        catch (Exception ex)
+        {
+            return new { status = "Unhealthy", message = ex.Message };
+        }
+    }
+    
+    private async Task<object> CheckKeyVaultHealthAsync()
+    {
+        try
+        {
+            // Try to list secrets (doesn't expose values)
+            await foreach (var _ in _secretClient.GetPropertiesOfSecretsAsync().AsPages().Take(1))
+            {
+                break;
+            }
+            return new { status = "Healthy", message = "Key Vault connection successful" };
+        }
+        catch (Exception ex)
+        {
+            return new { status = "Unhealthy", message = ex.Message };
+        }
+    }
+}
+```
+
+### 9.8 Program.cs Configuration
+
+```csharp
+using Azure.Identity;
+using Azure.Security.KeyVault.Secrets;
+using Azure.Storage.Blobs;
+using Microsoft.Extensions.Azure;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+var host = new HostBuilder()
+    .ConfigureFunctionsWorkerDefaults()
+    .ConfigureServices((context, services) =>
+    {
+        // Use managed identity for authentication
+        var credential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
+        {
+            ManagedIdentityClientId = Environment.GetEnvironmentVariable("ManagedIdentityClientId")
+        });
+        
+        // Register BlobServiceClient with managed identity
+        var storageAccountName = Environment.GetEnvironmentVariable("IntegrationStorage__accountName");
+        services.AddSingleton(new BlobServiceClient(
+            new Uri($"https://{storageAccountName}.blob.core.windows.net"),
+            credential));
+        
+        // Register SecretClient with managed identity
+        var keyVaultUri = Environment.GetEnvironmentVariable("KeyVaultUri");
+        services.AddSingleton(new SecretClient(new Uri(keyVaultUri), credential));
+    })
+    .Build();
+
+await host.RunAsync();
+```
+
+### 9.9 Security Recommendations for Client Access
+
+| Recommendation | Priority | Description |
+|----------------|----------|-------------|
+| Use Azure AD Authentication | High | Always use OAuth 2.0/OIDC instead of function keys for production |
+| Implement IP Restrictions | High | Whitelist known client IP ranges |
+| Enable Rate Limiting | Medium | Use API Management or custom middleware |
+| Use HTTPS Only | High | Never allow HTTP connections |
+| Validate Input | High | Sanitize all file names and parameters |
+| Log All Access | High | Enable diagnostic logging for audit trail |
+| Rotate Secrets Regularly | Medium | Use Key Vault auto-rotation where possible |
+| Implement CORS | Medium | Restrict allowed origins for browser clients |
+
+---
+
+## 10. Bicep Module Changes
+
+### 11.1 New Modules Required
 
 #### 9.1.1 privateEndpoint.bicep
 
@@ -701,9 +1582,9 @@ param vnetPrivatePortsCount int = 2
 
 ---
 
-## 10. Implementation Plan
+## 11. Implementation Plan
 
-### 10.1 Phase 1: Foundation (Week 1)
+### 11.1 Phase 1: Foundation (Week 1)
 
 | Task | Description | Priority |
 |------|-------------|----------|
@@ -713,7 +1594,7 @@ param vnetPrivatePortsCount int = 2
 | 1.4 | Update `storageAccount.bicep` with private endpoint support | High |
 | 1.5 | Update `keyVault.bicep` with private endpoint support | High |
 
-### 10.2 Phase 2: Integration (Week 2)
+### 11.2 Phase 2: Integration (Week 2)
 
 | Task | Description | Priority |
 |------|-------------|----------|
@@ -723,7 +1604,7 @@ param vnetPrivatePortsCount int = 2
 | 2.4 | Create parameter file updates for all environments | Medium |
 | 2.5 | Update deployment workflows | Medium |
 
-### 10.3 Phase 3: Testing (Week 3)
+### 11.3 Phase 3: Testing (Week 3)
 
 | Task | Description | Priority |
 |------|-------------|----------|
@@ -733,7 +1614,7 @@ param vnetPrivatePortsCount int = 2
 | 3.4 | Test Storage Account operations | High |
 | 3.5 | Performance testing | Medium |
 
-### 10.4 Phase 4: Production Rollout (Week 4)
+### 11.4 Phase 4: Production Rollout (Week 4)
 
 | Task | Description | Priority |
 |------|-------------|----------|
@@ -745,9 +1626,9 @@ param vnetPrivatePortsCount int = 2
 
 ---
 
-## 11. Testing and Validation
+## 12. Testing and Validation
 
-### 11.1 Connectivity Tests
+### 12.1 Connectivity Tests
 
 ```powershell
 # Test Storage Account connectivity from Function App
@@ -764,7 +1645,7 @@ nslookup <key-vault>.vault.azure.net
 # Expected: Returns private IP (10.0.2.x)
 ```
 
-### 11.2 Function App Tests
+### 12.2 Function App Tests
 
 ```csharp
 // Health check endpoint to validate connectivity
@@ -791,7 +1672,7 @@ public async Task<HttpResponseData> HealthCheck(
 }
 ```
 
-### 11.3 Validation Checklist
+### 12.3 Validation Checklist
 
 | Test | Expected Result | Pass/Fail |
 |------|-----------------|-----------|
@@ -807,9 +1688,9 @@ public async Task<HttpResponseData> HealthCheck(
 
 ---
 
-## 12. Monitoring and Diagnostics
+## 13. Monitoring and Diagnostics
 
-### 12.1 Diagnostic Settings
+### 13.1 Diagnostic Settings
 
 Enable diagnostics for all resources:
 
@@ -839,7 +1720,7 @@ resource diagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-pr
 }
 ```
 
-### 12.2 Alerts
+### 13.2 Alerts
 
 #### Private Endpoint Connection Alerts
 
@@ -869,7 +1750,7 @@ resource privateEndpointAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
 }
 ```
 
-### 12.3 Log Analytics Queries
+### 13.3 Log Analytics Queries
 
 #### Query: Failed Private Endpoint Connections
 
@@ -894,16 +1775,16 @@ StorageBlobLogs
 
 ---
 
-## 13. Rollback Strategy
+## 14. Rollback Strategy
 
-### 13.1 Rollback Triggers
+### 14.1 Rollback Triggers
 
 - Function App cannot connect to Storage
 - Function App cannot retrieve secrets from Key Vault
 - Deployment failures
 - Performance degradation > 50%
 
-### 13.2 Rollback Steps
+### 14.2 Rollback Steps
 
 1. **Immediate**: Re-enable public access temporarily
    ```bicep
@@ -923,7 +1804,7 @@ StorageBlobLogs
 
 3. **Long-term**: Investigate and fix private endpoint issues
 
-### 13.3 Rollback Parameter File
+### 14.3 Rollback Parameter File
 
 Maintain a rollback parameter file for each environment:
 
@@ -939,9 +1820,9 @@ Maintain a rollback parameter file for each environment:
 
 ---
 
-## 14. Security Checklist
+## 15. Security Checklist
 
-### 14.1 Pre-Deployment
+### 15.1 Pre-Deployment
 
 - [ ] Private DNS zones created and linked to VNet
 - [ ] NSG rules reviewed and approved
@@ -951,7 +1832,7 @@ Maintain a rollback parameter file for each environment:
 - [ ] TLS 1.2 enforced on all resources
 - [ ] Diagnostic settings configured
 
-### 14.2 Post-Deployment
+### 15.2 Post-Deployment
 
 - [ ] DNS resolution verified (returns private IPs)
 - [ ] Function App connectivity tested
@@ -960,7 +1841,7 @@ Maintain a rollback parameter file for each environment:
 - [ ] Alerts configured and tested
 - [ ] Documentation updated
 
-### 14.3 Ongoing
+### 15.3 Ongoing
 
 - [ ] Regular security assessments
 - [ ] Network traffic analysis
@@ -1004,6 +1885,7 @@ Maintain a rollback parameter file for each environment:
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0.0 | 2026-01-19 | Architecture Team | Initial specification |
+| 1.1.0 | 2026-01-19 | Architecture Team | Added Section 9: Remote Client Access Patterns with detailed examples for C#, Python, and PowerShell clients |
 
 ---
 
