@@ -28,7 +28,7 @@ param publicNetworkAccessForQuery string = 'Enabled'
 @description('Workspace ID to link Application Insights to (if using workspace-based)')
 param workspaceResourceId string = ''
 
-resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
+resource applicationInsights 'Microsoft.Insights/components@2020-02-02-preview' = {
   name: name
   location: location
   tags: tags

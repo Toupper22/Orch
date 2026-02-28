@@ -1,0 +1,52 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'bicep/**'
+      - 'src/**'
+      - '.github/workflows/**'
+
+jobs:
+  validate-bicep:
+    name: Validate Bicep Templates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure CLI - Validate Bicep syntax
+        run: |
+          az bicep build --file bicep/common/main.bicep --stdout > /dev/null
+          echo "Common infrastructure template is valid"
+
+      - name: Validate integration templates
+        run: |
+          for dir in bicep/integrations/*/; do
+            if [ -f "${dir}main.bicep" ]; then
+              az bicep build --file "${dir}main.bicep" --stdout > /dev/null
+              echo "✓ ${dir}main.bicep is valid"
+            fi
+          done
+
+  build-dotnet:
+    name: Build .NET Solution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Add NuGet source
+        run: dotnet nuget update source EfimaFeed --username az --password ${{ secrets.ARTIFACTS_PAT }} --configfile nuget.config
+        env:
+          ARTIFACTS_PAT: ${{ secrets.ARTIFACTS_PAT }}
+
+      - name: Restore dependencies
+        run: dotnet restore src/Efima.IL.sln
+
+      - name: Build solution
+        run: dotnet build src/Efima.IL.sln --no-restore --configuration Release

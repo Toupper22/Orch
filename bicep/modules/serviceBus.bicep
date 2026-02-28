@@ -41,7 +41,7 @@ param enableDiagnostics bool = false
 param logAnalyticsWorkspaceId string = ''
 
 // Deploy Service Bus Namespace
-resource serviceBus 'Microsoft.ServiceBus/namespaces@2022-10-01-preview' = {
+resource serviceBus 'Microsoft.ServiceBus/namespaces@2024-01-01' = {
   name: serviceBusName
   location: location
   tags: tags
@@ -62,7 +62,7 @@ resource serviceBus 'Microsoft.ServiceBus/namespaces@2022-10-01-preview' = {
 }
 
 // Create queues
-resource serviceBusQueues 'Microsoft.ServiceBus/namespaces/queues@2022-10-01-preview' = [for queue in queues: {
+resource serviceBusQueues 'Microsoft.ServiceBus/namespaces/queues@2024-01-01' = [for queue in queues: {
   name: queue.name
   parent: serviceBus
   properties: {
@@ -79,7 +79,7 @@ resource serviceBusQueues 'Microsoft.ServiceBus/namespaces/queues@2022-10-01-pre
 }]
 
 // Create topics
-resource serviceBusTopics 'Microsoft.ServiceBus/namespaces/topics@2022-10-01-preview' = [for topic in topics: {
+resource serviceBusTopics 'Microsoft.ServiceBus/namespaces/topics@2024-01-01' = [for topic in topics: {
   name: topic.name
   parent: serviceBus
   properties: {
@@ -92,7 +92,7 @@ resource serviceBusTopics 'Microsoft.ServiceBus/namespaces/topics@2022-10-01-pre
 }]
 
 // Create subscriptions for topics
-resource serviceBusSubscriptions 'Microsoft.ServiceBus/namespaces/topics/subscriptions@2022-10-01-preview' = [for topic in topics: if (contains(topic, 'subscriptions')) {
+resource serviceBusSubscriptions 'Microsoft.ServiceBus/namespaces/topics/subscriptions@2024-01-01' = [for topic in topics: if (contains(topic, 'subscriptions')) {
   name: topic.subscriptions[0].name
   parent: serviceBusTopics[indexOf(topics, topic)]
   properties: {

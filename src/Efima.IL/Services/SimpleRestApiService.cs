@@ -28,7 +28,7 @@ public class SimpleRestApiService : ISimpleRestApiService
         // Make GET request to the REST API.
         HttpResponseMessage apiResp = await httpClient.GetAsync(url);
 
-        HandleErrorResp(url, apiResp);
+        await HandleErrorResp(url, apiResp);
 
         // Reuse the response content but clear headers other than content type & length.
         return new HttpResponseMessage(apiResp.StatusCode)
@@ -66,7 +66,7 @@ public class SimpleRestApiService : ISimpleRestApiService
             throw new NotImplementedException("Unsupported HttpMethod: " + method);
         }
 
-        HandleErrorResp(url, apiResp);
+        await HandleErrorResp(url, apiResp);
 
         var response = new HttpResponseMessage(apiResp.StatusCode);
 
@@ -117,11 +117,11 @@ public class SimpleRestApiService : ISimpleRestApiService
         return path + DefaultQuery;
     }
 
-    private static async void HandleErrorResp(string url, HttpResponseMessage response)
+    private static async Task HandleErrorResp(string url, HttpResponseMessage response)
     {
         if (!response.IsSuccessStatusCode)
         {
-            string bodyStr = await response.Content?.ReadAsStringAsync();
+            string bodyStr = response.Content != null ? await response.Content.ReadAsStringAsync() : null;
             throw new HttpRequestException($"Call to '{url}' failed.",
                 new HttpRequestException(bodyStr, null, response.StatusCode),
                 HttpStatusCode.BadGateway);

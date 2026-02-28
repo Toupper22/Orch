@@ -69,7 +69,7 @@ var azureBlobParams = connectionType == 'azureblob' && !empty(storageAccountReso
 var finalParameterValues = union(parameterValues, additionalParameterValues, azureTablesParams, azureBlobParams)
 
 // Deploy API Connection
-resource apiConnection 'Microsoft.Web/connections@2016-06-01' = {
+resource apiConnection 'Microsoft.Web/connections@2018-07-01-preview' = {
   name: connectionName
   location: location
   tags: tags

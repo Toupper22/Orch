@@ -112,6 +112,9 @@
     },
     "natGatewayIdleTimeoutInMinutes": {
       "value": 4
+    },
+    "allowedIpAddresses": {
+      "value": ["217.149.56.100"]
     }
   }
 }

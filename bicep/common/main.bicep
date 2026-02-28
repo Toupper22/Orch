@@ -217,6 +217,9 @@ param natGatewayIdleTimeoutInMinutes int = 4
 @maxValue(730)
 param applicationInsightsRetentionInDays int = 90
 
+@description('Allowed IP addresses for Key Vault and Storage Account firewall rules')
+param allowedIpAddresses array = []
+
 @description('Email addresses for alert notifications')
 param alertEmailReceivers array = []
 
@@ -412,22 +415,8 @@ module keyVault '../modules/keyVault.bicep' = if (deployKeyVault) {
     location: location
     tags: commonTags
     skuName: keyVaultSku
-    enableRbacAuthorization: false
-    accessPolicies: deployManagedIdentity ? [
-      {
-        tenantId: subscription().tenantId
-        objectId: managedIdentity!.outputs.principalId
-        permissions: {
-          secrets: [
-            'get'
-            'list'
-            'set'
-          ]
-          keys: []
-          certificates: []
-        }
-      }
-    ] : []
+    enableRbacAuthorization: true
+    accessPolicies: []
     enableSoftDelete: true
     softDeleteRetentionInDays: keyVaultSoftDeleteRetentionInDays
     enablePurgeProtection: environment == 'prod'
@@ -436,11 +425,9 @@ module keyVault '../modules/keyVault.bicep' = if (deployKeyVault) {
     networkAcls: {
       defaultAction: 'Deny'
       bypass: 'AzureServices'
-      ipRules: [
-        {
-          value: '217.149.56.100'
-        }
-      ]
+      ipRules: [for ip in allowedIpAddresses: {
+        value: ip
+      }]
       virtualNetworkRules: deployVirtualNetwork ? [
         {
           id: '${virtualNetwork!.outputs.id}/subnets/integration-subnet'
@@ -473,9 +460,7 @@ module storageAccount '../modules/storageAccount.bicep' = if (deployStorageAccou
     enableDiagnostics: enableDiagnostics
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     networkAclDefaultAction: 'Deny'
-    ipRules: [
-      '217.149.56.100'
-    ]
+    ipRules: allowedIpAddresses
     virtualNetworkRules: deployVirtualNetwork ? [
       '${virtualNetwork!.outputs.id}/subnets/integration-subnet'
     ] : []
@@ -749,8 +734,18 @@ module exceptionsAlert '../modules/metricAlert.bicep' = if (deployApplicationIns
 // To grant User Access Administrator role to your service principal:
 // az role assignment create --assignee <app-id> --role "User Access Administrator" --scope /subscriptions/<subscription-id>/resourceGroups/<resource-group-name>
 
-// Note: Key Vault now uses Access Policies instead of RBAC
-// Access policies are configured directly in the Key Vault module
+// Key Vault Secrets User role: 4633458b-17de-408a-b874-0445c86b69e6
+var keyVaultSecretsUserRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
+
+module keyVaultRoleAssignment '../modules/rbacAssignment.bicep' = if (deployManagedIdentity && deployKeyVault) {
+  name: 'keyVaultRoleAssignment'
+  scope: commonResourceGroup
+  params: {
+    principalId: deployManagedIdentity ? managedIdentity!.outputs.principalId : ''
+    roleDefinitionId: keyVaultSecretsUserRoleId
+    principalType: 'ServicePrincipal'
+  }
+}
 
 // Storage Blob Data Contributor role: ba92f5b4-2d11-453d-a403-e96b0029c9fe
 var storageBlobDataContributorRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
